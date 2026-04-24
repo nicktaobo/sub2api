@@ -25,3 +25,9 @@ test-e2e:
 
 test-e2e-local:
 	go test -tags=e2e -v -timeout=300s ./internal/integration/...
+
+
+build_prd: 
+	@echo ">> make package..."
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -tags embed -o ../sub2api ./cmd/server
+# 	@go build -ldflags="-s -w" -tags embed -o ../sub2api ./cmd/server
