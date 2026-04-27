@@ -2,7 +2,7 @@ server=DMIT_newapi
 echo "deploying to prd..."
 echo ">> making file..."
 cd frontend
-# pnpm run build
+pnpm run build
 wait
 cd ../backend
 echo ">> build backend..."
