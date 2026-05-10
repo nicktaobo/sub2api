@@ -39,6 +39,11 @@ type UsageBillingCommand struct {
 	APIKeyQuotaCost     float64
 	APIKeyRateLimitCost float64
 	AccountQuotaCost    float64
+
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1)
+	// 互斥：每次最多有一个非 nil。owner 自用→Ledger（同步）；sub_user markup→Outbox（异步）
+	MerchantOutbox *MerchantOutboxDraft
+	MerchantLedger *MerchantLedgerDraft
 }
 
 func (c *UsageBillingCommand) Normalize() {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math"
 	"sort"
@@ -156,6 +157,30 @@ func (s *PaymentService) writeAuditLog(ctx context.Context, oid int64, action, o
 	if err != nil {
 		slog.Error("audit log failed", "orderID", oid, "action", action, "error", err)
 	}
+}
+
+// MERCHANT-SYSTEM v1.0 (RFC §5.2.2 v1.10 P1-B)
+// writePaymentAuditLogStrict 是 writeAuditLog 的强持久化版本——失败时**显式返回 error**。
+//
+// 使用场景：
+//   - MERCHANT_RECHARGE_SHARE_INTENT / MERCHANT_SELF_RECHARGE_INTENT：reconcile 唯一现场，必须强持久化
+//   - MERCHANT_*_RECONCILED：防止重扫
+//
+// 不要替换 writeAuditLog——普通审计仍 best-effort。
+func (s *PaymentService) writePaymentAuditLogStrict(ctx context.Context, oid int64, action, op string, detail map[string]any) error {
+	dj, err := json.Marshal(detail)
+	if err != nil {
+		return fmt.Errorf("marshal audit detail: %w", err)
+	}
+	if _, err := s.entClient.PaymentAuditLog.Create().
+		SetOrderID(strconv.FormatInt(oid, 10)).
+		SetAction(action).
+		SetDetail(string(dj)).
+		SetOperator(op).
+		Save(ctx); err != nil {
+		return fmt.Errorf("create audit log: %w", err)
+	}
+	return nil
 }
 
 func (s *PaymentService) GetOrderAuditLogs(ctx context.Context, oid int64) ([]*dbent.PaymentAuditLog, error) {

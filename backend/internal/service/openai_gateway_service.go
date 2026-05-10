@@ -336,6 +336,7 @@ type OpenAIGatewayService struct {
 	channelService        *ChannelService
 	balanceNotifyService  *BalanceNotifyService
 	settingService        *SettingService
+	merchantPricing       *MerchantPricingService // MERCHANT-SYSTEM v1.0
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -377,6 +378,7 @@ func NewOpenAIGatewayService(
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
+	merchantPricing *MerchantPricingService,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
 		accountRepo:         accountRepo,
@@ -410,6 +412,7 @@ func NewOpenAIGatewayService(
 		settingService:        settingService,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		merchantPricing:       merchantPricing,
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
@@ -5323,6 +5326,25 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
 	}
+
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.2)：pricing hook
+	var merchantPricingResult MerchantUsagePricingResult
+	if s.merchantPricing != nil && cost != nil {
+		var groupID int64
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
+			UserID:      user.ID,
+			GroupID:     groupID,
+			BaseCost:    cost.ActualCost,
+			BillingType: billingType,
+			APIKeyID:    apiKey.ID,
+		})
+		if merchantPricingResult.BalanceCostOverride != nil {
+			usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride
+		}
+	}
 	if result.ImageCount > 0 {
 		usageLog.RateMultiplier = imageMultiplier
 	} else {
@@ -5392,6 +5414,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			IsSubscriptionBill:    isSubscriptionBilling,
 			AccountRateMultiplier: accountRateMultiplier,
 			APIKeyService:         input.APIKeyService,
+
+			// MERCHANT-SYSTEM v1.0
+			BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
+			MerchantOutbox:      merchantPricingResult.MerchantOutbox,
+			MerchantLedger:      merchantPricingResult.MerchantLedger,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

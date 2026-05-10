@@ -39,6 +39,7 @@ func ProvideAdminHandlers(
 	contentModerationHandler *admin.ContentModerationHandler,
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
+	merchantHandler *admin.MerchantHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
@@ -71,6 +72,7 @@ func ProvideAdminHandlers(
 		ContentModeration:      contentModerationHandler,
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
+		Merchant:               merchantHandler,
 	}
 }
 
@@ -102,6 +104,8 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
+	merchantBrandHandler *MerchantBrandHandler,
+	merchantHandler *MerchantHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -122,6 +126,8 @@ func ProvideHandlers(
 		Payment:          paymentHandler,
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
+		MerchantBrand:    merchantBrandHandler,
+		Merchant:         merchantHandler,
 	}
 }
 
@@ -143,6 +149,8 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
+	NewMerchantBrandHandler, // MERCHANT-SYSTEM v1.0
+	NewMerchantHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -175,6 +183,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
+	admin.NewMerchantHandler, // MERCHANT-SYSTEM v1.0
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

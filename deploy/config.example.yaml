@@ -1091,3 +1091,11 @@ update:
   # Leave empty for direct connection (recommended for overseas servers)
   # 留空表示直连（适用于海外服务器）
   proxy_url: ""
+
+# =============================================================================
+# Merchant System (商户系统 feature flag)
+# =============================================================================
+# 关闭时网关计费 hook / 充值分成 hook / 商户后台 全部短路；开启前必须 Phase 0~7 全量上线。
+# Worker 在 flag 关闭后仍处理 outbox 积压，避免临时启用过又关闭后历史 outbox 永远不结算。
+merchant:
+  enabled: false

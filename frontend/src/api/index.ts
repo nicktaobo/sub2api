@@ -21,6 +21,20 @@ export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export { channelMonitorUserAPI } from './channelMonitor'
 
+// Merchant API (admin + merchant owner + public brand)
+export { merchantAPI } from './merchant'
+export type {
+  Merchant,
+  MerchantStatus,
+  MerchantGroupMarkup,
+  MerchantLedgerEntry,
+  MerchantAuditLogEntry,
+  MerchantBrand,
+  MerchantDomain,
+  MerchantInfo,
+  CreateMerchantPayload
+} from './merchant'
+
 // Admin APIs
 export { adminAPI } from './admin'
 

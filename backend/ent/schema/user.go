@@ -112,6 +112,11 @@ func (User) Fields() []ent.Field {
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").
 			Default(0),
+
+		// MERCHANT-SYSTEM v1.0：子用户绑定的商户（owner 不应该有此字段；应用层守住）
+		field.Int64("parent_merchant_id").
+			Optional().
+			Nillable(),
 	}
 }
 
@@ -131,6 +136,13 @@ func (User) Edges() []ent.Edge {
 		edge.To("auth_identities", AuthIdentity.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("pending_auth_sessions", PendingAuthSession.Type),
+
+		// MERCHANT-SYSTEM v1.0：sub_user → merchant（O2M 反向）
+		edge.From("parent_merchant", Merchant.Type).
+			Ref("sub_users").
+			Field("parent_merchant_id").
+			Unique().
+			Annotations(entsql.OnDelete(entsql.SetNull)),
 	}
 }
 

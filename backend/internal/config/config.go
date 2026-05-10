@@ -91,6 +91,13 @@ type Config struct {
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
+	Merchant                MerchantConfig                `mapstructure:"merchant"`
+}
+
+// MerchantConfig 商户系统启动配置（feature flag）。
+// 关闭时整个商户系统等价于不存在（hook 短路、worker 仅清理积压、admin/商户后台返回 503）。
+type MerchantConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 type LogConfig struct {

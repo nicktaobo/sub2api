@@ -582,6 +582,113 @@ const routes: RouteRecordRaw[] = [
   },
 
 
+  // ==================== Merchant Admin Routes ====================
+  {
+    path: '/admin/merchants',
+    name: 'AdminMerchants',
+    component: () => import('@/views/admin/merchants/MerchantsListView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Merchants',
+      titleKey: 'merchant.admin.title'
+    }
+  },
+  {
+    path: '/admin/merchants/new',
+    name: 'AdminMerchantCreate',
+    component: () => import('@/views/admin/merchants/MerchantCreateView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Create Merchant',
+      titleKey: 'merchant.admin.createTitle'
+    }
+  },
+  {
+    path: '/admin/merchants/:id',
+    name: 'AdminMerchantDetail',
+    component: () => import('@/views/admin/merchants/MerchantDetailView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Merchant Detail',
+      titleKey: 'merchant.admin.detailTitle'
+    }
+  },
+
+  // ==================== Merchant Owner Routes ====================
+  {
+    path: '/merchant',
+    redirect: '/merchant/dashboard'
+  },
+  {
+    path: '/merchant/dashboard',
+    name: 'MerchantDashboard',
+    component: () => import('@/views/merchant/MerchantDashboard.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Dashboard',
+      titleKey: 'merchant.owner.dashboard.title'
+    }
+  },
+  {
+    path: '/merchant/sub-users',
+    name: 'MerchantSubUsers',
+    component: () => import('@/views/merchant/MerchantSubUsersView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Sub Users',
+      titleKey: 'merchant.owner.subUsers.title'
+    }
+  },
+  {
+    path: '/merchant/ledger',
+    name: 'MerchantLedger',
+    component: () => import('@/views/merchant/MerchantLedgerView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Ledger',
+      titleKey: 'merchant.owner.ledger.title'
+    }
+  },
+  {
+    path: '/merchant/group-pricing',
+    name: 'MerchantGroupPricing',
+    component: () => import('@/views/merchant/MerchantGroupPricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Pricing',
+      titleKey: 'merchant.owner.pricing.title'
+    }
+  },
+  {
+    path: '/merchant/domains',
+    name: 'MerchantDomains',
+    component: () => import('@/views/merchant/MerchantDomainsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Domains',
+      titleKey: 'merchant.owner.domains.title'
+    }
+  },
+  {
+    path: '/merchant/audit',
+    name: 'MerchantAudit',
+    component: () => import('@/views/merchant/MerchantAuditLogView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Audit',
+      titleKey: 'merchant.owner.audit.title'
+    }
+  },
+
   // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',
@@ -756,6 +863,15 @@ router.beforeEach((to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
+    next('/dashboard')
+    return
+  }
+
+  // Sub-user guard: users with parent_merchant_id must not access admin pages.
+  // The field is optional on the User type (added by the merchant system backend)
+  // so we read it defensively via a type assertion.
+  const currentUser = authStore.user as (typeof authStore.user & { parent_merchant_id?: number | null }) | null
+  if (currentUser && currentUser.parent_merchant_id && to.path.startsWith('/admin')) {
     next('/dashboard')
     return
   }

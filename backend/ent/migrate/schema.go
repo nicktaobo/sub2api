@@ -778,6 +778,241 @@ var (
 			},
 		},
 	}
+	// MerchantsColumns holds the columns for the "merchants" table.
+	MerchantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "owner_user_id", Type: field.TypeInt64, Unique: true},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "discount", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
+		{Name: "user_markup_default", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
+		{Name: "owner_balance_baseline", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "low_balance_threshold", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "notify_emails", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+	}
+	// MerchantsTable holds the schema information for the "merchants" table.
+	MerchantsTable = &schema.Table{
+		Name:       "merchants",
+		Columns:    MerchantsColumns,
+		PrimaryKey: []*schema.Column{MerchantsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchant_status",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantsColumns[6]},
+			},
+			{
+				Name:    "merchant_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantsColumns[3]},
+			},
+		},
+	}
+	// MerchantAuditLogColumns holds the columns for the "merchant_audit_log" table.
+	MerchantAuditLogColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "admin_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "field", Type: field.TypeString, Size: 50},
+		{Name: "old_value", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "new_value", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "reason", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantAuditLogTable holds the schema information for the "merchant_audit_log" table.
+	MerchantAuditLogTable = &schema.Table{
+		Name:       "merchant_audit_log",
+		Columns:    MerchantAuditLogColumns,
+		PrimaryKey: []*schema.Column{MerchantAuditLogColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_audit_log_merchants_audit_logs",
+				Columns:    []*schema.Column{MerchantAuditLogColumns[7]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantauditlog_merchant_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantAuditLogColumns[7], MerchantAuditLogColumns[6]},
+			},
+		},
+	}
+	// MerchantDomainsColumns holds the columns for the "merchant_domains" table.
+	MerchantDomainsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "domain", Type: field.TypeString, Size: 255},
+		{Name: "site_name", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "site_logo", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "brand_color", Type: field.TypeString, Size: 20, Default: ""},
+		{Name: "custom_css", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "home_content", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "seo_title", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "seo_description", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "seo_keywords", Type: field.TypeString, Size: 500, Default: ""},
+		{Name: "verify_token", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "verified", Type: field.TypeBool, Default: false},
+		{Name: "verified_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantDomainsTable holds the schema information for the "merchant_domains" table.
+	MerchantDomainsTable = &schema.Table{
+		Name:       "merchant_domains",
+		Columns:    MerchantDomainsColumns,
+		PrimaryKey: []*schema.Column{MerchantDomainsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_domains_merchants_domains",
+				Columns:    []*schema.Column{MerchantDomainsColumns[16]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantdomain_merchant_id",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantDomainsColumns[16]},
+			},
+			{
+				Name:    "merchantdomain_verified_domain",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantDomainsColumns[14], MerchantDomainsColumns[4]},
+			},
+			{
+				Name:    "merchantdomain_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantDomainsColumns[3]},
+			},
+		},
+	}
+	// MerchantEarningsOutboxColumns holds the columns for the "merchant_earnings_outbox" table.
+	MerchantEarningsOutboxColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "counterparty_user_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "source", Type: field.TypeString, Size: 40},
+		{Name: "ref_type", Type: field.TypeString, Size: 40},
+		{Name: "ref_id", Type: field.TypeInt64},
+		{Name: "idempotency_key", Type: field.TypeString, Unique: true, Size: 100},
+		{Name: "processed", Type: field.TypeBool, Default: false},
+		{Name: "processed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantEarningsOutboxTable holds the schema information for the "merchant_earnings_outbox" table.
+	MerchantEarningsOutboxTable = &schema.Table{
+		Name:       "merchant_earnings_outbox",
+		Columns:    MerchantEarningsOutboxColumns,
+		PrimaryKey: []*schema.Column{MerchantEarningsOutboxColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_earnings_outbox_merchants_outbox_entries",
+				Columns:    []*schema.Column{MerchantEarningsOutboxColumns[10]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantearningsoutbox_merchant_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantEarningsOutboxColumns[10], MerchantEarningsOutboxColumns[9]},
+			},
+		},
+	}
+	// MerchantGroupMarkupsColumns holds the columns for the "merchant_group_markups" table.
+	MerchantGroupMarkupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "markup", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantGroupMarkupsTable holds the schema information for the "merchant_group_markups" table.
+	MerchantGroupMarkupsTable = &schema.Table{
+		Name:       "merchant_group_markups",
+		Columns:    MerchantGroupMarkupsColumns,
+		PrimaryKey: []*schema.Column{MerchantGroupMarkupsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_group_markups_merchants_group_markups",
+				Columns:    []*schema.Column{MerchantGroupMarkupsColumns[5]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantgroupmarkup_merchant_id_group_id",
+				Unique:  true,
+				Columns: []*schema.Column{MerchantGroupMarkupsColumns[5], MerchantGroupMarkupsColumns[3]},
+			},
+		},
+	}
+	// MerchantLedgerColumns holds the columns for the "merchant_ledger" table.
+	MerchantLedgerColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "owner_user_id", Type: field.TypeInt64},
+		{Name: "counterparty_user_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "direction", Type: field.TypeString, Size: 10},
+		{Name: "amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "balance_after", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "is_aggregated", Type: field.TypeBool, Default: false},
+		{Name: "aggregated_count", Type: field.TypeInt, Nullable: true},
+		{Name: "source", Type: field.TypeString, Size: 40},
+		{Name: "ref_type", Type: field.TypeString, Nullable: true, Size: 40},
+		{Name: "ref_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "idempotency_key", Type: field.TypeString, Unique: true, Nullable: true, Size: 120},
+		{Name: "note", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantLedgerTable holds the schema information for the "merchant_ledger" table.
+	MerchantLedgerTable = &schema.Table{
+		Name:       "merchant_ledger",
+		Columns:    MerchantLedgerColumns,
+		PrimaryKey: []*schema.Column{MerchantLedgerColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_ledger_merchants_ledger_entries",
+				Columns:    []*schema.Column{MerchantLedgerColumns[14]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantledger_merchant_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantLedgerColumns[14], MerchantLedgerColumns[13]},
+			},
+			{
+				Name:    "merchantledger_owner_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantLedgerColumns[1], MerchantLedgerColumns[13]},
+			},
+			{
+				Name:    "merchantledger_counterparty_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantLedgerColumns[2], MerchantLedgerColumns[13]},
+			},
+			{
+				Name:    "merchantledger_source_ref_type_ref_id",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantLedgerColumns[8], MerchantLedgerColumns[9], MerchantLedgerColumns[10]},
+			},
+		},
+	}
 	// PaymentAuditLogsColumns holds the columns for the "payment_audit_logs" table.
 	PaymentAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1121,6 +1356,7 @@ var (
 		{Name: "notes", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "validity_days", Type: field.TypeInt, Default: 30},
+		{Name: "created_by_merchant_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "group_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "used_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -1132,13 +1368,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "redeem_codes_groups_redeem_codes",
-				Columns:    []*schema.Column{RedeemCodesColumns[9]},
+				Columns:    []*schema.Column{RedeemCodesColumns[10]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "redeem_codes_users_redeem_codes",
-				Columns:    []*schema.Column{RedeemCodesColumns[10]},
+				Columns:    []*schema.Column{RedeemCodesColumns[11]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1152,12 +1388,12 @@ var (
 			{
 				Name:    "redeemcode_used_by",
 				Unique:  false,
-				Columns: []*schema.Column{RedeemCodesColumns[10]},
+				Columns: []*schema.Column{RedeemCodesColumns[11]},
 			},
 			{
 				Name:    "redeemcode_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{RedeemCodesColumns[9]},
+				Columns: []*schema.Column{RedeemCodesColumns[10]},
 			},
 		},
 	}
@@ -1452,12 +1688,21 @@ var (
 		{Name: "balance_notify_extra_emails", Type: field.TypeString, Default: "[]", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "total_recharged", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
+		{Name: "parent_merchant_id", Type: field.TypeInt64, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "users_merchants_sub_users",
+				Columns:    []*schema.Column{UsersColumns[24]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "user_status",
@@ -1696,6 +1941,12 @@ var (
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		MerchantsTable,
+		MerchantAuditLogTable,
+		MerchantDomainsTable,
+		MerchantEarningsOutboxTable,
+		MerchantGroupMarkupsTable,
+		MerchantLedgerTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -1778,6 +2029,29 @@ func init() {
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
 	}
+	MerchantsTable.Annotation = &entsql.Annotation{
+		Table: "merchants",
+	}
+	MerchantAuditLogTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantAuditLogTable.Annotation = &entsql.Annotation{
+		Table: "merchant_audit_log",
+	}
+	MerchantDomainsTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantDomainsTable.Annotation = &entsql.Annotation{
+		Table: "merchant_domains",
+	}
+	MerchantEarningsOutboxTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantEarningsOutboxTable.Annotation = &entsql.Annotation{
+		Table: "merchant_earnings_outbox",
+	}
+	MerchantGroupMarkupsTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantGroupMarkupsTable.Annotation = &entsql.Annotation{
+		Table: "merchant_group_markups",
+	}
+	MerchantLedgerTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantLedgerTable.Annotation = &entsql.Annotation{
+		Table: "merchant_ledger",
+	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",
 	}
@@ -1831,6 +2105,7 @@ func init() {
 	UsageLogsTable.Annotation = &entsql.Annotation{
 		Table: "usage_logs",
 	}
+	UsersTable.ForeignKeys[0].RefTable = MerchantsTable
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",
 	}

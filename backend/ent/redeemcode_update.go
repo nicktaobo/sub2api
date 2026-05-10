@@ -194,6 +194,33 @@ func (_u *RedeemCodeUpdate) AddValidityDays(v int) *RedeemCodeUpdate {
 	return _u
 }
 
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdate) SetCreatedByMerchantID(v int64) *RedeemCodeUpdate {
+	_u.mutation.ResetCreatedByMerchantID()
+	_u.mutation.SetCreatedByMerchantID(v)
+	return _u
+}
+
+// SetNillableCreatedByMerchantID sets the "created_by_merchant_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableCreatedByMerchantID(v *int64) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetCreatedByMerchantID(*v)
+	}
+	return _u
+}
+
+// AddCreatedByMerchantID adds value to the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdate) AddCreatedByMerchantID(v int64) *RedeemCodeUpdate {
+	_u.mutation.AddCreatedByMerchantID(v)
+	return _u
+}
+
+// ClearCreatedByMerchantID clears the value of the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdate) ClearCreatedByMerchantID() *RedeemCodeUpdate {
+	_u.mutation.ClearCreatedByMerchantID()
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdate) SetUserID(id int64) *RedeemCodeUpdate {
 	_u.mutation.SetUserID(id)
@@ -326,6 +353,15 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CreatedByMerchantID(); ok {
+		_spec.SetField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreatedByMerchantID(); ok {
+		_spec.AddField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.CreatedByMerchantIDCleared() {
+		_spec.ClearField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -569,6 +605,33 @@ func (_u *RedeemCodeUpdateOne) AddValidityDays(v int) *RedeemCodeUpdateOne {
 	return _u
 }
 
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdateOne) SetCreatedByMerchantID(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.ResetCreatedByMerchantID()
+	_u.mutation.SetCreatedByMerchantID(v)
+	return _u
+}
+
+// SetNillableCreatedByMerchantID sets the "created_by_merchant_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableCreatedByMerchantID(v *int64) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetCreatedByMerchantID(*v)
+	}
+	return _u
+}
+
+// AddCreatedByMerchantID adds value to the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdateOne) AddCreatedByMerchantID(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.AddCreatedByMerchantID(v)
+	return _u
+}
+
+// ClearCreatedByMerchantID clears the value of the "created_by_merchant_id" field.
+func (_u *RedeemCodeUpdateOne) ClearCreatedByMerchantID() *RedeemCodeUpdateOne {
+	_u.mutation.ClearCreatedByMerchantID()
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdateOne) SetUserID(id int64) *RedeemCodeUpdateOne {
 	_u.mutation.SetUserID(id)
@@ -731,6 +794,15 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CreatedByMerchantID(); ok {
+		_spec.SetField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreatedByMerchantID(); ok {
+		_spec.AddField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64, value)
+	}
+	if _u.mutation.CreatedByMerchantIDCleared() {
+		_spec.ClearField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

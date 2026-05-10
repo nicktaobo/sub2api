@@ -570,6 +570,7 @@ type GatewayService struct {
 	debugGatewayBodyFile  atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
+	merchantPricing       *MerchantPricingService // MERCHANT-SYSTEM v1.0
 }
 
 // NewGatewayService creates a new GatewayService
@@ -600,6 +601,7 @@ func NewGatewayService(
 	channelService *ChannelService,
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
+	merchantPricing *MerchantPricingService,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -635,6 +637,7 @@ func NewGatewayService(
 		channelService:       channelService,
 		resolver:             resolver,
 		balanceNotifyService: balanceNotifyService,
+		merchantPricing:      merchantPricing,
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
@@ -7889,6 +7892,11 @@ type postUsageBillingParams struct {
 	IsSubscriptionBill    bool
 	AccountRateMultiplier float64
 	APIKeyService         APIKeyQuotaUpdater
+
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1 / Step 1.2)
+	BalanceCostOverride *float64             // markup 后金额（仅余额扣款用，不影响 quota/rate_limit/stats）
+	MerchantOutbox      *MerchantOutboxDraft // sub_user 异步分润 outbox 草稿
+	MerchantLedger      *MerchantLedgerDraft // owner 自用同步 ledger 草稿
 }
 
 func (p *postUsageBillingParams) shouldDeductAPIKeyQuota() bool {
@@ -7901,6 +7909,24 @@ func (p *postUsageBillingParams) shouldUpdateRateLimits() bool {
 
 func (p *postUsageBillingParams) shouldUpdateAccountQuota() bool {
 	return p.Cost.TotalCost > 0 && p.Account.IsAPIKeyOrBedrock() && p.Account.HasAnyQuotaLimit()
+}
+
+// walletCost MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2 v1.7 P1-1)：
+// 统一表达"钱包扣款金额"——所有钱包路径（DB 扣款 / Redis 缓存 / 低余额通知 / 旧余额还原）都用此 helper。
+//
+//   - p.Cost.ActualCost 用于"成本类"字段（quota / rate_limit / account_stats / subscription / total_cost）
+//   - p.walletCost() 用于"钱包扣款类"路径（balance / 缓存 / 通知 / actual_cost）
+func (p *postUsageBillingParams) walletCost() float64 {
+	if p == nil {
+		return 0
+	}
+	if p.BalanceCostOverride != nil {
+		return *p.BalanceCostOverride
+	}
+	if p.Cost == nil {
+		return 0
+	}
+	return p.Cost.ActualCost
 }
 
 // postUsageBilling is the legacy fallback billing path used when the unified
@@ -7921,8 +7947,9 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 			}
 		}
 	} else {
-		if cost.ActualCost > 0 {
-			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, cost.ActualCost); err != nil {
+		// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：legacy 路径也用 walletCost
+		if walletCost := p.walletCost(); walletCost > 0 {
+			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, walletCost); err != nil {
 				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
 			}
 		}
@@ -8015,17 +8042,20 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		}
 	}
 
-	// Record subscription / balance cost using ActualCost so the group (and any
-	// user-specific) rate multiplier consumes subscription quota at the expected
-	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
-	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.3 / v1.6 P1-4 / v1.8 P1-#2)
+	// 订阅 vs 余额二选一硬约束：
+	//   - 订阅计费：扣订阅额度=ActualCost，余额=0；markup 不参与（v1）
+	//   - 余额计费：BalanceCost = walletCost()（含 markup），SubscriptionCost=0
 	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
 		cmd.SubscriptionID = &p.Subscription.ID
 		cmd.SubscriptionCost = p.Cost.ActualCost
-	} else if p.Cost.ActualCost > 0 {
-		cmd.BalanceCost = p.Cost.ActualCost
+		// 订阅分支下 BalanceCostOverride / MerchantOutbox / MerchantLedger 应该都为 nil
+		// （pricing hook 在 BillingType != BillingTypeBalance 时已 return empty）
+	} else if p.walletCost() > 0 {
+		cmd.BalanceCost = p.walletCost()
 	}
 
+	// quota / rate_limit / account_stats 永远用 base（不被商户加价吞掉，B 方案）
 	if p.shouldDeductAPIKeyQuota() {
 		cmd.APIKeyQuotaCost = p.Cost.ActualCost
 	}
@@ -8035,6 +8065,10 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	if p.shouldUpdateAccountQuota() {
 		cmd.AccountQuotaCost = p.Cost.TotalCost * p.AccountRateMultiplier
 	}
+
+	// 商户草稿透传（订阅分支已确保为 nil）
+	cmd.MerchantOutbox = p.MerchantOutbox
+	cmd.MerchantLedger = p.MerchantLedger
 
 	cmd.Normalize()
 	return cmd
@@ -8083,8 +8117,9 @@ func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps, resu
 		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
 			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
-	} else if p.Cost.ActualCost > 0 && p.User != nil {
-		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
+	} else if p.walletCost() > 0 && p.User != nil {
+		// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：钱包路径用 walletCost (含 markup)
+		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.walletCost())
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
@@ -8108,10 +8143,12 @@ func notifyBalanceLow(p *postUsageBillingParams, deps *billingDeps, result *Usag
 			slog.Error("panic in notifyBalanceLow", "recover", r)
 		}
 	}()
-	if p.IsSubscriptionBill || p.Cost.ActualCost <= 0 || p.User == nil || deps.balanceNotifyService == nil {
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：钱包路径用 walletCost
+	walletCost := p.walletCost()
+	if p.IsSubscriptionBill || walletCost <= 0 || p.User == nil || deps.balanceNotifyService == nil {
 		slog.Debug("notifyBalanceLow: skipped",
 			"is_subscription", p.IsSubscriptionBill,
-			"actual_cost", p.Cost.ActualCost,
+			"wallet_cost", walletCost,
 			"user_nil", p.User == nil,
 			"service_nil", deps.balanceNotifyService == nil,
 		)
@@ -8122,19 +8159,20 @@ func notifyBalanceLow(p *postUsageBillingParams, deps *billingDeps, result *Usag
 	slog.Debug("notifyBalanceLow: calling CheckBalanceAfterDeduction",
 		"user_id", p.User.ID,
 		"old_balance", oldBalance,
-		"cost", p.Cost.ActualCost,
+		"cost", walletCost,
 		"notify_enabled", p.User.BalanceNotifyEnabled,
 		"threshold", p.User.BalanceNotifyThreshold,
 		"result_has_new_balance", result != nil && result.NewBalance != nil,
 	)
-	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, p.Cost.ActualCost)
+	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, walletCost)
 }
 
 // resolveOldBalance returns the pre-deduction balance.
 // Prefers the DB transaction result (newBalance + cost) over snapshot.
 func resolveOldBalance(p *postUsageBillingParams, result *UsageBillingApplyResult) float64 {
 	if result != nil && result.NewBalance != nil {
-		return *result.NewBalance + p.Cost.ActualCost
+		// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：旧余额还原必须用 walletCost（NewBalance 已减去 walletCost）
+		return *result.NewBalance + p.walletCost()
 	}
 	// Legacy fallback: snapshot balance from request context
 	return p.User.Balance
@@ -8400,10 +8438,30 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		billingType = BillingTypeSubscription
 	}
 
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.2)：在构造 usageLog 前调 pricing hook
+	var merchantPricingResult MerchantUsagePricingResult
+	if s.merchantPricing != nil {
+		var groupID int64
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
+			UserID:      user.ID,
+			GroupID:     groupID,
+			BaseCost:    cost.ActualCost,
+			BillingType: billingType,
+			APIKeyID:    apiKey.ID,
+		})
+	}
+
 	// 创建使用日志
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost, opts)
+	// usageLog.actual_cost = walletCost（含 markup，便于钱包对账）；total_cost 保持 base
+	if merchantPricingResult.BalanceCostOverride != nil {
+		usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride
+	}
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
@@ -8440,6 +8498,11 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		IsSubscriptionBill:    isSubscriptionBilling,
 		AccountRateMultiplier: accountRateMultiplier,
 		APIKeyService:         input.APIKeyService,
+
+		// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.2)
+		BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
+		MerchantOutbox:      merchantPricingResult.MerchantOutbox,
+		MerchantLedger:      merchantPricingResult.MerchantLedger,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {

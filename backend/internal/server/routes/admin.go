@@ -97,6 +97,33 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 商户系统（MERCHANT-SYSTEM v1.0）
+		registerMerchantAdminRoutes(admin, h)
+	}
+}
+
+func registerMerchantAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.Merchant == nil {
+		return
+	}
+	mh := h.Admin.Merchant
+	merchants := admin.Group("/merchants")
+	{
+		merchants.GET("", mh.List)
+		merchants.POST("", mh.Create)
+		merchants.GET("/:id", mh.Get)
+		merchants.PATCH("/:id/discount", mh.SetDiscount)
+		merchants.PATCH("/:id/markup_default", mh.SetMarkupDefault)
+		merchants.PATCH("/:id/status", mh.SetStatus)
+		merchants.POST("/:id/recharge", mh.Recharge)
+		merchants.POST("/:id/refund", mh.Refund)
+		merchants.GET("/:id/group_markups", mh.ListGroupMarkups)
+		merchants.PUT("/:id/group_markups", mh.SetGroupMarkup)
+		merchants.DELETE("/:id/group_markups/:group_id", mh.DeleteGroupMarkup)
+		merchants.GET("/:id/audit_log", mh.ListAuditLog)
+		merchants.GET("/:id/ledger", mh.ListLedger)
+		merchants.POST("/unbind_user/:user_id", mh.UnbindSubUser)
 	}
 }
 

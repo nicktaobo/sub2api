@@ -12,15 +12,15 @@ import (
 )
 
 // APIKeyAuthGoogle is a Google-style error wrapper for API key auth.
-func APIKeyAuthGoogle(apiKeyService *service.APIKeyService, cfg *config.Config) gin.HandlerFunc {
-	return APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg)
+func APIKeyAuthGoogle(apiKeyService *service.APIKeyService, cfg *config.Config, merchantRepo service.MerchantRepository) gin.HandlerFunc {
+	return APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg, merchantRepo)
 }
 
 // APIKeyAuthWithSubscriptionGoogle behaves like ApiKeyAuthWithSubscription but returns Google-style errors:
 // {"error":{"code":401,"message":"...","status":"UNAUTHENTICATED"}}
 //
 // It is intended for Gemini native endpoints (/v1beta) to match Gemini SDK expectations.
-func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, merchantRepo service.MerchantRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if v := strings.TrimSpace(c.Query("api_key")); v != "" {
 			abortWithGoogleError(c, 400, "Query parameter api_key is deprecated. Use Authorization header or key instead.")
@@ -53,6 +53,17 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 		if !apiKey.User.IsActive() {
 			abortWithGoogleError(c, 401, "User account is not active")
 			return
+		}
+
+		// MERCHANT-SYSTEM v1.0 (RFC §3.4 / §5.3.1)：suspended merchant 拦截（在 SimpleMode 之前）
+		if cfg != nil && cfg.Merchant.Enabled &&
+			merchantRepo != nil &&
+			apiKey.User.ParentMerchantID != nil {
+			m, err := merchantRepo.GetByID(c.Request.Context(), *apiKey.User.ParentMerchantID)
+			if err == nil && m != nil && m.Status == service.MerchantStatusSuspended {
+				abortWithGoogleError(c, 401, "Merchant is suspended")
+				return
+			}
 		}
 
 		// 简易模式：跳过余额和订阅检查

@@ -68,6 +68,11 @@ func (RedeemCode) Fields() []ent.Field {
 			Nillable(),
 		field.Int("validity_days").
 			Default(30),
+
+		// MERCHANT-SYSTEM v1.0：商户 owner 出资生成的兑换码记录商户 id（admin 生成时为 NULL）
+		field.Int64("created_by_merchant_id").
+			Optional().
+			Nillable(),
 	}
 }
 

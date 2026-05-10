@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -42,7 +43,7 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 		}
 	}()
 
-	applied, err := r.claimUsageBillingKey(ctx, tx, cmd)
+	applied, dedupID, err := r.claimUsageBillingKey(ctx, tx, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,7 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	}
 
 	result := &service.UsageBillingApplyResult{Applied: true}
-	if err := r.applyUsageBillingEffects(ctx, tx, cmd, result); err != nil {
+	if err := r.applyUsageBillingEffects(ctx, tx, cmd, dedupID, result); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +63,10 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	return result, nil
 }
 
-func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand) (bool, error) {
+// claimUsageBillingKey 返回 (claimed, dedupID, error)。MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 3)：
+// dedupID 是 usage_billing_dedup.id，唯一代表"一次已认领的计费事件"，
+// 用于 outbox.ref_id / outbox.idempotency_key / ledger.ref_id（构造时 usageLog.ID 还为 0）。
+func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand) (bool, int64, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO usage_billing_dedup (request_id, api_key_id, request_fingerprint)
@@ -77,15 +81,15 @@ func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *s
 			FROM usage_billing_dedup
 			WHERE request_id = $1 AND api_key_id = $2
 		`, cmd.RequestID, cmd.APIKeyID).Scan(&existingFingerprint); err != nil {
-			return false, err
+			return false, 0, err
 		}
 		if strings.TrimSpace(existingFingerprint) != strings.TrimSpace(cmd.RequestFingerprint) {
-			return false, service.ErrUsageBillingRequestConflict
+			return false, 0, service.ErrUsageBillingRequestConflict
 		}
-		return false, nil
+		return false, 0, nil
 	}
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	var archivedFingerprint string
 	err = tx.QueryRowContext(ctx, `
@@ -95,17 +99,17 @@ func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *s
 	`, cmd.RequestID, cmd.APIKeyID).Scan(&archivedFingerprint)
 	if err == nil {
 		if strings.TrimSpace(archivedFingerprint) != strings.TrimSpace(cmd.RequestFingerprint) {
-			return false, service.ErrUsageBillingRequestConflict
+			return false, 0, service.ErrUsageBillingRequestConflict
 		}
-		return false, nil
+		return false, 0, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return false, err
+		return false, 0, err
 	}
-	return true, nil
+	return true, id, nil
 }
 
-func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, result *service.UsageBillingApplyResult) error {
+func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, dedupID int64, result *service.UsageBillingApplyResult) error {
 	if cmd.SubscriptionCost > 0 && cmd.SubscriptionID != nil {
 		if err := incrementUsageBillingSubscription(ctx, tx, *cmd.SubscriptionID, cmd.SubscriptionCost); err != nil {
 			return err
@@ -142,7 +146,56 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		result.QuotaState = quotaState
 	}
 
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 3)：互斥的两类草稿处理
+	// pricing hook 保证 MerchantOutbox 与 MerchantLedger 永远只有一个非 nil。
+	if cmd.MerchantOutbox != nil {
+		if err := insertMerchantOutboxTx(ctx, tx, cmd.MerchantOutbox, dedupID); err != nil {
+			return err
+		}
+	}
+	if cmd.MerchantLedger != nil {
+		if err := insertMerchantLedgerTx(ctx, tx, cmd.MerchantLedger, dedupID, result); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// insertMerchantOutboxTx sub_user 消费 markup 异步路径——写 outbox（RFC §5.2.1 Step 3）。
+// idempotency_key = "markup:{dedupID}"；ref_type=usage_billing_dedup；ref_id=dedupID。
+func insertMerchantOutboxTx(ctx context.Context, tx *sql.Tx, draft *service.MerchantOutboxDraft, dedupID int64) error {
+	if draft == nil {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO merchant_earnings_outbox
+			(merchant_id, counterparty_user_id, amount, source, ref_type, ref_id, idempotency_key)
+		VALUES ($1, $2, $3, $4, 'usage_billing_dedup', $5, $6)
+		ON CONFLICT (idempotency_key) DO NOTHING
+	`, draft.MerchantID, draft.CounterpartyUserID, draft.Amount, draft.Source, dedupID,
+		fmt.Sprintf("markup:%d", dedupID))
+	return err
+}
+
+// insertMerchantLedgerTx owner 自用 API 同步路径——写 ledger（RFC §5.2.1 Step 3）。
+// 必须在余额扣完之后调用（让 balance_after = result.NewBalance）。
+func insertMerchantLedgerTx(ctx context.Context, tx *sql.Tx, draft *service.MerchantLedgerDraft, dedupID int64, result *service.UsageBillingApplyResult) error {
+	if draft == nil {
+		return nil
+	}
+	var balanceAfter sql.NullFloat64
+	if result != nil && result.NewBalance != nil {
+		balanceAfter = sql.NullFloat64{Float64: *result.NewBalance, Valid: true}
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO merchant_ledger
+			(merchant_id, owner_user_id, counterparty_user_id, direction, amount, balance_after,
+			 is_aggregated, source, ref_type, ref_id, idempotency_key)
+		VALUES ($1, $2, NULL, $3, $4, $5, FALSE, $6, $7, $8, $9)
+	`, draft.MerchantID, draft.OwnerUserID, draft.Direction, draft.Amount, balanceAfter,
+		draft.Source, draft.RefType, dedupID, fmt.Sprintf("owner_usage:%d", dedupID))
+	return err
 }
 
 func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {

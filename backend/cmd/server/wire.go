@@ -98,6 +98,8 @@ func provideCleanup(
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
+	merchantEarningsWorker *service.MerchantEarningsWorker,
+	merchantReconcileJob *service.MerchantReconcileJob,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -243,6 +245,18 @@ func provideCleanup(
 			{"ChannelMonitorRunner", func() error {
 				if channelMonitorRunner != nil {
 					channelMonitorRunner.Stop()
+				}
+				return nil
+			}},
+			{"MerchantEarningsWorker", func() error {
+				if merchantEarningsWorker != nil {
+					merchantEarningsWorker.Stop()
+				}
+				return nil
+			}},
+			{"MerchantReconcileJob", func() error {
+				if merchantReconcileJob != nil {
+					merchantReconcileJob.Stop()
 				}
 				return nil
 			}},

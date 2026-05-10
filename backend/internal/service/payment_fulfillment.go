@@ -272,7 +272,14 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 		if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 			return err
 		}
-		// Code already created and redeemed — just mark completed
+		// MERCHANT-SYSTEM v1.0 (RFC §5.2.4 v1.11 P1)：admin retry 进入此分支时**也要重跑 merchant hook**。
+		// INTENT 阶段失败的订单会走这里，重跑可以补 INTENT；outbox 阶段仍走 reconcile。
+		if hookErr := s.applyMerchantHookForOrder(ctx, o); hookErr != nil {
+			if IsMerchantBlockingError(hookErr) {
+				return hookErr // 阻塞 retry，admin 再次手动 retry
+			}
+			slog.Warn("merchant hook outbox stage failed on skipCompleted retry (reconcile will补)", "order_id", o.ID, "error", hookErr)
+		}
 		return s.markCompleted(ctx, o, "RECHARGE_SUCCESS")
 	case redeemActionCreate:
 		rc := &RedeemCode{Code: o.RechargeCode, Type: RedeemTypeBalance, Value: o.Amount, Status: StatusUnused}
@@ -287,6 +294,15 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 	}
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 		return err
+	}
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.2 / §5.2.4 v1.11 P1 / v1.12 P1-#1)
+	if hookErr := s.applyMerchantHookForOrder(ctx, o); hookErr != nil {
+		if IsMerchantBlockingError(hookErr) {
+			// INTENT 阶段失败 → 阻塞 markCompleted（订单 markFailed 让 admin retry 走 skipCompleted 重跑）
+			return hookErr
+		}
+		// outbox 阶段失败 → 非阻塞，订单仍 markCompleted；reconcile job 从 INTENT 快照补 outbox
+		slog.Warn("merchant hook outbox stage failed (non-blocking, reconcile will retry)", "order_id", o.ID, "error", hookErr)
 	}
 	return s.markCompleted(ctx, o, "RECHARGE_SUCCESS")
 }

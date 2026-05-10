@@ -170,6 +170,11 @@ func RpmLimit(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRpmLimit, v))
 }
 
+// ParentMerchantID applies equality check predicate on the "parent_merchant_id" field. It's identical to ParentMerchantIDEQ.
+func ParentMerchantID(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldParentMerchantID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1340,6 +1345,36 @@ func RpmLimitLTE(v int) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldRpmLimit, v))
 }
 
+// ParentMerchantIDEQ applies the EQ predicate on the "parent_merchant_id" field.
+func ParentMerchantIDEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldParentMerchantID, v))
+}
+
+// ParentMerchantIDNEQ applies the NEQ predicate on the "parent_merchant_id" field.
+func ParentMerchantIDNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldParentMerchantID, v))
+}
+
+// ParentMerchantIDIn applies the In predicate on the "parent_merchant_id" field.
+func ParentMerchantIDIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldParentMerchantID, vs...))
+}
+
+// ParentMerchantIDNotIn applies the NotIn predicate on the "parent_merchant_id" field.
+func ParentMerchantIDNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldParentMerchantID, vs...))
+}
+
+// ParentMerchantIDIsNil applies the IsNil predicate on the "parent_merchant_id" field.
+func ParentMerchantIDIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldParentMerchantID))
+}
+
+// ParentMerchantIDNotNil applies the NotNil predicate on the "parent_merchant_id" field.
+func ParentMerchantIDNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldParentMerchantID))
+}
+
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.
 func HasAPIKeys() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
@@ -1608,6 +1643,29 @@ func HasPendingAuthSessions() predicate.User {
 func HasPendingAuthSessionsWith(preds ...predicate.PendingAuthSession) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newPendingAuthSessionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasParentMerchant applies the HasEdge predicate on the "parent_merchant" edge.
+func HasParentMerchant() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ParentMerchantTable, ParentMerchantColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasParentMerchantWith applies the HasEdge predicate on the "parent_merchant" edge with a given conditions (other predicates).
+func HasParentMerchantWith(preds ...predicate.Merchant) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newParentMerchantStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

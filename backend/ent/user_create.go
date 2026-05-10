@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/merchant"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -339,6 +340,20 @@ func (_c *UserCreate) SetNillableRpmLimit(v *int) *UserCreate {
 	return _c
 }
 
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (_c *UserCreate) SetParentMerchantID(v int64) *UserCreate {
+	_c.mutation.SetParentMerchantID(v)
+	return _c
+}
+
+// SetNillableParentMerchantID sets the "parent_merchant_id" field if the given value is not nil.
+func (_c *UserCreate) SetNillableParentMerchantID(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetParentMerchantID(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -517,6 +532,11 @@ func (_c *UserCreate) AddPendingAuthSessions(v ...*PendingAuthSession) *UserCrea
 		ids[i] = v[i].ID
 	}
 	return _c.AddPendingAuthSessionIDs(ids...)
+}
+
+// SetParentMerchant sets the "parent_merchant" edge to the Merchant entity.
+func (_c *UserCreate) SetParentMerchant(v *Merchant) *UserCreate {
+	return _c.SetParentMerchantID(v.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -1023,6 +1043,23 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.ParentMerchantIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.ParentMerchantTable,
+			Columns: []string{user.ParentMerchantColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.ParentMerchantID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -1402,6 +1439,24 @@ func (u *UserUpsert) UpdateRpmLimit() *UserUpsert {
 // AddRpmLimit adds v to the "rpm_limit" field.
 func (u *UserUpsert) AddRpmLimit(v int) *UserUpsert {
 	u.Add(user.FieldRpmLimit, v)
+	return u
+}
+
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (u *UserUpsert) SetParentMerchantID(v int64) *UserUpsert {
+	u.Set(user.FieldParentMerchantID, v)
+	return u
+}
+
+// UpdateParentMerchantID sets the "parent_merchant_id" field to the value that was provided on create.
+func (u *UserUpsert) UpdateParentMerchantID() *UserUpsert {
+	u.SetExcluded(user.FieldParentMerchantID)
+	return u
+}
+
+// ClearParentMerchantID clears the value of the "parent_merchant_id" field.
+func (u *UserUpsert) ClearParentMerchantID() *UserUpsert {
+	u.SetNull(user.FieldParentMerchantID)
 	return u
 }
 
@@ -1832,6 +1887,27 @@ func (u *UserUpsertOne) AddRpmLimit(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRpmLimit() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (u *UserUpsertOne) SetParentMerchantID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetParentMerchantID(v)
+	})
+}
+
+// UpdateParentMerchantID sets the "parent_merchant_id" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateParentMerchantID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateParentMerchantID()
+	})
+}
+
+// ClearParentMerchantID clears the value of the "parent_merchant_id" field.
+func (u *UserUpsertOne) ClearParentMerchantID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearParentMerchantID()
 	})
 }
 
@@ -2428,6 +2504,27 @@ func (u *UserUpsertBulk) AddRpmLimit(v int) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRpmLimit() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (u *UserUpsertBulk) SetParentMerchantID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetParentMerchantID(v)
+	})
+}
+
+// UpdateParentMerchantID sets the "parent_merchant_id" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateParentMerchantID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateParentMerchantID()
+	})
+}
+
+// ClearParentMerchantID clears the value of the "parent_merchant_id" field.
+func (u *UserUpsertBulk) ClearParentMerchantID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearParentMerchantID()
 	})
 }
 

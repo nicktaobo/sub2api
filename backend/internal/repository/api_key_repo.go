@@ -683,6 +683,11 @@ func userEntityToService(u *dbent.User) *service.User {
 	if u.BalanceNotifyExtraEmails != "" && u.BalanceNotifyExtraEmails != "[]" {
 		out.BalanceNotifyExtraEmails = service.ParseNotifyEmails(u.BalanceNotifyExtraEmails)
 	}
+	// MERCHANT-SYSTEM v1.0
+	if u.ParentMerchantID != nil {
+		v := *u.ParentMerchantID
+		out.ParentMerchantID = &v
+	}
 	return out
 }
 

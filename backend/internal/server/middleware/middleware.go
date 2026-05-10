@@ -24,6 +24,8 @@ const (
 	ContextKeySubscription ContextKey = "subscription"
 	// ContextKeyForcePlatform 强制平台（用于 /antigravity 路由）
 	ContextKeyForcePlatform ContextKey = "force_platform"
+	// ContextKeyMerchant MERCHANT-SYSTEM v1.0：当前请求所属商户（DomainDetect 中间件注入）
+	ContextKeyMerchant ContextKey = "merchant"
 )
 
 // ForcePlatform 返回设置强制平台的中间件

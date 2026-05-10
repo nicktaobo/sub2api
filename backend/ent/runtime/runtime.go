@@ -20,6 +20,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/merchant"
+	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
+	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
+	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -923,6 +929,233 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	merchantMixin := schema.Merchant{}.Mixin()
+	merchantMixinHooks1 := merchantMixin[1].Hooks()
+	merchant.Hooks[0] = merchantMixinHooks1[0]
+	merchantMixinInters1 := merchantMixin[1].Interceptors()
+	merchant.Interceptors[0] = merchantMixinInters1[0]
+	merchantMixinFields0 := merchantMixin[0].Fields()
+	_ = merchantMixinFields0
+	merchantFields := schema.Merchant{}.Fields()
+	_ = merchantFields
+	// merchantDescCreatedAt is the schema descriptor for created_at field.
+	merchantDescCreatedAt := merchantMixinFields0[0].Descriptor()
+	// merchant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchant.DefaultCreatedAt = merchantDescCreatedAt.Default.(func() time.Time)
+	// merchantDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantDescUpdatedAt := merchantMixinFields0[1].Descriptor()
+	// merchant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchant.DefaultUpdatedAt = merchantDescUpdatedAt.Default.(func() time.Time)
+	// merchant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchant.UpdateDefaultUpdatedAt = merchantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// merchantDescName is the schema descriptor for name field.
+	merchantDescName := merchantFields[1].Descriptor()
+	// merchant.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	merchant.NameValidator = func() func(string) error {
+		validators := merchantDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// merchantDescStatus is the schema descriptor for status field.
+	merchantDescStatus := merchantFields[2].Descriptor()
+	// merchant.DefaultStatus holds the default value on creation for the status field.
+	merchant.DefaultStatus = merchantDescStatus.Default.(string)
+	// merchant.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	merchant.StatusValidator = merchantDescStatus.Validators[0].(func(string) error)
+	// merchantDescDiscount is the schema descriptor for discount field.
+	merchantDescDiscount := merchantFields[3].Descriptor()
+	// merchant.DefaultDiscount holds the default value on creation for the discount field.
+	merchant.DefaultDiscount = merchantDescDiscount.Default.(float64)
+	// merchantDescUserMarkupDefault is the schema descriptor for user_markup_default field.
+	merchantDescUserMarkupDefault := merchantFields[4].Descriptor()
+	// merchant.DefaultUserMarkupDefault holds the default value on creation for the user_markup_default field.
+	merchant.DefaultUserMarkupDefault = merchantDescUserMarkupDefault.Default.(float64)
+	// merchantDescOwnerBalanceBaseline is the schema descriptor for owner_balance_baseline field.
+	merchantDescOwnerBalanceBaseline := merchantFields[5].Descriptor()
+	// merchant.DefaultOwnerBalanceBaseline holds the default value on creation for the owner_balance_baseline field.
+	merchant.DefaultOwnerBalanceBaseline = merchantDescOwnerBalanceBaseline.Default.(float64)
+	// merchantDescLowBalanceThreshold is the schema descriptor for low_balance_threshold field.
+	merchantDescLowBalanceThreshold := merchantFields[6].Descriptor()
+	// merchant.DefaultLowBalanceThreshold holds the default value on creation for the low_balance_threshold field.
+	merchant.DefaultLowBalanceThreshold = merchantDescLowBalanceThreshold.Default.(float64)
+	// merchantDescNotifyEmails is the schema descriptor for notify_emails field.
+	merchantDescNotifyEmails := merchantFields[7].Descriptor()
+	// merchant.DefaultNotifyEmails holds the default value on creation for the notify_emails field.
+	merchant.DefaultNotifyEmails = merchantDescNotifyEmails.Default.([]string)
+	merchantauditlogFields := schema.MerchantAuditLog{}.Fields()
+	_ = merchantauditlogFields
+	// merchantauditlogDescField is the schema descriptor for field field.
+	merchantauditlogDescField := merchantauditlogFields[2].Descriptor()
+	// merchantauditlog.FieldValidator is a validator for the "field" field. It is called by the builders before save.
+	merchantauditlog.FieldValidator = merchantauditlogDescField.Validators[0].(func(string) error)
+	// merchantauditlogDescReason is the schema descriptor for reason field.
+	merchantauditlogDescReason := merchantauditlogFields[5].Descriptor()
+	// merchantauditlog.DefaultReason holds the default value on creation for the reason field.
+	merchantauditlog.DefaultReason = merchantauditlogDescReason.Default.(string)
+	// merchantauditlogDescCreatedAt is the schema descriptor for created_at field.
+	merchantauditlogDescCreatedAt := merchantauditlogFields[6].Descriptor()
+	// merchantauditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantauditlog.DefaultCreatedAt = merchantauditlogDescCreatedAt.Default.(func() time.Time)
+	merchantdomainMixin := schema.MerchantDomain{}.Mixin()
+	merchantdomainMixinHooks1 := merchantdomainMixin[1].Hooks()
+	merchantdomain.Hooks[0] = merchantdomainMixinHooks1[0]
+	merchantdomainMixinInters1 := merchantdomainMixin[1].Interceptors()
+	merchantdomain.Interceptors[0] = merchantdomainMixinInters1[0]
+	merchantdomainMixinFields0 := merchantdomainMixin[0].Fields()
+	_ = merchantdomainMixinFields0
+	merchantdomainFields := schema.MerchantDomain{}.Fields()
+	_ = merchantdomainFields
+	// merchantdomainDescCreatedAt is the schema descriptor for created_at field.
+	merchantdomainDescCreatedAt := merchantdomainMixinFields0[0].Descriptor()
+	// merchantdomain.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantdomain.DefaultCreatedAt = merchantdomainDescCreatedAt.Default.(func() time.Time)
+	// merchantdomainDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantdomainDescUpdatedAt := merchantdomainMixinFields0[1].Descriptor()
+	// merchantdomain.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantdomain.DefaultUpdatedAt = merchantdomainDescUpdatedAt.Default.(func() time.Time)
+	// merchantdomain.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantdomain.UpdateDefaultUpdatedAt = merchantdomainDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// merchantdomainDescDomain is the schema descriptor for domain field.
+	merchantdomainDescDomain := merchantdomainFields[1].Descriptor()
+	// merchantdomain.DomainValidator is a validator for the "domain" field. It is called by the builders before save.
+	merchantdomain.DomainValidator = func() func(string) error {
+		validators := merchantdomainDescDomain.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(domain string) error {
+			for _, fn := range fns {
+				if err := fn(domain); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// merchantdomainDescSiteName is the schema descriptor for site_name field.
+	merchantdomainDescSiteName := merchantdomainFields[2].Descriptor()
+	// merchantdomain.DefaultSiteName holds the default value on creation for the site_name field.
+	merchantdomain.DefaultSiteName = merchantdomainDescSiteName.Default.(string)
+	// merchantdomain.SiteNameValidator is a validator for the "site_name" field. It is called by the builders before save.
+	merchantdomain.SiteNameValidator = merchantdomainDescSiteName.Validators[0].(func(string) error)
+	// merchantdomainDescSiteLogo is the schema descriptor for site_logo field.
+	merchantdomainDescSiteLogo := merchantdomainFields[3].Descriptor()
+	// merchantdomain.DefaultSiteLogo holds the default value on creation for the site_logo field.
+	merchantdomain.DefaultSiteLogo = merchantdomainDescSiteLogo.Default.(string)
+	// merchantdomainDescBrandColor is the schema descriptor for brand_color field.
+	merchantdomainDescBrandColor := merchantdomainFields[4].Descriptor()
+	// merchantdomain.DefaultBrandColor holds the default value on creation for the brand_color field.
+	merchantdomain.DefaultBrandColor = merchantdomainDescBrandColor.Default.(string)
+	// merchantdomain.BrandColorValidator is a validator for the "brand_color" field. It is called by the builders before save.
+	merchantdomain.BrandColorValidator = merchantdomainDescBrandColor.Validators[0].(func(string) error)
+	// merchantdomainDescCustomCSS is the schema descriptor for custom_css field.
+	merchantdomainDescCustomCSS := merchantdomainFields[5].Descriptor()
+	// merchantdomain.DefaultCustomCSS holds the default value on creation for the custom_css field.
+	merchantdomain.DefaultCustomCSS = merchantdomainDescCustomCSS.Default.(string)
+	// merchantdomainDescHomeContent is the schema descriptor for home_content field.
+	merchantdomainDescHomeContent := merchantdomainFields[6].Descriptor()
+	// merchantdomain.DefaultHomeContent holds the default value on creation for the home_content field.
+	merchantdomain.DefaultHomeContent = merchantdomainDescHomeContent.Default.(string)
+	// merchantdomainDescSeoTitle is the schema descriptor for seo_title field.
+	merchantdomainDescSeoTitle := merchantdomainFields[7].Descriptor()
+	// merchantdomain.DefaultSeoTitle holds the default value on creation for the seo_title field.
+	merchantdomain.DefaultSeoTitle = merchantdomainDescSeoTitle.Default.(string)
+	// merchantdomain.SeoTitleValidator is a validator for the "seo_title" field. It is called by the builders before save.
+	merchantdomain.SeoTitleValidator = merchantdomainDescSeoTitle.Validators[0].(func(string) error)
+	// merchantdomainDescSeoDescription is the schema descriptor for seo_description field.
+	merchantdomainDescSeoDescription := merchantdomainFields[8].Descriptor()
+	// merchantdomain.DefaultSeoDescription holds the default value on creation for the seo_description field.
+	merchantdomain.DefaultSeoDescription = merchantdomainDescSeoDescription.Default.(string)
+	// merchantdomainDescSeoKeywords is the schema descriptor for seo_keywords field.
+	merchantdomainDescSeoKeywords := merchantdomainFields[9].Descriptor()
+	// merchantdomain.DefaultSeoKeywords holds the default value on creation for the seo_keywords field.
+	merchantdomain.DefaultSeoKeywords = merchantdomainDescSeoKeywords.Default.(string)
+	// merchantdomain.SeoKeywordsValidator is a validator for the "seo_keywords" field. It is called by the builders before save.
+	merchantdomain.SeoKeywordsValidator = merchantdomainDescSeoKeywords.Validators[0].(func(string) error)
+	// merchantdomainDescVerifyToken is the schema descriptor for verify_token field.
+	merchantdomainDescVerifyToken := merchantdomainFields[10].Descriptor()
+	// merchantdomain.DefaultVerifyToken holds the default value on creation for the verify_token field.
+	merchantdomain.DefaultVerifyToken = merchantdomainDescVerifyToken.Default.(string)
+	// merchantdomain.VerifyTokenValidator is a validator for the "verify_token" field. It is called by the builders before save.
+	merchantdomain.VerifyTokenValidator = merchantdomainDescVerifyToken.Validators[0].(func(string) error)
+	// merchantdomainDescVerified is the schema descriptor for verified field.
+	merchantdomainDescVerified := merchantdomainFields[11].Descriptor()
+	// merchantdomain.DefaultVerified holds the default value on creation for the verified field.
+	merchantdomain.DefaultVerified = merchantdomainDescVerified.Default.(bool)
+	merchantearningsoutboxFields := schema.MerchantEarningsOutbox{}.Fields()
+	_ = merchantearningsoutboxFields
+	// merchantearningsoutboxDescSource is the schema descriptor for source field.
+	merchantearningsoutboxDescSource := merchantearningsoutboxFields[3].Descriptor()
+	// merchantearningsoutbox.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	merchantearningsoutbox.SourceValidator = merchantearningsoutboxDescSource.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescRefType is the schema descriptor for ref_type field.
+	merchantearningsoutboxDescRefType := merchantearningsoutboxFields[4].Descriptor()
+	// merchantearningsoutbox.RefTypeValidator is a validator for the "ref_type" field. It is called by the builders before save.
+	merchantearningsoutbox.RefTypeValidator = merchantearningsoutboxDescRefType.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	merchantearningsoutboxDescIdempotencyKey := merchantearningsoutboxFields[6].Descriptor()
+	// merchantearningsoutbox.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	merchantearningsoutbox.IdempotencyKeyValidator = merchantearningsoutboxDescIdempotencyKey.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescProcessed is the schema descriptor for processed field.
+	merchantearningsoutboxDescProcessed := merchantearningsoutboxFields[7].Descriptor()
+	// merchantearningsoutbox.DefaultProcessed holds the default value on creation for the processed field.
+	merchantearningsoutbox.DefaultProcessed = merchantearningsoutboxDescProcessed.Default.(bool)
+	// merchantearningsoutboxDescCreatedAt is the schema descriptor for created_at field.
+	merchantearningsoutboxDescCreatedAt := merchantearningsoutboxFields[9].Descriptor()
+	// merchantearningsoutbox.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantearningsoutbox.DefaultCreatedAt = merchantearningsoutboxDescCreatedAt.Default.(func() time.Time)
+	merchantgroupmarkupMixin := schema.MerchantGroupMarkup{}.Mixin()
+	merchantgroupmarkupMixinFields0 := merchantgroupmarkupMixin[0].Fields()
+	_ = merchantgroupmarkupMixinFields0
+	merchantgroupmarkupFields := schema.MerchantGroupMarkup{}.Fields()
+	_ = merchantgroupmarkupFields
+	// merchantgroupmarkupDescCreatedAt is the schema descriptor for created_at field.
+	merchantgroupmarkupDescCreatedAt := merchantgroupmarkupMixinFields0[0].Descriptor()
+	// merchantgroupmarkup.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantgroupmarkup.DefaultCreatedAt = merchantgroupmarkupDescCreatedAt.Default.(func() time.Time)
+	// merchantgroupmarkupDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantgroupmarkupDescUpdatedAt := merchantgroupmarkupMixinFields0[1].Descriptor()
+	// merchantgroupmarkup.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantgroupmarkup.DefaultUpdatedAt = merchantgroupmarkupDescUpdatedAt.Default.(func() time.Time)
+	// merchantgroupmarkup.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantgroupmarkup.UpdateDefaultUpdatedAt = merchantgroupmarkupDescUpdatedAt.UpdateDefault.(func() time.Time)
+	merchantledgerFields := schema.MerchantLedger{}.Fields()
+	_ = merchantledgerFields
+	// merchantledgerDescDirection is the schema descriptor for direction field.
+	merchantledgerDescDirection := merchantledgerFields[3].Descriptor()
+	// merchantledger.DirectionValidator is a validator for the "direction" field. It is called by the builders before save.
+	merchantledger.DirectionValidator = merchantledgerDescDirection.Validators[0].(func(string) error)
+	// merchantledgerDescIsAggregated is the schema descriptor for is_aggregated field.
+	merchantledgerDescIsAggregated := merchantledgerFields[6].Descriptor()
+	// merchantledger.DefaultIsAggregated holds the default value on creation for the is_aggregated field.
+	merchantledger.DefaultIsAggregated = merchantledgerDescIsAggregated.Default.(bool)
+	// merchantledgerDescSource is the schema descriptor for source field.
+	merchantledgerDescSource := merchantledgerFields[8].Descriptor()
+	// merchantledger.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	merchantledger.SourceValidator = merchantledgerDescSource.Validators[0].(func(string) error)
+	// merchantledgerDescRefType is the schema descriptor for ref_type field.
+	merchantledgerDescRefType := merchantledgerFields[9].Descriptor()
+	// merchantledger.RefTypeValidator is a validator for the "ref_type" field. It is called by the builders before save.
+	merchantledger.RefTypeValidator = merchantledgerDescRefType.Validators[0].(func(string) error)
+	// merchantledgerDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	merchantledgerDescIdempotencyKey := merchantledgerFields[11].Descriptor()
+	// merchantledger.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	merchantledger.IdempotencyKeyValidator = merchantledgerDescIdempotencyKey.Validators[0].(func(string) error)
+	// merchantledgerDescCreatedAt is the schema descriptor for created_at field.
+	merchantledgerDescCreatedAt := merchantledgerFields[13].Descriptor()
+	// merchantledger.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantledger.DefaultCreatedAt = merchantledgerDescCreatedAt.Default.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

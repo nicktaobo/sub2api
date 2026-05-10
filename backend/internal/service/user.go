@@ -60,6 +60,9 @@ type User struct {
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
+
+	// MERCHANT-SYSTEM v1.0：子用户绑定的商户 id（NULL = 普通用户/owner）
+	ParentMerchantID *int64
 }
 
 func (u *User) IsAdmin() bool {

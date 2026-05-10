@@ -94,6 +94,14 @@ var ProviderSet = wire.NewSet(
 	NewContentModerationRepository,
 	NewAffiliateRepository,
 
+	// MERCHANT-SYSTEM v1.0
+	NewMerchantRepository,
+	NewMerchantDomainRepository,
+	NewMerchantLedgerRepository,
+	NewMerchantOutboxRepository,
+	NewMerchantAuditLogRepository,
+	NewMerchantGroupMarkupRepository,
+
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,

@@ -5,7 +5,7 @@ import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import { resolveDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
-import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore } from '@/stores'
+import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useMerchantStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 
 const router = useRouter()
@@ -14,6 +14,33 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
+const merchantStore = useMerchantStore()
+
+/**
+ * Apply merchant brand metadata (SEO + brand color) when running on a
+ * merchant-branded host. Home content is intentionally not injected here —
+ * sanitization is required and will be done by the home view itself.
+ */
+function applyMerchantBrand(): void {
+  if (!merchantStore.isMerchantSite) return
+  const seoTitle = merchantStore.seoTitle
+  if (seoTitle) document.title = seoTitle
+  const setMeta = (name: string, content: string) => {
+    if (!content) return
+    let el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)
+    if (!el) {
+      el = document.createElement('meta')
+      el.setAttribute('name', name)
+      document.head.appendChild(el)
+    }
+    el.setAttribute('content', content)
+  }
+  setMeta('description', merchantStore.seoDescription)
+  setMeta('keywords', merchantStore.seoKeywords)
+  if (merchantStore.brandColor) {
+    document.documentElement.style.setProperty('--brand-color', merchantStore.brandColor)
+  }
+}
 
 /**
  * Update favicon dynamically
@@ -105,6 +132,10 @@ onMounted(async () => {
 
   // Load public settings into appStore (will be cached for other components)
   await appStore.fetchPublicSettings()
+
+  // Load merchant brand (one-shot, non-fatal). Apply SEO + brand color afterwards.
+  await merchantStore.loadBrand()
+  applyMerchantBrand()
 
   // Re-resolve document title now that siteName is available
   document.title = resolveDocumentTitle(route.meta.title, appStore.siteName, route.meta.titleKey as string)

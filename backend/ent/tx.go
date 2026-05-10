@@ -44,6 +44,18 @@ type Tx struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// Merchant is the client for interacting with the Merchant builders.
+	Merchant *MerchantClient
+	// MerchantAuditLog is the client for interacting with the MerchantAuditLog builders.
+	MerchantAuditLog *MerchantAuditLogClient
+	// MerchantDomain is the client for interacting with the MerchantDomain builders.
+	MerchantDomain *MerchantDomainClient
+	// MerchantEarningsOutbox is the client for interacting with the MerchantEarningsOutbox builders.
+	MerchantEarningsOutbox *MerchantEarningsOutboxClient
+	// MerchantGroupMarkup is the client for interacting with the MerchantGroupMarkup builders.
+	MerchantGroupMarkup *MerchantGroupMarkupClient
+	// MerchantLedger is the client for interacting with the MerchantLedger builders.
+	MerchantLedger *MerchantLedgerClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -228,6 +240,12 @@ func (tx *Tx) init() {
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
+	tx.Merchant = NewMerchantClient(tx.config)
+	tx.MerchantAuditLog = NewMerchantAuditLogClient(tx.config)
+	tx.MerchantDomain = NewMerchantDomainClient(tx.config)
+	tx.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(tx.config)
+	tx.MerchantGroupMarkup = NewMerchantGroupMarkupClient(tx.config)
+	tx.MerchantLedger = NewMerchantLedgerClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)

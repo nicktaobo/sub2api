@@ -518,6 +518,12 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
+
+	// MERCHANT-SYSTEM v1.0
+	NewMerchantPricingService,
+	NewMerchantService,
+	ProvideMerchantEarningsWorker,
+	ProvideMerchantReconcileJob,
 )
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named
@@ -556,4 +562,20 @@ func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *Set
 	svc.SetScheduler(r)
 	r.Start()
 	return r
+}
+
+// ProvideMerchantEarningsWorker MERCHANT-SYSTEM v1.0：
+// 构造并启动后台 worker（即使 flag 关闭也运行——空轮检测 + 处理积压）。Stop 由 cleanup 调用。
+func ProvideMerchantEarningsWorker(cfg *config.Config, db *sql.DB, outboxRepo MerchantOutboxRepository) *MerchantEarningsWorker {
+	w := NewMerchantEarningsWorker(cfg, db, outboxRepo)
+	w.Start()
+	return w
+}
+
+// ProvideMerchantReconcileJob MERCHANT-SYSTEM v1.0：
+// 构造并启动 reconcile 后台任务。Stop 由 cleanup 调用。
+func ProvideMerchantReconcileJob(cfg *config.Config, db *sql.DB, outboxRepo MerchantOutboxRepository, ps *PaymentService) *MerchantReconcileJob {
+	j := NewMerchantReconcileJob(cfg, db, outboxRepo, ps)
+	j.Start()
+	return j
 }

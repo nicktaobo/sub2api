@@ -14,8 +14,8 @@ import (
 )
 
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
-func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
-	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
+func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, merchantRepo service.MerchantRepository) APIKeyAuthMiddleware {
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg, merchantRepo))
 }
 
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
@@ -25,7 +25,7 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 //   - 计费执行（Billing Enforcement）：过期/配额/订阅/余额检查 —— skipBilling 时整块跳过
 //
 // /v1/usage 端点只需鉴权，不需要计费执行（允许过期/配额耗尽的 Key 查询自身用量）。
-func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, merchantRepo service.MerchantRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
 
@@ -107,6 +107,20 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		if !apiKey.User.IsActive() {
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
+		}
+
+		// MERCHANT-SYSTEM v1.0 (RFC §3.4 / §5.3.1 / Phase 3.8 v1.9 P2-G)
+		// sub_user 商户 suspended 时 API key 拒绝。**必须在 SimpleMode early return 之前**——
+		// 否则 SimpleMode 部署会绕过拦截。owner 自用 API key **不**拦截（owner 是普通用户，对账等式靠 owner_usage_debit）。
+		if cfg != nil && cfg.Merchant.Enabled &&
+			merchantRepo != nil &&
+			apiKey.User.ParentMerchantID != nil {
+			m, err := merchantRepo.GetByID(c.Request.Context(), *apiKey.User.ParentMerchantID)
+			if err == nil && m != nil && m.Status == service.MerchantStatusSuspended {
+				AbortWithError(c, 401, "MERCHANT_SUSPENDED", "Merchant is suspended")
+				return
+			}
+			// err（含 NotFound 或其他）静默放行——避免 DB 不可用导致整站不能用
 		}
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
