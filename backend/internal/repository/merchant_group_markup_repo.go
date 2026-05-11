@@ -24,7 +24,7 @@ func (r *merchantGroupMarkupRepository) Upsert(ctx context.Context, e *service.M
 		SetMerchantID(e.MerchantID).
 		SetGroupID(e.GroupID).
 		SetMarkup(e.Markup).
-		OnConflict().
+		OnConflictColumns(merchantgroupmarkup.FieldMerchantID, merchantgroupmarkup.FieldGroupID).
 		UpdateMarkup().
 		ID(ctx)
 	if err != nil {
