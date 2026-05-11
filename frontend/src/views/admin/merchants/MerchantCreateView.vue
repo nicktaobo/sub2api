@@ -15,7 +15,7 @@
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">
-              {{ t('merchant.fields.ownerUserId') }}
+              {{ t('merchant.fields.owner') }}
               <span class="text-rose-500">*</span>
             </label>
             <UserSelectRemote
