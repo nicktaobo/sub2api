@@ -1,9 +1,5 @@
 // MERCHANT-SYSTEM v1.0
-// admin.MerchantHandler 平台管理员的商户管理 API（需 admin role）。
-// 提供：商户 CRUD / 配置变更 / 充值/退款 / 分组定价管理 / 子用户解绑。
-//
-// 路由：/api/v1/admin/merchants/*
-// RFC §5.1 / Phase 5.1。
+// admin.MerchantHandler 平台管理员的商户管理 API。
 
 package admin
 
@@ -11,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -39,8 +36,33 @@ func adminID(c *gin.Context) int64 {
 	return 0
 }
 
+func writeError(c *gin.Context, err error, fallbackStatus int) {
+	if !response.ErrorFrom(c, err) {
+		response.Error(c, fallbackStatus, err.Error())
+	}
+}
+
+// paginated 把 (rows, total, offset, limit) 包装成前端 PaginatedResponse 形态。
+func paginated[T any](rows []T, total int, offset, limit int) gin.H {
+	if limit <= 0 {
+		limit = 50
+	}
+	page := offset/limit + 1
+	pages := 1
+	if total > 0 {
+		pages = (total + limit - 1) / limit
+	}
+	return gin.H{
+		"items":     rows,
+		"total":     total,
+		"page":      page,
+		"page_size": limit,
+		"pages":     pages,
+	}
+}
+
 // ----------------------------------------------------------------------------
-// GET /api/v1/admin/merchants — 列表（支持 status / 分页）
+// List / Create / Get
 // ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) List(c *gin.Context) {
@@ -49,15 +71,11 @@ func (h *MerchantHandler) List(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	rows, total, err := h.merchantSvc.List(c.Request.Context(), status, offset, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"rows": rows, "total": total})
+	response.Success(c, paginated(rows, total, offset, limit))
 }
-
-// ----------------------------------------------------------------------------
-// POST /api/v1/admin/merchants — 创建商户
-// ----------------------------------------------------------------------------
 
 type createMerchantReq struct {
 	OwnerUserID         int64    `json:"owner_user_id" binding:"required"`
@@ -72,7 +90,7 @@ type createMerchantReq struct {
 func (h *MerchantHandler) Create(c *gin.Context) {
 	var req createMerchantReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if req.Discount == 0 {
@@ -92,32 +110,28 @@ func (h *MerchantHandler) Create(c *gin.Context) {
 		Reason:              req.Reason,
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, m)
+	response.Success(c, m)
 }
-
-// ----------------------------------------------------------------------------
-// GET /api/v1/admin/merchants/:id
-// ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) Get(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	m, err := h.merchantSvc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusNotFound)
 		return
 	}
-	c.JSON(http.StatusOK, m)
+	response.Success(c, m)
 }
 
 // ----------------------------------------------------------------------------
-// PATCH /api/v1/admin/merchants/:id/discount
+// Discount / Markup / Status / Recharge / Refund
 // ----------------------------------------------------------------------------
 
 type setDiscountReq struct {
@@ -128,24 +142,20 @@ type setDiscountReq struct {
 func (h *MerchantHandler) SetDiscount(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req setDiscountReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.SetDiscount(c.Request.Context(), id, req.Discount, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
-
-// ----------------------------------------------------------------------------
-// PATCH /api/v1/admin/merchants/:id/markup_default
-// ----------------------------------------------------------------------------
 
 type setMarkupReq struct {
 	Markup float64 `json:"markup" binding:"required"`
@@ -155,24 +165,20 @@ type setMarkupReq struct {
 func (h *MerchantHandler) SetMarkupDefault(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req setMarkupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.SetMarkupDefault(c.Request.Context(), id, req.Markup, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
-
-// ----------------------------------------------------------------------------
-// PATCH /api/v1/admin/merchants/:id/status
-// ----------------------------------------------------------------------------
 
 type setStatusReq struct {
 	Status string `json:"status" binding:"required"`
@@ -182,24 +188,20 @@ type setStatusReq struct {
 func (h *MerchantHandler) SetStatus(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req setStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.UpdateStatus(c.Request.Context(), id, req.Status, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
-
-// ----------------------------------------------------------------------------
-// POST /api/v1/admin/merchants/:id/recharge
-// ----------------------------------------------------------------------------
 
 type rechargeReq struct {
 	Amount float64 `json:"amount" binding:"required"`
@@ -209,59 +211,58 @@ type rechargeReq struct {
 func (h *MerchantHandler) Recharge(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req rechargeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.AdminRecharge(c.Request.Context(), id, req.Amount, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
-
-// ----------------------------------------------------------------------------
-// POST /api/v1/admin/merchants/:id/refund
-// ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) Refund(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req rechargeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.AdminRefund(c.Request.Context(), id, req.Amount, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
 
 // ----------------------------------------------------------------------------
-// 分组定价管理
+// Group markup
 // ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) ListGroupMarkups(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	rows, err := h.merchantSvc.ListGroupMarkups(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"rows": rows})
+	if rows == nil {
+		rows = []*service.MerchantGroupMarkup{}
+	}
+	response.Success(c, rows)
 }
 
 type setGroupMarkupReq struct {
@@ -273,82 +274,74 @@ type setGroupMarkupReq struct {
 func (h *MerchantHandler) SetGroupMarkup(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	var req setGroupMarkupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if err := h.merchantSvc.SetGroupMarkup(c.Request.Context(), id, req.GroupID, req.Markup, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
 
 func (h *MerchantHandler) DeleteGroupMarkup(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	groupID, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id"})
+		response.BadRequest(c, "invalid group_id")
 		return
 	}
 	if err := h.merchantSvc.DeleteGroupMarkup(c.Request.Context(), id, groupID, adminID(c), c.Query("reason")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }
 
 // ----------------------------------------------------------------------------
-// GET /api/v1/admin/merchants/:id/audit_log
+// Audit log + Ledger + Unbind
 // ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) ListAuditLog(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	rows, total, err := h.merchantSvc.ListAuditLog(c.Request.Context(), id, offset, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"rows": rows, "total": total})
+	response.Success(c, paginated(rows, total, offset, limit))
 }
-
-// ----------------------------------------------------------------------------
-// GET /api/v1/admin/merchants/:id/ledger
-// ----------------------------------------------------------------------------
 
 func (h *MerchantHandler) ListLedger(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		response.BadRequest(c, "invalid id")
 		return
 	}
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	rows, total, err := h.merchantSvc.ListLedger(c.Request.Context(), id, offset, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"rows": rows, "total": total})
+	response.Success(c, paginated(rows, total, offset, limit))
 }
-
-// ----------------------------------------------------------------------------
-// POST /api/v1/admin/merchants/unbind_user/:user_id
-// ----------------------------------------------------------------------------
 
 type unbindReq struct {
 	Reason string `json:"reason"`
@@ -357,14 +350,14 @@ type unbindReq struct {
 func (h *MerchantHandler) UnbindSubUser(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		response.BadRequest(c, "invalid user_id")
 		return
 	}
 	var req unbindReq
 	_ = c.ShouldBindJSON(&req)
 	if err := h.merchantSvc.UnbindSubUser(c.Request.Context(), userID, adminID(c), req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeError(c, err, http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	response.Success(c, gin.H{"ok": true})
 }

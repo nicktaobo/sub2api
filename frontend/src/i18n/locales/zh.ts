@@ -6932,7 +6932,7 @@ export default {
       discountHint: '商户充值时享受的折扣，例如 0.9 = 9 折。',
       markupHint: '子用户消费时默认应用的倍率，>=1，>2 时进入审核。',
       notifyEmailsHint: '逗号分隔',
-      notifyEmailsPlaceholder: 'ops@example.com, billing@example.com',
+      notifyEmailsPlaceholder: "ops{'@'}example.com, billing{'@'}example.com",
       actions: {
         view: '查看',
         recharge: '充值',

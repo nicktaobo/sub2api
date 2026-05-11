@@ -78,95 +78,95 @@ const (
 
 // Merchant 商户主体（RFC §4.1.1）。
 type Merchant struct {
-	ID                   int64
-	OwnerUserID          int64
-	Name                 string
-	Status               string
-	Discount             float64
-	UserMarkupDefault    float64
-	OwnerBalanceBaseline float64
-	LowBalanceThreshold  float64
-	NotifyEmails         []string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	DeletedAt            *time.Time
+	ID                   int64      `json:"id"`
+	OwnerUserID          int64      `json:"owner_user_id"`
+	Name                 string     `json:"name"`
+	Status               string     `json:"status"`
+	Discount             float64    `json:"discount"`
+	UserMarkupDefault    float64    `json:"user_markup_default"`
+	OwnerBalanceBaseline float64    `json:"owner_balance_baseline"`
+	LowBalanceThreshold  float64    `json:"low_balance_threshold"`
+	NotifyEmails         []string   `json:"notify_emails"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
 }
 
 // MerchantDomain 商户自定义域名 + 站点品牌（RFC §4.1.2）。
 type MerchantDomain struct {
-	ID              int64
-	MerchantID      int64
-	Domain          string
-	SiteName        string
-	SiteLogo        string
-	BrandColor      string
-	CustomCSS       string
-	HomeContent     string
-	SEOTitle        string
-	SEODescription  string
-	SEOKeywords     string
-	VerifyToken     string
-	Verified        bool
-	VerifiedAt      *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DeletedAt       *time.Time
+	ID             int64      `json:"id"`
+	MerchantID     int64      `json:"merchant_id"`
+	Domain         string     `json:"domain"`
+	SiteName       string     `json:"site_name"`
+	SiteLogo       string     `json:"site_logo"`
+	BrandColor     string     `json:"brand_color"`
+	CustomCSS      string     `json:"custom_css"`
+	HomeContent    string     `json:"home_content"`
+	SEOTitle       string     `json:"seo_title"`
+	SEODescription string     `json:"seo_description"`
+	SEOKeywords    string     `json:"seo_keywords"`
+	VerifyToken    string     `json:"verify_token"`
+	Verified       bool       `json:"verified"`
+	VerifiedAt     *time.Time `json:"verified_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	DeletedAt      *time.Time `json:"deleted_at,omitempty"`
 }
 
 // MerchantLedgerEntry owner-only 资金流水（RFC §4.2.2）。
 type MerchantLedgerEntry struct {
-	ID                 int64
-	MerchantID         int64
-	OwnerUserID        int64
-	CounterpartyUserID *int64
-	Direction          string  // credit / debit
-	Amount             float64 // 正数
-	BalanceAfter       *float64
-	IsAggregated       bool
-	AggregatedCount    *int
-	Source             string
-	RefType            *string
-	RefID              *int64
-	IdempotencyKey     *string
-	Note               *string
-	CreatedAt          time.Time
+	ID                 int64     `json:"id"`
+	MerchantID         int64     `json:"merchant_id"`
+	OwnerUserID        int64     `json:"owner_user_id"`
+	CounterpartyUserID *int64    `json:"counterparty_user_id,omitempty"`
+	Direction          string    `json:"direction"`
+	Amount             float64   `json:"amount"`
+	BalanceAfter       *float64  `json:"balance_after,omitempty"`
+	IsAggregated       bool      `json:"is_aggregated"`
+	AggregatedCount    *int      `json:"aggregated_count,omitempty"`
+	Source             string    `json:"source"`
+	RefType            *string   `json:"ref_type,omitempty"`
+	RefID              *int64    `json:"ref_id,omitempty"`
+	IdempotencyKey     *string   `json:"idempotency_key,omitempty"`
+	Note               *string   `json:"note,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // MerchantOutboxEntry 网关→worker 临时队列条目（RFC §4.1.3）。
 type MerchantOutboxEntry struct {
-	ID                 int64
-	MerchantID         int64
-	CounterpartyUserID *int64
-	Amount             float64
-	Source             string
-	RefType            string
-	RefID              int64
-	IdempotencyKey     string
-	Processed          bool
-	ProcessedAt        *time.Time
-	CreatedAt          time.Time
+	ID                 int64      `json:"id"`
+	MerchantID         int64      `json:"merchant_id"`
+	CounterpartyUserID *int64     `json:"counterparty_user_id,omitempty"`
+	Amount             float64    `json:"amount"`
+	Source             string     `json:"source"`
+	RefType            string     `json:"ref_type"`
+	RefID              int64      `json:"ref_id"`
+	IdempotencyKey     string     `json:"idempotency_key"`
+	Processed          bool       `json:"processed"`
+	ProcessedAt        *time.Time `json:"processed_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
 }
 
 // MerchantAuditLogEntry 配置/操作审计（RFC §4.1.4）。
 type MerchantAuditLogEntry struct {
-	ID         int64
-	MerchantID int64
-	AdminID    *int64
-	Field      string
-	OldValue   *string
-	NewValue   *string
-	Reason     string
-	CreatedAt  time.Time
+	ID         int64     `json:"id"`
+	MerchantID int64     `json:"merchant_id"`
+	AdminID    *int64    `json:"admin_id,omitempty"`
+	Field      string    `json:"field"`
+	OldValue   *string   `json:"old_value,omitempty"`
+	NewValue   *string   `json:"new_value,omitempty"`
+	Reason     string    `json:"reason"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // MerchantGroupMarkup 分组级 markup 覆盖（RFC §4.1.5）。
 type MerchantGroupMarkup struct {
-	ID         int64
-	MerchantID int64
-	GroupID    int64
-	Markup     float64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         int64     `json:"id"`
+	MerchantID int64     `json:"merchant_id"`
+	GroupID    int64     `json:"group_id"`
+	Markup     float64   `json:"markup"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // ----------------------------------------------------------------------------
