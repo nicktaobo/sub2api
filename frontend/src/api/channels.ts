@@ -38,6 +38,11 @@ export interface UserSupportedModelPricing {
   image_output_price: number | null
   per_request_price: number | null
   intervals: UserPricingInterval[]
+  /** 官方原厂价（USD / per token），来自 LiteLLM 价格表。模型不在表里或为 0 时缺失。 */
+  official_input_price?: number | null
+  official_output_price?: number | null
+  official_cache_write_price?: number | null
+  official_cache_read_price?: number | null
 }
 
 export interface UserSupportedModel {

@@ -24,6 +24,7 @@ type AvailableChannelHandler struct {
 	channelService *service.ChannelService
 	apiKeyService  *service.APIKeyService
 	settingService *service.SettingService
+	billingService *service.BillingService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -31,11 +32,13 @@ func NewAvailableChannelHandler(
 	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
+	billingService *service.BillingService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService: channelService,
 		apiKeyService:  apiKeyService,
 		settingService: settingService,
+		billingService: billingService,
 	}
 }
 
@@ -62,15 +65,22 @@ type userAvailableGroup struct {
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
+//
+// official_* 字段来自 LiteLLM 价格表（单位 USD / per token），用于前端做"本站价
+// vs 官方价"对比展示。当模型在 LiteLLM 列表中未找到或价格为 0 时为 nil。
 type userSupportedModelPricing struct {
-	BillingMode      string                   `json:"billing_mode"`
-	InputPrice       *float64                 `json:"input_price"`
-	OutputPrice      *float64                 `json:"output_price"`
-	CacheWritePrice  *float64                 `json:"cache_write_price"`
-	CacheReadPrice   *float64                 `json:"cache_read_price"`
-	ImageOutputPrice *float64                 `json:"image_output_price"`
-	PerRequestPrice  *float64                 `json:"per_request_price"`
-	Intervals        []userPricingIntervalDTO `json:"intervals"`
+	BillingMode             string                   `json:"billing_mode"`
+	InputPrice              *float64                 `json:"input_price"`
+	OutputPrice             *float64                 `json:"output_price"`
+	CacheWritePrice         *float64                 `json:"cache_write_price"`
+	CacheReadPrice          *float64                 `json:"cache_read_price"`
+	ImageOutputPrice        *float64                 `json:"image_output_price"`
+	PerRequestPrice         *float64                 `json:"per_request_price"`
+	Intervals               []userPricingIntervalDTO `json:"intervals"`
+	OfficialInputPrice      *float64                 `json:"official_input_price,omitempty"`
+	OfficialOutputPrice     *float64                 `json:"official_output_price,omitempty"`
+	OfficialCacheWritePrice *float64                 `json:"official_cache_write_price,omitempty"`
+	OfficialCacheReadPrice  *float64                 `json:"official_cache_read_price,omitempty"`
 }
 
 // userPricingIntervalDTO 定价区间白名单（去掉内部 ID、SortOrder 等前端不渲染的字段）。
@@ -163,7 +173,55 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		})
 	}
 
+	h.enrichOfficialPricing(out)
+
 	response.Success(c, out)
+}
+
+// enrichOfficialPricing 为每个模型补充官方价（来自 LiteLLM 价格表，USD/per token）。
+// 查不到或价格为 0 时静默跳过，前端按 nil 展示为"-"。
+func (h *AvailableChannelHandler) enrichOfficialPricing(out []userAvailableChannel) {
+	if h.billingService == nil {
+		return
+	}
+	cache := make(map[string]*service.ModelPricing, 32)
+	lookup := func(model string) *service.ModelPricing {
+		if p, ok := cache[model]; ok {
+			return p
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			cache[model] = nil
+			return nil
+		}
+		cache[model] = p
+		return p
+	}
+	for ci := range out {
+		for si := range out[ci].Platforms {
+			models := out[ci].Platforms[si].SupportedModels
+			for mi := range models {
+				if models[mi].Pricing == nil {
+					continue
+				}
+				p := lookup(models[mi].Name)
+				if p == nil {
+					continue
+				}
+				models[mi].Pricing.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+				models[mi].Pricing.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+				models[mi].Pricing.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+				models[mi].Pricing.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+			}
+		}
+	}
+}
+
+func positiveFloatPtr(v float64) *float64 {
+	if v <= 0 {
+		return nil
+	}
+	return &v
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：

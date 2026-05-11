@@ -369,6 +369,7 @@ export default {
     groups: '分组管理',
     channels: '渠道管理',
     availableChannels: '可用渠道',
+    modelPricing: '模型列表',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     proxies: 'IP管理',
@@ -966,6 +967,34 @@ export default {
     empty: {
       title: '暂无可显示的渠道',
       description: '管理员尚未配置可监控的渠道。'
+    }
+  },
+
+  // Model Pricing (user-facing)
+  modelPricing: {
+    title: '模型列表',
+    description: '查看每个端点支持的模型及价格，本站价 vs 官方原厂价一目了然',
+    searchPlaceholder: '搜索端点或模型...',
+    endpoints: '可用端点',
+    empty: '暂无可用端点',
+    noModels: '该平台暂无模型',
+    noPricing: '未配置价格',
+    selectPrompt: '请从左侧选择一个端点查看模型价格',
+    modelsUnit: '个模型',
+    rateLabel: '计费倍率',
+    fxNote: '汇率 1 USD ≈ {rate} CNY',
+    columns: {
+      model: '模型',
+      input: '输入',
+      output: '输出',
+      cacheWrite: '缓存写入',
+      cacheRead: '缓存读取',
+      discount: '折扣'
+    },
+    discount: {
+      save: '省 {pct}%',
+      equal: '原价',
+      markup: '+ {pct}%'
     }
   },
 

@@ -369,6 +369,7 @@ export default {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    modelPricing: 'Model Pricing',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',
@@ -962,6 +963,34 @@ export default {
     empty: {
       title: 'No channels available',
       description: 'No monitored channels have been configured yet.'
+    }
+  },
+
+  // Model Pricing (user-facing)
+  modelPricing: {
+    title: 'Model Pricing',
+    description: 'Browse models supported by each endpoint with our price vs vendor official price side by side',
+    searchPlaceholder: 'Search endpoints or models...',
+    endpoints: 'Endpoints',
+    empty: 'No endpoints available',
+    noModels: 'No models on this platform',
+    noPricing: 'Pricing not configured',
+    selectPrompt: 'Pick an endpoint on the left to view its model pricing',
+    modelsUnit: 'models',
+    rateLabel: 'Rate',
+    fxNote: 'FX: 1 USD ≈ {rate} CNY',
+    columns: {
+      model: 'Model',
+      input: 'Input',
+      output: 'Output',
+      cacheWrite: 'Cache Write',
+      cacheRead: 'Cache Read',
+      discount: 'Discount'
+    },
+    discount: {
+      save: 'Save {pct}%',
+      equal: 'Same',
+      markup: '+ {pct}%'
     }
   },
 

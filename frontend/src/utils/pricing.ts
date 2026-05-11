@@ -11,3 +11,9 @@ export function formatScaled(value: number | null, scale: number): string {
   if (value == null) return '-'
   return `$${(value * scale).toPrecision(10).replace(/\.?0+$/, '')}`
 }
+
+/**
+ * USD → CNY 汇率。前端硬编码；后续可迁移到 PublicSettings 让管理员配置。
+ * 调价口径：模型定价页"我们 ¥X / 1M token"展示用。
+ */
+export const USD_TO_CNY = 7.2
