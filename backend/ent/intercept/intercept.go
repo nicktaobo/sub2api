@@ -29,6 +29,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -674,6 +675,33 @@ func (f TraverseMerchantLedger) Traverse(ctx context.Context, q ent.Query) error
 	return fmt.Errorf("unexpected query type %T. expect *ent.MerchantLedgerQuery", q)
 }
 
+// The MerchantWithdrawRequestFunc type is an adapter to allow the use of ordinary function as a Querier.
+type MerchantWithdrawRequestFunc func(context.Context, *ent.MerchantWithdrawRequestQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f MerchantWithdrawRequestFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.MerchantWithdrawRequestQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.MerchantWithdrawRequestQuery", q)
+}
+
+// The TraverseMerchantWithdrawRequest type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseMerchantWithdrawRequest func(context.Context, *ent.MerchantWithdrawRequestQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseMerchantWithdrawRequest) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseMerchantWithdrawRequest) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.MerchantWithdrawRequestQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.MerchantWithdrawRequestQuery", q)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary function as a Querier.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogQuery) (ent.Value, error)
 
@@ -1232,6 +1260,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.MerchantGroupMarkupQuery, predicate.MerchantGroupMarkup, merchantgroupmarkup.OrderOption]{typ: ent.TypeMerchantGroupMarkup, tq: q}, nil
 	case *ent.MerchantLedgerQuery:
 		return &query[*ent.MerchantLedgerQuery, predicate.MerchantLedger, merchantledger.OrderOption]{typ: ent.TypeMerchantLedger, tq: q}, nil
+	case *ent.MerchantWithdrawRequestQuery:
+		return &query[*ent.MerchantWithdrawRequestQuery, predicate.MerchantWithdrawRequest, merchantwithdrawrequest.OrderOption]{typ: ent.TypeMerchantWithdrawRequest, tq: q}, nil
 	case *ent.PaymentAuditLogQuery:
 		return &query[*ent.PaymentAuditLogQuery, predicate.PaymentAuditLog, paymentauditlog.OrderOption]{typ: ent.TypePaymentAuditLog, tq: q}, nil
 	case *ent.PaymentOrderQuery:

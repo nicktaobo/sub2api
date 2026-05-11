@@ -125,6 +125,12 @@ func registerMerchantAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		merchants.GET("/:id/ledger", mh.ListLedger)
 		merchants.POST("/unbind_user/:user_id", mh.UnbindSubUser)
 	}
+	withdrawals := admin.Group("/merchant_withdrawals")
+	{
+		withdrawals.GET("", mh.ListWithdrawals)
+		withdrawals.POST("/:id/approve", mh.ApproveWithdrawal)
+		withdrawals.POST("/:id/reject", mh.RejectWithdrawal)
+	}
 }
 
 func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

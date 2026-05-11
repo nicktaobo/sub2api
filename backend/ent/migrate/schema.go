@@ -1013,6 +1013,48 @@ var (
 			},
 		},
 	}
+	// MerchantWithdrawRequestsColumns holds the columns for the "merchant_withdraw_requests" table.
+	MerchantWithdrawRequestsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "pending"},
+		{Name: "payment_method", Type: field.TypeString, Size: 20},
+		{Name: "payment_account", Type: field.TypeString, Size: 255},
+		{Name: "payment_name", Type: field.TypeString, Size: 100},
+		{Name: "note", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "admin_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "reject_reason", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "ledger_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "processed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantWithdrawRequestsTable holds the schema information for the "merchant_withdraw_requests" table.
+	MerchantWithdrawRequestsTable = &schema.Table{
+		Name:       "merchant_withdraw_requests",
+		Columns:    MerchantWithdrawRequestsColumns,
+		PrimaryKey: []*schema.Column{MerchantWithdrawRequestsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_withdraw_requests_merchants_withdraw_requests",
+				Columns:    []*schema.Column{MerchantWithdrawRequestsColumns[12]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantwithdrawrequest_merchant_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantWithdrawRequestsColumns[12], MerchantWithdrawRequestsColumns[10]},
+			},
+			{
+				Name:    "merchantwithdrawrequest_status_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MerchantWithdrawRequestsColumns[2], MerchantWithdrawRequestsColumns[10]},
+			},
+		},
+	}
 	// PaymentAuditLogsColumns holds the columns for the "payment_audit_logs" table.
 	PaymentAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1947,6 +1989,7 @@ var (
 		MerchantEarningsOutboxTable,
 		MerchantGroupMarkupsTable,
 		MerchantLedgerTable,
+		MerchantWithdrawRequestsTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -2051,6 +2094,10 @@ func init() {
 	MerchantLedgerTable.ForeignKeys[0].RefTable = MerchantsTable
 	MerchantLedgerTable.Annotation = &entsql.Annotation{
 		Table: "merchant_ledger",
+	}
+	MerchantWithdrawRequestsTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantWithdrawRequestsTable.Annotation = &entsql.Annotation{
+		Table: "merchant_withdraw_requests",
 	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",

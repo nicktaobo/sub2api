@@ -33,6 +33,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -133,6 +134,7 @@ func checkColumn(t, c string) error {
 			merchantearningsoutbox.Table:        merchantearningsoutbox.ValidColumn,
 			merchantgroupmarkup.Table:           merchantgroupmarkup.ValidColumn,
 			merchantledger.Table:                merchantledger.ValidColumn,
+			merchantwithdrawrequest.Table:       merchantwithdrawrequest.ValidColumn,
 			paymentauditlog.Table:               paymentauditlog.ValidColumn,
 			paymentorder.Table:                  paymentorder.ValidColumn,
 			paymentproviderinstance.Table:       paymentproviderinstance.ValidColumn,

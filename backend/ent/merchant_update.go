@@ -18,6 +18,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 )
@@ -281,6 +282,21 @@ func (_u *MerchantUpdate) AddGroupMarkups(v ...*MerchantGroupMarkup) *MerchantUp
 	return _u.AddGroupMarkupIDs(ids...)
 }
 
+// AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
+func (_u *MerchantUpdate) AddWithdrawRequestIDs(ids ...int64) *MerchantUpdate {
+	_u.mutation.AddWithdrawRequestIDs(ids...)
+	return _u
+}
+
+// AddWithdrawRequests adds the "withdraw_requests" edges to the MerchantWithdrawRequest entity.
+func (_u *MerchantUpdate) AddWithdrawRequests(v ...*MerchantWithdrawRequest) *MerchantUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddWithdrawRequestIDs(ids...)
+}
+
 // AddSubUserIDs adds the "sub_users" edge to the User entity by IDs.
 func (_u *MerchantUpdate) AddSubUserIDs(ids ...int64) *MerchantUpdate {
 	_u.mutation.AddSubUserIDs(ids...)
@@ -404,6 +420,27 @@ func (_u *MerchantUpdate) RemoveGroupMarkups(v ...*MerchantGroupMarkup) *Merchan
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupMarkupIDs(ids...)
+}
+
+// ClearWithdrawRequests clears all "withdraw_requests" edges to the MerchantWithdrawRequest entity.
+func (_u *MerchantUpdate) ClearWithdrawRequests() *MerchantUpdate {
+	_u.mutation.ClearWithdrawRequests()
+	return _u
+}
+
+// RemoveWithdrawRequestIDs removes the "withdraw_requests" edge to MerchantWithdrawRequest entities by IDs.
+func (_u *MerchantUpdate) RemoveWithdrawRequestIDs(ids ...int64) *MerchantUpdate {
+	_u.mutation.RemoveWithdrawRequestIDs(ids...)
+	return _u
+}
+
+// RemoveWithdrawRequests removes "withdraw_requests" edges to MerchantWithdrawRequest entities.
+func (_u *MerchantUpdate) RemoveWithdrawRequests(v ...*MerchantWithdrawRequest) *MerchantUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveWithdrawRequestIDs(ids...)
 }
 
 // ClearSubUsers clears all "sub_users" edges to the User entity.
@@ -774,6 +811,51 @@ func (_u *MerchantUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.WithdrawRequestsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedWithdrawRequestsIDs(); len(nodes) > 0 && !_u.mutation.WithdrawRequestsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WithdrawRequestsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.SubUsersCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1085,6 +1167,21 @@ func (_u *MerchantUpdateOne) AddGroupMarkups(v ...*MerchantGroupMarkup) *Merchan
 	return _u.AddGroupMarkupIDs(ids...)
 }
 
+// AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
+func (_u *MerchantUpdateOne) AddWithdrawRequestIDs(ids ...int64) *MerchantUpdateOne {
+	_u.mutation.AddWithdrawRequestIDs(ids...)
+	return _u
+}
+
+// AddWithdrawRequests adds the "withdraw_requests" edges to the MerchantWithdrawRequest entity.
+func (_u *MerchantUpdateOne) AddWithdrawRequests(v ...*MerchantWithdrawRequest) *MerchantUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddWithdrawRequestIDs(ids...)
+}
+
 // AddSubUserIDs adds the "sub_users" edge to the User entity by IDs.
 func (_u *MerchantUpdateOne) AddSubUserIDs(ids ...int64) *MerchantUpdateOne {
 	_u.mutation.AddSubUserIDs(ids...)
@@ -1208,6 +1305,27 @@ func (_u *MerchantUpdateOne) RemoveGroupMarkups(v ...*MerchantGroupMarkup) *Merc
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupMarkupIDs(ids...)
+}
+
+// ClearWithdrawRequests clears all "withdraw_requests" edges to the MerchantWithdrawRequest entity.
+func (_u *MerchantUpdateOne) ClearWithdrawRequests() *MerchantUpdateOne {
+	_u.mutation.ClearWithdrawRequests()
+	return _u
+}
+
+// RemoveWithdrawRequestIDs removes the "withdraw_requests" edge to MerchantWithdrawRequest entities by IDs.
+func (_u *MerchantUpdateOne) RemoveWithdrawRequestIDs(ids ...int64) *MerchantUpdateOne {
+	_u.mutation.RemoveWithdrawRequestIDs(ids...)
+	return _u
+}
+
+// RemoveWithdrawRequests removes "withdraw_requests" edges to MerchantWithdrawRequest entities.
+func (_u *MerchantUpdateOne) RemoveWithdrawRequests(v ...*MerchantWithdrawRequest) *MerchantUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveWithdrawRequestIDs(ids...)
 }
 
 // ClearSubUsers clears all "sub_users" edges to the User entity.
@@ -1601,6 +1719,51 @@ func (_u *MerchantUpdateOne) sqlSave(ctx context.Context) (_node *Merchant, err 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(merchantgroupmarkup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.WithdrawRequestsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedWithdrawRequestsIDs(); len(nodes) > 0 && !_u.mutation.WithdrawRequestsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WithdrawRequestsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.WithdrawRequestsTable,
+			Columns: []string{merchant.WithdrawRequestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantwithdrawrequest.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

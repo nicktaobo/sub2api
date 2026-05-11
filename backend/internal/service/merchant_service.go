@@ -114,6 +114,57 @@ func (s *MerchantService) List(ctx context.Context, status string, offset, limit
 	return s.repo.List(ctx, status, offset, limit)
 }
 
+// MerchantListItem 给 admin 列表用的富对象（含域名 + 子用户数 + owner 余额）。
+type MerchantListItem struct {
+	*Merchant
+	Domains      []string `json:"domains"`
+	SubUserCount int      `json:"sub_user_count"`
+	OwnerBalance float64  `json:"owner_balance"`
+}
+
+// ListWithDetails 富列表：商户主表 + 关联域名 + 子用户数 + owner 余额。
+func (s *MerchantService) ListWithDetails(ctx context.Context, status, search string, offset, limit int) ([]*MerchantListItem, int, error) {
+	rows, total, err := s.repo.List(ctx, status, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(rows) == 0 {
+		return nil, total, nil
+	}
+	db, err := s.sqlDB()
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*MerchantListItem, 0, len(rows))
+	for _, m := range rows {
+		item := &MerchantListItem{Merchant: m}
+		// 取该商户所有 verified domain
+		domRows, derr := db.QueryContext(ctx, `
+			SELECT domain FROM merchant_domains
+			WHERE merchant_id = $1 AND deleted_at IS NULL
+			ORDER BY verified DESC, created_at ASC
+		`, m.ID)
+		if derr == nil {
+			for domRows.Next() {
+				var d string
+				if err := domRows.Scan(&d); err == nil {
+					item.Domains = append(item.Domains, d)
+				}
+			}
+			_ = domRows.Close()
+		}
+		// sub_user 数
+		var cnt int
+		_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE parent_merchant_id = $1 AND deleted_at IS NULL`, m.ID).Scan(&cnt)
+		item.SubUserCount = cnt
+		// owner.balance
+		_ = db.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, m.OwnerUserID).Scan(&item.OwnerBalance)
+		out = append(out, item)
+	}
+	_ = search // 暂不实现 search（仓库层没接），后续按需加
+	return out, total, nil
+}
+
 // ----------------------------------------------------------------------------
 // CreateMerchant
 // ----------------------------------------------------------------------------

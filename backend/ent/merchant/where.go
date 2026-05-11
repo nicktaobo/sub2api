@@ -680,6 +680,29 @@ func HasGroupMarkupsWith(preds ...predicate.MerchantGroupMarkup) predicate.Merch
 	})
 }
 
+// HasWithdrawRequests applies the HasEdge predicate on the "withdraw_requests" edge.
+func HasWithdrawRequests() predicate.Merchant {
+	return predicate.Merchant(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, WithdrawRequestsTable, WithdrawRequestsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasWithdrawRequestsWith applies the HasEdge predicate on the "withdraw_requests" edge with a given conditions (other predicates).
+func HasWithdrawRequestsWith(preds ...predicate.MerchantWithdrawRequest) predicate.Merchant {
+	return predicate.Merchant(func(s *sql.Selector) {
+		step := newWithdrawRequestsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasSubUsers applies the HasEdge predicate on the "sub_users" edge.
 func HasSubUsers() predicate.Merchant {
 	return predicate.Merchant(func(s *sql.Selector) {

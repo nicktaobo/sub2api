@@ -69,6 +69,9 @@ type MerchantGroupMarkup func(*sql.Selector)
 // MerchantLedger is the predicate function for merchantledger builders.
 type MerchantLedger func(*sql.Selector)
 
+// MerchantWithdrawRequest is the predicate function for merchantwithdrawrequest builders.
+type MerchantWithdrawRequest func(*sql.Selector)
+
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 

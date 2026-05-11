@@ -31,6 +31,7 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 	g.Use(gin.HandlerFunc(jwtAuth))
 	{
 		g.GET("/info", mh.GetInfo)
+		g.GET("/stats", mh.GetStats)
 		g.GET("/sub_users", mh.ListSubUsers)
 		g.POST("/pay", mh.PayToUser)
 		g.GET("/ledger", mh.ListLedger)
@@ -41,5 +42,7 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.POST("/domains/:id/verify", mh.VerifyDomain)
 		g.DELETE("/domains/:id", mh.DeleteDomain)
 		g.GET("/dns_setup", mh.DNSSetupInfo)
+		g.GET("/withdrawals", mh.ListWithdrawals)
+		g.POST("/withdrawals", mh.CreateWithdraw)
 	}
 }

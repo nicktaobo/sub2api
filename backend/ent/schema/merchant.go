@@ -81,6 +81,8 @@ func (Merchant) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("group_markups", MerchantGroupMarkup.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("withdraw_requests", MerchantWithdrawRequest.Type).
+			Annotations(entsql.OnDelete(entsql.Restrict)),
 		edge.To("sub_users", User.Type),
 	}
 }

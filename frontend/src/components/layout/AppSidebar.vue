@@ -675,6 +675,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/merchant/dashboard', label: t('nav.merchantWorkbench'), icon: DashboardIcon, hideInSimpleMode: true },
+    { path: '/merchant/stats', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/merchant/withdrawals', label: t('nav.merchantWithdrawals'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/merchant/sub-users', label: t('nav.merchantSubUsers'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/merchant/ledger', label: t('nav.merchantLedger'), icon: OrderIcon, hideInSimpleMode: true },
     { path: '/merchant/group-pricing', label: t('nav.merchantGroupPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
@@ -757,6 +759,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/merchants', label: t('nav.merchantManagement'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/admin/merchant-withdrawals', label: t('nav.merchantWithdrawReview'), icon: CreditCardIcon, hideInSimpleMode: true },
     {
       path: '/admin/orders',
       label: t('nav.orderManagement'),

@@ -67,9 +67,10 @@ func paginated[T any](rows []T, total int, offset, limit int) gin.H {
 
 func (h *MerchantHandler) List(c *gin.Context) {
 	status := c.Query("status")
+	search := c.Query("q")
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	rows, total, err := h.merchantSvc.List(c.Request.Context(), status, offset, limit)
+	rows, total, err := h.merchantSvc.ListWithDetails(c.Request.Context(), status, search, offset, limit)
 	if err != nil {
 		writeError(c, err, http.StatusInternalServerError)
 		return
@@ -345,6 +346,58 @@ func (h *MerchantHandler) ListLedger(c *gin.Context) {
 
 type unbindReq struct {
 	Reason string `json:"reason"`
+}
+
+// ============================================================================
+// 提现审核（admin）
+// ============================================================================
+
+// GET /admin/merchant_withdrawals
+func (h *MerchantHandler) ListWithdrawals(c *gin.Context) {
+	status := c.Query("status")
+	merchantID, _ := strconv.ParseInt(c.DefaultQuery("merchant_id", "0"), 10, 64)
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	rows, total, err := h.merchantSvc.AdminListWithdrawals(c.Request.Context(), status, merchantID, offset, limit)
+	if err != nil {
+		writeError(c, err, http.StatusInternalServerError)
+		return
+	}
+	response.Success(c, paginated(rows, total, offset, limit))
+}
+
+// POST /admin/merchant_withdrawals/:id/approve
+func (h *MerchantHandler) ApproveWithdrawal(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	if err := h.merchantSvc.AdminApproveWithdrawal(c.Request.Context(), id, adminID(c)); err != nil {
+		writeError(c, err, http.StatusBadRequest)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+type rejectWithdrawReq struct {
+	Reason string `json:"reason"`
+}
+
+// POST /admin/merchant_withdrawals/:id/reject
+func (h *MerchantHandler) RejectWithdrawal(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	var req rejectWithdrawReq
+	_ = c.ShouldBindJSON(&req)
+	if err := h.merchantSvc.AdminRejectWithdrawal(c.Request.Context(), id, adminID(c), req.Reason); err != nil {
+		writeError(c, err, http.StatusBadRequest)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
 }
 
 func (h *MerchantHandler) UnbindSubUser(c *gin.Context) {

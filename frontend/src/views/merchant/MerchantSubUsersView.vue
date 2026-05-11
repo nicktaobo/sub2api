@@ -50,7 +50,7 @@
               <td colspan="8" class="px-4 py-12 text-center text-gray-400">{{ t('common.loading') }}</td>
             </tr>
             <tr v-else-if="!items.length">
-              <td colspan="8" class="px-4 py-12 text-center text-gray-400">{{ t('common.empty') }}</td>
+              <td colspan="8" class="px-4 py-12 text-center text-gray-400">{{ t('common.noData') }}</td>
             </tr>
             <tr v-for="u in items" :key="u.id" class="border-t border-gray-200 dark:border-dark-700">
               <td class="px-4 py-3 font-mono">{{ u.id }}</td>

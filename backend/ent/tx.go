@@ -56,6 +56,8 @@ type Tx struct {
 	MerchantGroupMarkup *MerchantGroupMarkupClient
 	// MerchantLedger is the client for interacting with the MerchantLedger builders.
 	MerchantLedger *MerchantLedgerClient
+	// MerchantWithdrawRequest is the client for interacting with the MerchantWithdrawRequest builders.
+	MerchantWithdrawRequest *MerchantWithdrawRequestClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -246,6 +248,7 @@ func (tx *Tx) init() {
 	tx.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(tx.config)
 	tx.MerchantGroupMarkup = NewMerchantGroupMarkupClient(tx.config)
 	tx.MerchantLedger = NewMerchantLedgerClient(tx.config)
+	tx.MerchantWithdrawRequest = NewMerchantWithdrawRequestClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)

@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 )
@@ -26,17 +27,18 @@ import (
 // MerchantQuery is the builder for querying Merchant entities.
 type MerchantQuery struct {
 	config
-	ctx               *QueryContext
-	order             []merchant.OrderOption
-	inters            []Interceptor
-	predicates        []predicate.Merchant
-	withDomains       *MerchantDomainQuery
-	withLedgerEntries *MerchantLedgerQuery
-	withOutboxEntries *MerchantEarningsOutboxQuery
-	withAuditLogs     *MerchantAuditLogQuery
-	withGroupMarkups  *MerchantGroupMarkupQuery
-	withSubUsers      *UserQuery
-	modifiers         []func(*sql.Selector)
+	ctx                  *QueryContext
+	order                []merchant.OrderOption
+	inters               []Interceptor
+	predicates           []predicate.Merchant
+	withDomains          *MerchantDomainQuery
+	withLedgerEntries    *MerchantLedgerQuery
+	withOutboxEntries    *MerchantEarningsOutboxQuery
+	withAuditLogs        *MerchantAuditLogQuery
+	withGroupMarkups     *MerchantGroupMarkupQuery
+	withWithdrawRequests *MerchantWithdrawRequestQuery
+	withSubUsers         *UserQuery
+	modifiers            []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -176,6 +178,28 @@ func (_q *MerchantQuery) QueryGroupMarkups() *MerchantGroupMarkupQuery {
 			sqlgraph.From(merchant.Table, merchant.FieldID, selector),
 			sqlgraph.To(merchantgroupmarkup.Table, merchantgroupmarkup.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, merchant.GroupMarkupsTable, merchant.GroupMarkupsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryWithdrawRequests chains the current query on the "withdraw_requests" edge.
+func (_q *MerchantQuery) QueryWithdrawRequests() *MerchantWithdrawRequestQuery {
+	query := (&MerchantWithdrawRequestClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchant.Table, merchant.FieldID, selector),
+			sqlgraph.To(merchantwithdrawrequest.Table, merchantwithdrawrequest.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, merchant.WithdrawRequestsTable, merchant.WithdrawRequestsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -392,17 +416,18 @@ func (_q *MerchantQuery) Clone() *MerchantQuery {
 		return nil
 	}
 	return &MerchantQuery{
-		config:            _q.config,
-		ctx:               _q.ctx.Clone(),
-		order:             append([]merchant.OrderOption{}, _q.order...),
-		inters:            append([]Interceptor{}, _q.inters...),
-		predicates:        append([]predicate.Merchant{}, _q.predicates...),
-		withDomains:       _q.withDomains.Clone(),
-		withLedgerEntries: _q.withLedgerEntries.Clone(),
-		withOutboxEntries: _q.withOutboxEntries.Clone(),
-		withAuditLogs:     _q.withAuditLogs.Clone(),
-		withGroupMarkups:  _q.withGroupMarkups.Clone(),
-		withSubUsers:      _q.withSubUsers.Clone(),
+		config:               _q.config,
+		ctx:                  _q.ctx.Clone(),
+		order:                append([]merchant.OrderOption{}, _q.order...),
+		inters:               append([]Interceptor{}, _q.inters...),
+		predicates:           append([]predicate.Merchant{}, _q.predicates...),
+		withDomains:          _q.withDomains.Clone(),
+		withLedgerEntries:    _q.withLedgerEntries.Clone(),
+		withOutboxEntries:    _q.withOutboxEntries.Clone(),
+		withAuditLogs:        _q.withAuditLogs.Clone(),
+		withGroupMarkups:     _q.withGroupMarkups.Clone(),
+		withWithdrawRequests: _q.withWithdrawRequests.Clone(),
+		withSubUsers:         _q.withSubUsers.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -461,6 +486,17 @@ func (_q *MerchantQuery) WithGroupMarkups(opts ...func(*MerchantGroupMarkupQuery
 		opt(query)
 	}
 	_q.withGroupMarkups = query
+	return _q
+}
+
+// WithWithdrawRequests tells the query-builder to eager-load the nodes that are connected to
+// the "withdraw_requests" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *MerchantQuery) WithWithdrawRequests(opts ...func(*MerchantWithdrawRequestQuery)) *MerchantQuery {
+	query := (&MerchantWithdrawRequestClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withWithdrawRequests = query
 	return _q
 }
 
@@ -553,12 +589,13 @@ func (_q *MerchantQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Mer
 	var (
 		nodes       = []*Merchant{}
 		_spec       = _q.querySpec()
-		loadedTypes = [6]bool{
+		loadedTypes = [7]bool{
 			_q.withDomains != nil,
 			_q.withLedgerEntries != nil,
 			_q.withOutboxEntries != nil,
 			_q.withAuditLogs != nil,
 			_q.withGroupMarkups != nil,
+			_q.withWithdrawRequests != nil,
 			_q.withSubUsers != nil,
 		}
 	)
@@ -615,6 +652,15 @@ func (_q *MerchantQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Mer
 		if err := _q.loadGroupMarkups(ctx, query, nodes,
 			func(n *Merchant) { n.Edges.GroupMarkups = []*MerchantGroupMarkup{} },
 			func(n *Merchant, e *MerchantGroupMarkup) { n.Edges.GroupMarkups = append(n.Edges.GroupMarkups, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withWithdrawRequests; query != nil {
+		if err := _q.loadWithdrawRequests(ctx, query, nodes,
+			func(n *Merchant) { n.Edges.WithdrawRequests = []*MerchantWithdrawRequest{} },
+			func(n *Merchant, e *MerchantWithdrawRequest) {
+				n.Edges.WithdrawRequests = append(n.Edges.WithdrawRequests, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -763,6 +809,36 @@ func (_q *MerchantQuery) loadGroupMarkups(ctx context.Context, query *MerchantGr
 	}
 	query.Where(predicate.MerchantGroupMarkup(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(merchant.GroupMarkupsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.MerchantID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "merchant_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *MerchantQuery) loadWithdrawRequests(ctx context.Context, query *MerchantWithdrawRequestQuery, nodes []*Merchant, init func(*Merchant), assign func(*Merchant, *MerchantWithdrawRequest)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Merchant)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(merchantwithdrawrequest.FieldMerchantID)
+	}
+	query.Where(predicate.MerchantWithdrawRequest(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(merchant.WithdrawRequestsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -273,6 +273,77 @@ func (h *MerchantHandler) DNSSetupInfo(c *gin.Context) {
 	response.Success(c, h.merchantSvc.GetDNSSetupInfo())
 }
 
+// ============================================================================
+// Stats + Withdrawal (owner)
+// ============================================================================
+
+// GET /merchant/stats
+func (h *MerchantHandler) GetStats(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	stats, err := h.merchantSvc.GetMerchantStats(c.Request.Context(), m.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, stats)
+}
+
+type createWithdrawReq struct {
+	Amount         float64 `json:"amount" binding:"required"`
+	PaymentMethod  string  `json:"payment_method" binding:"required"`
+	PaymentAccount string  `json:"payment_account" binding:"required"`
+	PaymentName    string  `json:"payment_name" binding:"required"`
+	Note           string  `json:"note"`
+}
+
+// POST /merchant/withdrawals
+func (h *MerchantHandler) CreateWithdraw(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	var req createWithdrawReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	w, err := h.merchantSvc.CreateWithdrawRequest(c.Request.Context(), service.CreateWithdrawInput{
+		MerchantID:     m.ID,
+		Amount:         req.Amount,
+		PaymentMethod:  req.PaymentMethod,
+		PaymentAccount: req.PaymentAccount,
+		PaymentName:    req.PaymentName,
+		Note:           req.Note,
+	})
+	if err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, w)
+}
+
+// GET /merchant/withdrawals
+func (h *MerchantHandler) ListWithdrawals(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	status := c.Query("status")
+	rows, total, err := h.merchantSvc.ListWithdrawRequests(c.Request.Context(), m.ID, status, offset, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, paginatedOwner(rows, total, offset, limit))
+}
+
 func (h *MerchantHandler) DeleteDomain(c *gin.Context) {
 	m := h.resolveOwnerMerchant(c)
 	if m == nil {

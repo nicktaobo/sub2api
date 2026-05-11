@@ -28,8 +28,11 @@ export interface Merchant {
   user_markup_default: number
   low_balance_threshold: number
   notify_emails: NotifyEmailEntry[] | string[] | null
-  balance_baseline?: number
+  // admin list 富对象字段
+  domains?: string[]
+  sub_user_count?: number
   owner_balance?: number
+  balance_baseline?: number
   domain?: string | null
   site_name?: string | null
   site_logo?: string | null
@@ -470,10 +473,102 @@ export interface DNSSetupInfo {
   skip_dns_verify: boolean
 }
 
+export interface MerchantStats {
+  total_recharge: number
+  total_share: number
+  withdrawn_amount: number
+  pending_withdraw: number
+  available_balance: number
+}
+
+export interface WithdrawRequest {
+  id: number
+  merchant_id: number
+  amount: number
+  status: 'pending' | 'approved' | 'paid' | 'rejected'
+  payment_method: string
+  payment_account: string
+  payment_name: string
+  note: string
+  admin_id?: number | null
+  reject_reason?: string
+  ledger_id?: number | null
+  created_at: string
+  processed_at?: string | null
+}
+
+export interface CreateWithdrawPayload {
+  amount: number
+  payment_method: string
+  payment_account: string
+  payment_name: string
+  note?: string
+}
+
 /** GET /merchant/dns_setup */
 export async function merchantDNSSetup(): Promise<DNSSetupInfo> {
   const { data } = await apiClient.get<DNSSetupInfo>('/merchant/dns_setup')
   return data
+}
+
+/** GET /merchant/stats */
+export async function merchantStats(): Promise<MerchantStats> {
+  const { data } = await apiClient.get<MerchantStats>('/merchant/stats')
+  return data
+}
+
+/** GET /merchant/withdrawals */
+export async function merchantListWithdrawals(
+  status?: string,
+  offset = 0,
+  limit = 20,
+): Promise<PaginatedResponse<WithdrawRequest>> {
+  const params: Record<string, string | number> = { ...paginationParams(offset, limit) }
+  if (status) params.status = status
+  const { data } = await apiClient.get<PaginatedResponse<WithdrawRequest> | WithdrawRequest[]>(
+    '/merchant/withdrawals',
+    { params },
+  )
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, page: 1, page_size: data.length || limit, pages: 1 }
+  }
+  return data
+}
+
+/** POST /merchant/withdrawals */
+export async function merchantCreateWithdrawal(payload: CreateWithdrawPayload): Promise<WithdrawRequest> {
+  const { data } = await apiClient.post<WithdrawRequest>('/merchant/withdrawals', payload)
+  return data
+}
+
+/** GET /admin/merchant_withdrawals */
+export async function adminListWithdrawals(
+  status?: string,
+  merchantId?: number,
+  offset = 0,
+  limit = 50,
+): Promise<PaginatedResponse<WithdrawRequest>> {
+  const params: Record<string, string | number> = { ...paginationParams(offset, limit) }
+  if (status) params.status = status
+  if (merchantId) params.merchant_id = merchantId
+  const { data } = await apiClient.get<PaginatedResponse<WithdrawRequest> | WithdrawRequest[]>(
+    '/admin/merchant_withdrawals',
+    { params },
+  )
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, page: 1, page_size: data.length || limit, pages: 1 }
+  }
+  return data
+}
+
+/** POST /admin/merchant_withdrawals/:id/approve */
+export async function adminApproveWithdrawal(id: number): Promise<void> {
+  await apiClient.post(`/admin/merchant_withdrawals/${id}/approve`)
+}
+
+/** POST /admin/merchant_withdrawals/:id/reject */
+export async function adminRejectWithdrawal(id: number, reason?: string): Promise<void> {
+  await apiClient.post(`/admin/merchant_withdrawals/${id}/reject`, { reason: reason || '' })
 }
 
 // 注：owner 端不再开放 audit log（admin 端 /admin/merchants/:id/audit_log 仍保留）。
@@ -517,6 +612,13 @@ export const merchantAPI = {
   verifyDomain: merchantVerifyDomain,
   deleteDomain: merchantDeleteDomain,
   dnsSetup: merchantDNSSetup,
+  stats: merchantStats,
+  listWithdrawals: merchantListWithdrawals,
+  createWithdrawal: merchantCreateWithdrawal,
+  // admin
+  adminListWithdrawals: adminListWithdrawals,
+  adminApproveWithdrawal: adminApproveWithdrawal,
+  adminRejectWithdrawal: adminRejectWithdrawal,
   // public
   brand: merchantBrand,
 }

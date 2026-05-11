@@ -33,6 +33,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -86,6 +87,7 @@ const (
 	TypeMerchantEarningsOutbox        = "MerchantEarningsOutbox"
 	TypeMerchantGroupMarkup           = "MerchantGroupMarkup"
 	TypeMerchantLedger                = "MerchantLedger"
+	TypeMerchantWithdrawRequest       = "MerchantWithdrawRequest"
 	TypePaymentAuditLog               = "PaymentAuditLog"
 	TypePaymentOrder                  = "PaymentOrder"
 	TypePaymentProviderInstance       = "PaymentProviderInstance"
@@ -19831,6 +19833,9 @@ type MerchantMutation struct {
 	group_markups             map[int64]struct{}
 	removedgroup_markups      map[int64]struct{}
 	clearedgroup_markups      bool
+	withdraw_requests         map[int64]struct{}
+	removedwithdraw_requests  map[int64]struct{}
+	clearedwithdraw_requests  bool
 	sub_users                 map[int64]struct{}
 	removedsub_users          map[int64]struct{}
 	clearedsub_users          bool
@@ -20731,6 +20736,60 @@ func (m *MerchantMutation) ResetGroupMarkups() {
 	m.removedgroup_markups = nil
 }
 
+// AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by ids.
+func (m *MerchantMutation) AddWithdrawRequestIDs(ids ...int64) {
+	if m.withdraw_requests == nil {
+		m.withdraw_requests = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.withdraw_requests[ids[i]] = struct{}{}
+	}
+}
+
+// ClearWithdrawRequests clears the "withdraw_requests" edge to the MerchantWithdrawRequest entity.
+func (m *MerchantMutation) ClearWithdrawRequests() {
+	m.clearedwithdraw_requests = true
+}
+
+// WithdrawRequestsCleared reports if the "withdraw_requests" edge to the MerchantWithdrawRequest entity was cleared.
+func (m *MerchantMutation) WithdrawRequestsCleared() bool {
+	return m.clearedwithdraw_requests
+}
+
+// RemoveWithdrawRequestIDs removes the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
+func (m *MerchantMutation) RemoveWithdrawRequestIDs(ids ...int64) {
+	if m.removedwithdraw_requests == nil {
+		m.removedwithdraw_requests = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.withdraw_requests, ids[i])
+		m.removedwithdraw_requests[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedWithdrawRequests returns the removed IDs of the "withdraw_requests" edge to the MerchantWithdrawRequest entity.
+func (m *MerchantMutation) RemovedWithdrawRequestsIDs() (ids []int64) {
+	for id := range m.removedwithdraw_requests {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// WithdrawRequestsIDs returns the "withdraw_requests" edge IDs in the mutation.
+func (m *MerchantMutation) WithdrawRequestsIDs() (ids []int64) {
+	for id := range m.withdraw_requests {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetWithdrawRequests resets all changes to the "withdraw_requests" edge.
+func (m *MerchantMutation) ResetWithdrawRequests() {
+	m.withdraw_requests = nil
+	m.clearedwithdraw_requests = false
+	m.removedwithdraw_requests = nil
+}
+
 // AddSubUserIDs adds the "sub_users" edge to the User entity by ids.
 func (m *MerchantMutation) AddSubUserIDs(ids ...int64) {
 	if m.sub_users == nil {
@@ -21160,7 +21219,7 @@ func (m *MerchantMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *MerchantMutation) AddedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.domains != nil {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21175,6 +21234,9 @@ func (m *MerchantMutation) AddedEdges() []string {
 	}
 	if m.group_markups != nil {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.withdraw_requests != nil {
+		edges = append(edges, merchant.EdgeWithdrawRequests)
 	}
 	if m.sub_users != nil {
 		edges = append(edges, merchant.EdgeSubUsers)
@@ -21216,6 +21278,12 @@ func (m *MerchantMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case merchant.EdgeWithdrawRequests:
+		ids := make([]ent.Value, 0, len(m.withdraw_requests))
+		for id := range m.withdraw_requests {
+			ids = append(ids, id)
+		}
+		return ids
 	case merchant.EdgeSubUsers:
 		ids := make([]ent.Value, 0, len(m.sub_users))
 		for id := range m.sub_users {
@@ -21228,7 +21296,7 @@ func (m *MerchantMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *MerchantMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.removeddomains != nil {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21243,6 +21311,9 @@ func (m *MerchantMutation) RemovedEdges() []string {
 	}
 	if m.removedgroup_markups != nil {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.removedwithdraw_requests != nil {
+		edges = append(edges, merchant.EdgeWithdrawRequests)
 	}
 	if m.removedsub_users != nil {
 		edges = append(edges, merchant.EdgeSubUsers)
@@ -21284,6 +21355,12 @@ func (m *MerchantMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case merchant.EdgeWithdrawRequests:
+		ids := make([]ent.Value, 0, len(m.removedwithdraw_requests))
+		for id := range m.removedwithdraw_requests {
+			ids = append(ids, id)
+		}
+		return ids
 	case merchant.EdgeSubUsers:
 		ids := make([]ent.Value, 0, len(m.removedsub_users))
 		for id := range m.removedsub_users {
@@ -21296,7 +21373,7 @@ func (m *MerchantMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *MerchantMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.cleareddomains {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21311,6 +21388,9 @@ func (m *MerchantMutation) ClearedEdges() []string {
 	}
 	if m.clearedgroup_markups {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.clearedwithdraw_requests {
+		edges = append(edges, merchant.EdgeWithdrawRequests)
 	}
 	if m.clearedsub_users {
 		edges = append(edges, merchant.EdgeSubUsers)
@@ -21332,6 +21412,8 @@ func (m *MerchantMutation) EdgeCleared(name string) bool {
 		return m.clearedaudit_logs
 	case merchant.EdgeGroupMarkups:
 		return m.clearedgroup_markups
+	case merchant.EdgeWithdrawRequests:
+		return m.clearedwithdraw_requests
 	case merchant.EdgeSubUsers:
 		return m.clearedsub_users
 	}
@@ -21364,6 +21446,9 @@ func (m *MerchantMutation) ResetEdge(name string) error {
 		return nil
 	case merchant.EdgeGroupMarkups:
 		m.ResetGroupMarkups()
+		return nil
+	case merchant.EdgeWithdrawRequests:
+		m.ResetWithdrawRequests()
 		return nil
 	case merchant.EdgeSubUsers:
 		m.ResetSubUsers()
@@ -26503,6 +26588,1144 @@ func (m *MerchantLedgerMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown MerchantLedger edge %s", name)
+}
+
+// MerchantWithdrawRequestMutation represents an operation that mutates the MerchantWithdrawRequest nodes in the graph.
+type MerchantWithdrawRequestMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	amount          *float64
+	addamount       *float64
+	status          *string
+	payment_method  *string
+	payment_account *string
+	payment_name    *string
+	note            *string
+	admin_id        *int64
+	addadmin_id     *int64
+	reject_reason   *string
+	ledger_id       *int64
+	addledger_id    *int64
+	created_at      *time.Time
+	processed_at    *time.Time
+	clearedFields   map[string]struct{}
+	merchant        *int64
+	clearedmerchant bool
+	done            bool
+	oldValue        func(context.Context) (*MerchantWithdrawRequest, error)
+	predicates      []predicate.MerchantWithdrawRequest
+}
+
+var _ ent.Mutation = (*MerchantWithdrawRequestMutation)(nil)
+
+// merchantwithdrawrequestOption allows management of the mutation configuration using functional options.
+type merchantwithdrawrequestOption func(*MerchantWithdrawRequestMutation)
+
+// newMerchantWithdrawRequestMutation creates new mutation for the MerchantWithdrawRequest entity.
+func newMerchantWithdrawRequestMutation(c config, op Op, opts ...merchantwithdrawrequestOption) *MerchantWithdrawRequestMutation {
+	m := &MerchantWithdrawRequestMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMerchantWithdrawRequest,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMerchantWithdrawRequestID sets the ID field of the mutation.
+func withMerchantWithdrawRequestID(id int64) merchantwithdrawrequestOption {
+	return func(m *MerchantWithdrawRequestMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MerchantWithdrawRequest
+		)
+		m.oldValue = func(ctx context.Context) (*MerchantWithdrawRequest, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MerchantWithdrawRequest.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMerchantWithdrawRequest sets the old MerchantWithdrawRequest of the mutation.
+func withMerchantWithdrawRequest(node *MerchantWithdrawRequest) merchantwithdrawrequestOption {
+	return func(m *MerchantWithdrawRequestMutation) {
+		m.oldValue = func(context.Context) (*MerchantWithdrawRequest, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MerchantWithdrawRequestMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MerchantWithdrawRequestMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MerchantWithdrawRequestMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MerchantWithdrawRequestMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MerchantWithdrawRequest.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (m *MerchantWithdrawRequestMutation) SetMerchantID(i int64) {
+	m.merchant = &i
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldMerchantID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *MerchantWithdrawRequestMutation) ResetMerchantID() {
+	m.merchant = nil
+}
+
+// SetAmount sets the "amount" field.
+func (m *MerchantWithdrawRequestMutation) SetAmount(f float64) {
+	m.amount = &f
+	m.addamount = nil
+}
+
+// Amount returns the value of the "amount" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) Amount() (r float64, exists bool) {
+	v := m.amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAmount returns the old "amount" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAmount: %w", err)
+	}
+	return oldValue.Amount, nil
+}
+
+// AddAmount adds f to the "amount" field.
+func (m *MerchantWithdrawRequestMutation) AddAmount(f float64) {
+	if m.addamount != nil {
+		*m.addamount += f
+	} else {
+		m.addamount = &f
+	}
+}
+
+// AddedAmount returns the value that was added to the "amount" field in this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedAmount() (r float64, exists bool) {
+	v := m.addamount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAmount resets all changes to the "amount" field.
+func (m *MerchantWithdrawRequestMutation) ResetAmount() {
+	m.amount = nil
+	m.addamount = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MerchantWithdrawRequestMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MerchantWithdrawRequestMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetPaymentMethod sets the "payment_method" field.
+func (m *MerchantWithdrawRequestMutation) SetPaymentMethod(s string) {
+	m.payment_method = &s
+}
+
+// PaymentMethod returns the value of the "payment_method" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) PaymentMethod() (r string, exists bool) {
+	v := m.payment_method
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPaymentMethod returns the old "payment_method" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldPaymentMethod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPaymentMethod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPaymentMethod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPaymentMethod: %w", err)
+	}
+	return oldValue.PaymentMethod, nil
+}
+
+// ResetPaymentMethod resets all changes to the "payment_method" field.
+func (m *MerchantWithdrawRequestMutation) ResetPaymentMethod() {
+	m.payment_method = nil
+}
+
+// SetPaymentAccount sets the "payment_account" field.
+func (m *MerchantWithdrawRequestMutation) SetPaymentAccount(s string) {
+	m.payment_account = &s
+}
+
+// PaymentAccount returns the value of the "payment_account" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) PaymentAccount() (r string, exists bool) {
+	v := m.payment_account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPaymentAccount returns the old "payment_account" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldPaymentAccount(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPaymentAccount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPaymentAccount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPaymentAccount: %w", err)
+	}
+	return oldValue.PaymentAccount, nil
+}
+
+// ResetPaymentAccount resets all changes to the "payment_account" field.
+func (m *MerchantWithdrawRequestMutation) ResetPaymentAccount() {
+	m.payment_account = nil
+}
+
+// SetPaymentName sets the "payment_name" field.
+func (m *MerchantWithdrawRequestMutation) SetPaymentName(s string) {
+	m.payment_name = &s
+}
+
+// PaymentName returns the value of the "payment_name" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) PaymentName() (r string, exists bool) {
+	v := m.payment_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPaymentName returns the old "payment_name" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldPaymentName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPaymentName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPaymentName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPaymentName: %w", err)
+	}
+	return oldValue.PaymentName, nil
+}
+
+// ResetPaymentName resets all changes to the "payment_name" field.
+func (m *MerchantWithdrawRequestMutation) ResetPaymentName() {
+	m.payment_name = nil
+}
+
+// SetNote sets the "note" field.
+func (m *MerchantWithdrawRequestMutation) SetNote(s string) {
+	m.note = &s
+}
+
+// Note returns the value of the "note" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) Note() (r string, exists bool) {
+	v := m.note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNote returns the old "note" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldNote(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNote: %w", err)
+	}
+	return oldValue.Note, nil
+}
+
+// ResetNote resets all changes to the "note" field.
+func (m *MerchantWithdrawRequestMutation) ResetNote() {
+	m.note = nil
+}
+
+// SetAdminID sets the "admin_id" field.
+func (m *MerchantWithdrawRequestMutation) SetAdminID(i int64) {
+	m.admin_id = &i
+	m.addadmin_id = nil
+}
+
+// AdminID returns the value of the "admin_id" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) AdminID() (r int64, exists bool) {
+	v := m.admin_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdminID returns the old "admin_id" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldAdminID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdminID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdminID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdminID: %w", err)
+	}
+	return oldValue.AdminID, nil
+}
+
+// AddAdminID adds i to the "admin_id" field.
+func (m *MerchantWithdrawRequestMutation) AddAdminID(i int64) {
+	if m.addadmin_id != nil {
+		*m.addadmin_id += i
+	} else {
+		m.addadmin_id = &i
+	}
+}
+
+// AddedAdminID returns the value that was added to the "admin_id" field in this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedAdminID() (r int64, exists bool) {
+	v := m.addadmin_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAdminID clears the value of the "admin_id" field.
+func (m *MerchantWithdrawRequestMutation) ClearAdminID() {
+	m.admin_id = nil
+	m.addadmin_id = nil
+	m.clearedFields[merchantwithdrawrequest.FieldAdminID] = struct{}{}
+}
+
+// AdminIDCleared returns if the "admin_id" field was cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) AdminIDCleared() bool {
+	_, ok := m.clearedFields[merchantwithdrawrequest.FieldAdminID]
+	return ok
+}
+
+// ResetAdminID resets all changes to the "admin_id" field.
+func (m *MerchantWithdrawRequestMutation) ResetAdminID() {
+	m.admin_id = nil
+	m.addadmin_id = nil
+	delete(m.clearedFields, merchantwithdrawrequest.FieldAdminID)
+}
+
+// SetRejectReason sets the "reject_reason" field.
+func (m *MerchantWithdrawRequestMutation) SetRejectReason(s string) {
+	m.reject_reason = &s
+}
+
+// RejectReason returns the value of the "reject_reason" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) RejectReason() (r string, exists bool) {
+	v := m.reject_reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRejectReason returns the old "reject_reason" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldRejectReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRejectReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRejectReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRejectReason: %w", err)
+	}
+	return oldValue.RejectReason, nil
+}
+
+// ResetRejectReason resets all changes to the "reject_reason" field.
+func (m *MerchantWithdrawRequestMutation) ResetRejectReason() {
+	m.reject_reason = nil
+}
+
+// SetLedgerID sets the "ledger_id" field.
+func (m *MerchantWithdrawRequestMutation) SetLedgerID(i int64) {
+	m.ledger_id = &i
+	m.addledger_id = nil
+}
+
+// LedgerID returns the value of the "ledger_id" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) LedgerID() (r int64, exists bool) {
+	v := m.ledger_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLedgerID returns the old "ledger_id" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldLedgerID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLedgerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLedgerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLedgerID: %w", err)
+	}
+	return oldValue.LedgerID, nil
+}
+
+// AddLedgerID adds i to the "ledger_id" field.
+func (m *MerchantWithdrawRequestMutation) AddLedgerID(i int64) {
+	if m.addledger_id != nil {
+		*m.addledger_id += i
+	} else {
+		m.addledger_id = &i
+	}
+}
+
+// AddedLedgerID returns the value that was added to the "ledger_id" field in this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedLedgerID() (r int64, exists bool) {
+	v := m.addledger_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLedgerID clears the value of the "ledger_id" field.
+func (m *MerchantWithdrawRequestMutation) ClearLedgerID() {
+	m.ledger_id = nil
+	m.addledger_id = nil
+	m.clearedFields[merchantwithdrawrequest.FieldLedgerID] = struct{}{}
+}
+
+// LedgerIDCleared returns if the "ledger_id" field was cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) LedgerIDCleared() bool {
+	_, ok := m.clearedFields[merchantwithdrawrequest.FieldLedgerID]
+	return ok
+}
+
+// ResetLedgerID resets all changes to the "ledger_id" field.
+func (m *MerchantWithdrawRequestMutation) ResetLedgerID() {
+	m.ledger_id = nil
+	m.addledger_id = nil
+	delete(m.clearedFields, merchantwithdrawrequest.FieldLedgerID)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MerchantWithdrawRequestMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MerchantWithdrawRequestMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetProcessedAt sets the "processed_at" field.
+func (m *MerchantWithdrawRequestMutation) SetProcessedAt(t time.Time) {
+	m.processed_at = &t
+}
+
+// ProcessedAt returns the value of the "processed_at" field in the mutation.
+func (m *MerchantWithdrawRequestMutation) ProcessedAt() (r time.Time, exists bool) {
+	v := m.processed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProcessedAt returns the old "processed_at" field's value of the MerchantWithdrawRequest entity.
+// If the MerchantWithdrawRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantWithdrawRequestMutation) OldProcessedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProcessedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProcessedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProcessedAt: %w", err)
+	}
+	return oldValue.ProcessedAt, nil
+}
+
+// ClearProcessedAt clears the value of the "processed_at" field.
+func (m *MerchantWithdrawRequestMutation) ClearProcessedAt() {
+	m.processed_at = nil
+	m.clearedFields[merchantwithdrawrequest.FieldProcessedAt] = struct{}{}
+}
+
+// ProcessedAtCleared returns if the "processed_at" field was cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) ProcessedAtCleared() bool {
+	_, ok := m.clearedFields[merchantwithdrawrequest.FieldProcessedAt]
+	return ok
+}
+
+// ResetProcessedAt resets all changes to the "processed_at" field.
+func (m *MerchantWithdrawRequestMutation) ResetProcessedAt() {
+	m.processed_at = nil
+	delete(m.clearedFields, merchantwithdrawrequest.FieldProcessedAt)
+}
+
+// ClearMerchant clears the "merchant" edge to the Merchant entity.
+func (m *MerchantWithdrawRequestMutation) ClearMerchant() {
+	m.clearedmerchant = true
+	m.clearedFields[merchantwithdrawrequest.FieldMerchantID] = struct{}{}
+}
+
+// MerchantCleared reports if the "merchant" edge to the Merchant entity was cleared.
+func (m *MerchantWithdrawRequestMutation) MerchantCleared() bool {
+	return m.clearedmerchant
+}
+
+// MerchantIDs returns the "merchant" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MerchantID instead. It exists only for internal usage by the builders.
+func (m *MerchantWithdrawRequestMutation) MerchantIDs() (ids []int64) {
+	if id := m.merchant; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMerchant resets all changes to the "merchant" edge.
+func (m *MerchantWithdrawRequestMutation) ResetMerchant() {
+	m.merchant = nil
+	m.clearedmerchant = false
+}
+
+// Where appends a list predicates to the MerchantWithdrawRequestMutation builder.
+func (m *MerchantWithdrawRequestMutation) Where(ps ...predicate.MerchantWithdrawRequest) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MerchantWithdrawRequestMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MerchantWithdrawRequestMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MerchantWithdrawRequest, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MerchantWithdrawRequestMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MerchantWithdrawRequestMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MerchantWithdrawRequest).
+func (m *MerchantWithdrawRequestMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MerchantWithdrawRequestMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.merchant != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldMerchantID)
+	}
+	if m.amount != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldAmount)
+	}
+	if m.status != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldStatus)
+	}
+	if m.payment_method != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldPaymentMethod)
+	}
+	if m.payment_account != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldPaymentAccount)
+	}
+	if m.payment_name != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldPaymentName)
+	}
+	if m.note != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldNote)
+	}
+	if m.admin_id != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldAdminID)
+	}
+	if m.reject_reason != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldRejectReason)
+	}
+	if m.ledger_id != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldLedgerID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldCreatedAt)
+	}
+	if m.processed_at != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldProcessedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MerchantWithdrawRequestMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case merchantwithdrawrequest.FieldMerchantID:
+		return m.MerchantID()
+	case merchantwithdrawrequest.FieldAmount:
+		return m.Amount()
+	case merchantwithdrawrequest.FieldStatus:
+		return m.Status()
+	case merchantwithdrawrequest.FieldPaymentMethod:
+		return m.PaymentMethod()
+	case merchantwithdrawrequest.FieldPaymentAccount:
+		return m.PaymentAccount()
+	case merchantwithdrawrequest.FieldPaymentName:
+		return m.PaymentName()
+	case merchantwithdrawrequest.FieldNote:
+		return m.Note()
+	case merchantwithdrawrequest.FieldAdminID:
+		return m.AdminID()
+	case merchantwithdrawrequest.FieldRejectReason:
+		return m.RejectReason()
+	case merchantwithdrawrequest.FieldLedgerID:
+		return m.LedgerID()
+	case merchantwithdrawrequest.FieldCreatedAt:
+		return m.CreatedAt()
+	case merchantwithdrawrequest.FieldProcessedAt:
+		return m.ProcessedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MerchantWithdrawRequestMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case merchantwithdrawrequest.FieldMerchantID:
+		return m.OldMerchantID(ctx)
+	case merchantwithdrawrequest.FieldAmount:
+		return m.OldAmount(ctx)
+	case merchantwithdrawrequest.FieldStatus:
+		return m.OldStatus(ctx)
+	case merchantwithdrawrequest.FieldPaymentMethod:
+		return m.OldPaymentMethod(ctx)
+	case merchantwithdrawrequest.FieldPaymentAccount:
+		return m.OldPaymentAccount(ctx)
+	case merchantwithdrawrequest.FieldPaymentName:
+		return m.OldPaymentName(ctx)
+	case merchantwithdrawrequest.FieldNote:
+		return m.OldNote(ctx)
+	case merchantwithdrawrequest.FieldAdminID:
+		return m.OldAdminID(ctx)
+	case merchantwithdrawrequest.FieldRejectReason:
+		return m.OldRejectReason(ctx)
+	case merchantwithdrawrequest.FieldLedgerID:
+		return m.OldLedgerID(ctx)
+	case merchantwithdrawrequest.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case merchantwithdrawrequest.FieldProcessedAt:
+		return m.OldProcessedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MerchantWithdrawRequest field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MerchantWithdrawRequestMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case merchantwithdrawrequest.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
+	case merchantwithdrawrequest.FieldAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAmount(v)
+		return nil
+	case merchantwithdrawrequest.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case merchantwithdrawrequest.FieldPaymentMethod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPaymentMethod(v)
+		return nil
+	case merchantwithdrawrequest.FieldPaymentAccount:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPaymentAccount(v)
+		return nil
+	case merchantwithdrawrequest.FieldPaymentName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPaymentName(v)
+		return nil
+	case merchantwithdrawrequest.FieldNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNote(v)
+		return nil
+	case merchantwithdrawrequest.FieldAdminID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdminID(v)
+		return nil
+	case merchantwithdrawrequest.FieldRejectReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRejectReason(v)
+		return nil
+	case merchantwithdrawrequest.FieldLedgerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLedgerID(v)
+		return nil
+	case merchantwithdrawrequest.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case merchantwithdrawrequest.FieldProcessedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProcessedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedFields() []string {
+	var fields []string
+	if m.addamount != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldAmount)
+	}
+	if m.addadmin_id != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldAdminID)
+	}
+	if m.addledger_id != nil {
+		fields = append(fields, merchantwithdrawrequest.FieldLedgerID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MerchantWithdrawRequestMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case merchantwithdrawrequest.FieldAmount:
+		return m.AddedAmount()
+	case merchantwithdrawrequest.FieldAdminID:
+		return m.AddedAdminID()
+	case merchantwithdrawrequest.FieldLedgerID:
+		return m.AddedLedgerID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MerchantWithdrawRequestMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case merchantwithdrawrequest.FieldAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAmount(v)
+		return nil
+	case merchantwithdrawrequest.FieldAdminID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAdminID(v)
+		return nil
+	case merchantwithdrawrequest.FieldLedgerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLedgerID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MerchantWithdrawRequestMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(merchantwithdrawrequest.FieldAdminID) {
+		fields = append(fields, merchantwithdrawrequest.FieldAdminID)
+	}
+	if m.FieldCleared(merchantwithdrawrequest.FieldLedgerID) {
+		fields = append(fields, merchantwithdrawrequest.FieldLedgerID)
+	}
+	if m.FieldCleared(merchantwithdrawrequest.FieldProcessedAt) {
+		fields = append(fields, merchantwithdrawrequest.FieldProcessedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MerchantWithdrawRequestMutation) ClearField(name string) error {
+	switch name {
+	case merchantwithdrawrequest.FieldAdminID:
+		m.ClearAdminID()
+		return nil
+	case merchantwithdrawrequest.FieldLedgerID:
+		m.ClearLedgerID()
+		return nil
+	case merchantwithdrawrequest.FieldProcessedAt:
+		m.ClearProcessedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MerchantWithdrawRequestMutation) ResetField(name string) error {
+	switch name {
+	case merchantwithdrawrequest.FieldMerchantID:
+		m.ResetMerchantID()
+		return nil
+	case merchantwithdrawrequest.FieldAmount:
+		m.ResetAmount()
+		return nil
+	case merchantwithdrawrequest.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case merchantwithdrawrequest.FieldPaymentMethod:
+		m.ResetPaymentMethod()
+		return nil
+	case merchantwithdrawrequest.FieldPaymentAccount:
+		m.ResetPaymentAccount()
+		return nil
+	case merchantwithdrawrequest.FieldPaymentName:
+		m.ResetPaymentName()
+		return nil
+	case merchantwithdrawrequest.FieldNote:
+		m.ResetNote()
+		return nil
+	case merchantwithdrawrequest.FieldAdminID:
+		m.ResetAdminID()
+		return nil
+	case merchantwithdrawrequest.FieldRejectReason:
+		m.ResetRejectReason()
+		return nil
+	case merchantwithdrawrequest.FieldLedgerID:
+		m.ResetLedgerID()
+		return nil
+	case merchantwithdrawrequest.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case merchantwithdrawrequest.FieldProcessedAt:
+		m.ResetProcessedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.merchant != nil {
+		edges = append(edges, merchantwithdrawrequest.EdgeMerchant)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MerchantWithdrawRequestMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case merchantwithdrawrequest.EdgeMerchant:
+		if id := m.merchant; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MerchantWithdrawRequestMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MerchantWithdrawRequestMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmerchant {
+		edges = append(edges, merchantwithdrawrequest.EdgeMerchant)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MerchantWithdrawRequestMutation) EdgeCleared(name string) bool {
+	switch name {
+	case merchantwithdrawrequest.EdgeMerchant:
+		return m.clearedmerchant
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MerchantWithdrawRequestMutation) ClearEdge(name string) error {
+	switch name {
+	case merchantwithdrawrequest.EdgeMerchant:
+		m.ClearMerchant()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MerchantWithdrawRequestMutation) ResetEdge(name string) error {
+	switch name {
+	case merchantwithdrawrequest.EdgeMerchant:
+		m.ResetMerchant()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantWithdrawRequest edge %s", name)
 }
 
 // PaymentAuditLogMutation represents an operation that mutates the PaymentAuditLog nodes in the graph.

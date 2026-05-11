@@ -51,6 +51,24 @@
               {{ t('merchant.status.' + value) }}
             </span>
           </template>
+          <template #cell-domains="{ row }">
+            <span v-if="!row.domains?.length" class="text-gray-400">-</span>
+            <div v-else class="flex flex-col gap-0.5">
+              <a
+                v-for="d in row.domains"
+                :key="d"
+                :href="'https://' + d"
+                target="_blank"
+                class="text-xs text-orange-500 hover:underline"
+              >{{ d }}</a>
+            </div>
+          </template>
+          <template #cell-sub_user_count="{ value }">
+            <span class="text-sm">{{ value ?? 0 }}</span>
+          </template>
+          <template #cell-owner_balance="{ value }">
+            <span class="font-mono text-sm">${{ Number(value || 0).toFixed(2) }}</span>
+          </template>
           <template #cell-discount="{ value }">
             <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}</span>
           </template>
@@ -198,10 +216,12 @@ const columns = computed<Column[]>(() => [
   { key: 'id', label: t('merchant.fields.id') },
   { key: 'name', label: t('merchant.fields.name') },
   { key: 'owner_user_id', label: t('merchant.fields.ownerUserId') },
+  { key: 'domains', label: t('merchant.fields.domains') },
+  { key: 'sub_user_count', label: t('merchant.fields.subUserCount') },
+  { key: 'owner_balance', label: t('merchant.fields.ownerBalance') },
   { key: 'status', label: t('merchant.fields.status') },
   { key: 'discount', label: t('merchant.fields.discount') },
   { key: 'user_markup_default', label: t('merchant.fields.markupDefault') },
-  { key: 'balance_baseline', label: t('merchant.fields.balanceBaseline') },
   { key: 'created_at', label: t('merchant.fields.createdAt') },
   { key: 'actions', label: t('common.actions') },
 ])

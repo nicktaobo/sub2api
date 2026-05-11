@@ -26,6 +26,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -1156,6 +1157,38 @@ func init() {
 	merchantledgerDescCreatedAt := merchantledgerFields[13].Descriptor()
 	// merchantledger.DefaultCreatedAt holds the default value on creation for the created_at field.
 	merchantledger.DefaultCreatedAt = merchantledgerDescCreatedAt.Default.(func() time.Time)
+	merchantwithdrawrequestFields := schema.MerchantWithdrawRequest{}.Fields()
+	_ = merchantwithdrawrequestFields
+	// merchantwithdrawrequestDescStatus is the schema descriptor for status field.
+	merchantwithdrawrequestDescStatus := merchantwithdrawrequestFields[2].Descriptor()
+	// merchantwithdrawrequest.DefaultStatus holds the default value on creation for the status field.
+	merchantwithdrawrequest.DefaultStatus = merchantwithdrawrequestDescStatus.Default.(string)
+	// merchantwithdrawrequest.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	merchantwithdrawrequest.StatusValidator = merchantwithdrawrequestDescStatus.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentMethod is the schema descriptor for payment_method field.
+	merchantwithdrawrequestDescPaymentMethod := merchantwithdrawrequestFields[3].Descriptor()
+	// merchantwithdrawrequest.PaymentMethodValidator is a validator for the "payment_method" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentMethodValidator = merchantwithdrawrequestDescPaymentMethod.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentAccount is the schema descriptor for payment_account field.
+	merchantwithdrawrequestDescPaymentAccount := merchantwithdrawrequestFields[4].Descriptor()
+	// merchantwithdrawrequest.PaymentAccountValidator is a validator for the "payment_account" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentAccountValidator = merchantwithdrawrequestDescPaymentAccount.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentName is the schema descriptor for payment_name field.
+	merchantwithdrawrequestDescPaymentName := merchantwithdrawrequestFields[5].Descriptor()
+	// merchantwithdrawrequest.PaymentNameValidator is a validator for the "payment_name" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentNameValidator = merchantwithdrawrequestDescPaymentName.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescNote is the schema descriptor for note field.
+	merchantwithdrawrequestDescNote := merchantwithdrawrequestFields[6].Descriptor()
+	// merchantwithdrawrequest.DefaultNote holds the default value on creation for the note field.
+	merchantwithdrawrequest.DefaultNote = merchantwithdrawrequestDescNote.Default.(string)
+	// merchantwithdrawrequestDescRejectReason is the schema descriptor for reject_reason field.
+	merchantwithdrawrequestDescRejectReason := merchantwithdrawrequestFields[8].Descriptor()
+	// merchantwithdrawrequest.DefaultRejectReason holds the default value on creation for the reject_reason field.
+	merchantwithdrawrequest.DefaultRejectReason = merchantwithdrawrequestDescRejectReason.Default.(string)
+	// merchantwithdrawrequestDescCreatedAt is the schema descriptor for created_at field.
+	merchantwithdrawrequestDescCreatedAt := merchantwithdrawrequestFields[10].Descriptor()
+	// merchantwithdrawrequest.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantwithdrawrequest.DefaultCreatedAt = merchantwithdrawrequestDescCreatedAt.Default.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

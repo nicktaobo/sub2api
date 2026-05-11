@@ -261,6 +261,18 @@ func (f MerchantLedgerFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MerchantLedgerMutation", m)
 }
 
+// The MerchantWithdrawRequestFunc type is an adapter to allow the use of ordinary
+// function as MerchantWithdrawRequest mutator.
+type MerchantWithdrawRequestFunc func(context.Context, *ent.MerchantWithdrawRequestMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MerchantWithdrawRequestFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MerchantWithdrawRequestMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MerchantWithdrawRequestMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

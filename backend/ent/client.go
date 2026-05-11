@@ -36,6 +36,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -106,6 +107,8 @@ type Client struct {
 	MerchantGroupMarkup *MerchantGroupMarkupClient
 	// MerchantLedger is the client for interacting with the MerchantLedger builders.
 	MerchantLedger *MerchantLedgerClient
+	// MerchantWithdrawRequest is the client for interacting with the MerchantWithdrawRequest builders.
+	MerchantWithdrawRequest *MerchantWithdrawRequestClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -176,6 +179,7 @@ func (c *Client) init() {
 	c.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(c.config)
 	c.MerchantGroupMarkup = NewMerchantGroupMarkupClient(c.config)
 	c.MerchantLedger = NewMerchantLedgerClient(c.config)
+	c.MerchantWithdrawRequest = NewMerchantWithdrawRequestClient(c.config)
 	c.PaymentAuditLog = NewPaymentAuditLogClient(c.config)
 	c.PaymentOrder = NewPaymentOrderClient(c.config)
 	c.PaymentProviderInstance = NewPaymentProviderInstanceClient(c.config)
@@ -308,6 +312,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		MerchantEarningsOutbox:        NewMerchantEarningsOutboxClient(cfg),
 		MerchantGroupMarkup:           NewMerchantGroupMarkupClient(cfg),
 		MerchantLedger:                NewMerchantLedgerClient(cfg),
+		MerchantWithdrawRequest:       NewMerchantWithdrawRequestClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
@@ -367,6 +372,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		MerchantEarningsOutbox:        NewMerchantEarningsOutboxClient(cfg),
 		MerchantGroupMarkup:           NewMerchantGroupMarkupClient(cfg),
 		MerchantLedger:                NewMerchantLedgerClient(cfg),
+		MerchantWithdrawRequest:       NewMerchantWithdrawRequestClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
@@ -421,12 +427,12 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
-		c.MerchantGroupMarkup, c.MerchantLedger, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserSubscription,
+		c.MerchantGroupMarkup, c.MerchantLedger, c.MerchantWithdrawRequest,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -442,12 +448,12 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
-		c.MerchantGroupMarkup, c.MerchantLedger, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserSubscription,
+		c.MerchantGroupMarkup, c.MerchantLedger, c.MerchantWithdrawRequest,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -498,6 +504,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.MerchantGroupMarkup.mutate(ctx, m)
 	case *MerchantLedgerMutation:
 		return c.MerchantLedger.mutate(ctx, m)
+	case *MerchantWithdrawRequestMutation:
+		return c.MerchantWithdrawRequest.mutate(ctx, m)
 	case *PaymentAuditLogMutation:
 		return c.PaymentAuditLog.mutate(ctx, m)
 	case *PaymentOrderMutation:
@@ -3193,6 +3201,22 @@ func (c *MerchantClient) QueryGroupMarkups(_m *Merchant) *MerchantGroupMarkupQue
 	return query
 }
 
+// QueryWithdrawRequests queries the withdraw_requests edge of a Merchant.
+func (c *MerchantClient) QueryWithdrawRequests(_m *Merchant) *MerchantWithdrawRequestQuery {
+	query := (&MerchantWithdrawRequestClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchant.Table, merchant.FieldID, id),
+			sqlgraph.To(merchantwithdrawrequest.Table, merchantwithdrawrequest.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, merchant.WithdrawRequestsTable, merchant.WithdrawRequestsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QuerySubUsers queries the sub_users edge of a Merchant.
 func (c *MerchantClient) QuerySubUsers(_m *Merchant) *UserQuery {
 	query := (&UserClient{config: c.config}).Query()
@@ -3980,6 +4004,155 @@ func (c *MerchantLedgerClient) mutate(ctx context.Context, m *MerchantLedgerMuta
 		return (&MerchantLedgerDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown MerchantLedger mutation op: %q", m.Op())
+	}
+}
+
+// MerchantWithdrawRequestClient is a client for the MerchantWithdrawRequest schema.
+type MerchantWithdrawRequestClient struct {
+	config
+}
+
+// NewMerchantWithdrawRequestClient returns a client for the MerchantWithdrawRequest from the given config.
+func NewMerchantWithdrawRequestClient(c config) *MerchantWithdrawRequestClient {
+	return &MerchantWithdrawRequestClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `merchantwithdrawrequest.Hooks(f(g(h())))`.
+func (c *MerchantWithdrawRequestClient) Use(hooks ...Hook) {
+	c.hooks.MerchantWithdrawRequest = append(c.hooks.MerchantWithdrawRequest, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `merchantwithdrawrequest.Intercept(f(g(h())))`.
+func (c *MerchantWithdrawRequestClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MerchantWithdrawRequest = append(c.inters.MerchantWithdrawRequest, interceptors...)
+}
+
+// Create returns a builder for creating a MerchantWithdrawRequest entity.
+func (c *MerchantWithdrawRequestClient) Create() *MerchantWithdrawRequestCreate {
+	mutation := newMerchantWithdrawRequestMutation(c.config, OpCreate)
+	return &MerchantWithdrawRequestCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MerchantWithdrawRequest entities.
+func (c *MerchantWithdrawRequestClient) CreateBulk(builders ...*MerchantWithdrawRequestCreate) *MerchantWithdrawRequestCreateBulk {
+	return &MerchantWithdrawRequestCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MerchantWithdrawRequestClient) MapCreateBulk(slice any, setFunc func(*MerchantWithdrawRequestCreate, int)) *MerchantWithdrawRequestCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MerchantWithdrawRequestCreateBulk{err: fmt.Errorf("calling to MerchantWithdrawRequestClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MerchantWithdrawRequestCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MerchantWithdrawRequestCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MerchantWithdrawRequest.
+func (c *MerchantWithdrawRequestClient) Update() *MerchantWithdrawRequestUpdate {
+	mutation := newMerchantWithdrawRequestMutation(c.config, OpUpdate)
+	return &MerchantWithdrawRequestUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MerchantWithdrawRequestClient) UpdateOne(_m *MerchantWithdrawRequest) *MerchantWithdrawRequestUpdateOne {
+	mutation := newMerchantWithdrawRequestMutation(c.config, OpUpdateOne, withMerchantWithdrawRequest(_m))
+	return &MerchantWithdrawRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MerchantWithdrawRequestClient) UpdateOneID(id int64) *MerchantWithdrawRequestUpdateOne {
+	mutation := newMerchantWithdrawRequestMutation(c.config, OpUpdateOne, withMerchantWithdrawRequestID(id))
+	return &MerchantWithdrawRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MerchantWithdrawRequest.
+func (c *MerchantWithdrawRequestClient) Delete() *MerchantWithdrawRequestDelete {
+	mutation := newMerchantWithdrawRequestMutation(c.config, OpDelete)
+	return &MerchantWithdrawRequestDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MerchantWithdrawRequestClient) DeleteOne(_m *MerchantWithdrawRequest) *MerchantWithdrawRequestDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MerchantWithdrawRequestClient) DeleteOneID(id int64) *MerchantWithdrawRequestDeleteOne {
+	builder := c.Delete().Where(merchantwithdrawrequest.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MerchantWithdrawRequestDeleteOne{builder}
+}
+
+// Query returns a query builder for MerchantWithdrawRequest.
+func (c *MerchantWithdrawRequestClient) Query() *MerchantWithdrawRequestQuery {
+	return &MerchantWithdrawRequestQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMerchantWithdrawRequest},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MerchantWithdrawRequest entity by its id.
+func (c *MerchantWithdrawRequestClient) Get(ctx context.Context, id int64) (*MerchantWithdrawRequest, error) {
+	return c.Query().Where(merchantwithdrawrequest.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MerchantWithdrawRequestClient) GetX(ctx context.Context, id int64) *MerchantWithdrawRequest {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMerchant queries the merchant edge of a MerchantWithdrawRequest.
+func (c *MerchantWithdrawRequestClient) QueryMerchant(_m *MerchantWithdrawRequest) *MerchantQuery {
+	query := (&MerchantClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchantwithdrawrequest.Table, merchantwithdrawrequest.FieldID, id),
+			sqlgraph.To(merchant.Table, merchant.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, merchantwithdrawrequest.MerchantTable, merchantwithdrawrequest.MerchantColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MerchantWithdrawRequestClient) Hooks() []Hook {
+	return c.hooks.MerchantWithdrawRequest
+}
+
+// Interceptors returns the client interceptors.
+func (c *MerchantWithdrawRequestClient) Interceptors() []Interceptor {
+	return c.inters.MerchantWithdrawRequest
+}
+
+func (c *MerchantWithdrawRequestClient) mutate(ctx context.Context, m *MerchantWithdrawRequestMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MerchantWithdrawRequestCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MerchantWithdrawRequestUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MerchantWithdrawRequestUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MerchantWithdrawRequestDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MerchantWithdrawRequest mutation op: %q", m.Op())
 	}
 }
 
@@ -7069,11 +7242,11 @@ type (
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
 		MerchantDomain, MerchantEarningsOutbox, MerchantGroupMarkup, MerchantLedger,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserSubscription []ent.Hook
+		MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -7081,11 +7254,11 @@ type (
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
 		MerchantDomain, MerchantEarningsOutbox, MerchantGroupMarkup, MerchantLedger,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserSubscription []ent.Interceptor
+		MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserSubscription []ent.Interceptor
 	}
 )
 
