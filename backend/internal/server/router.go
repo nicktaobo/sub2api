@@ -85,6 +85,9 @@ func SetupRouter(
 	// MERCHANT-SYSTEM v1.0：DomainDetect 中间件，识别商户域名（flag 关闭时短路）
 	r.Use(middleware2.DomainDetectMiddleware(cfg, merchantSvc))
 
+	// MERCHANT-SYSTEM v1.0：给 Caddy on_demand_tls 用的 ask endpoint（顶层，仅 loopback）
+	routes.RegisterCaddyAskRoute(r, cfg, merchantSvc)
+
 	// 注册路由
 	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient, merchantRepo)
 
