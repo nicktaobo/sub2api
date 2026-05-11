@@ -18,12 +18,8 @@
               {{ t('merchant.fields.ownerUserId') }}
               <span class="text-rose-500">*</span>
             </label>
-            <input
-              v-model.number="form.owner_user_id"
-              type="number"
-              min="1"
-              required
-              class="input"
+            <UserSelectRemote
+              v-model="form.owner_user_id"
               :placeholder="t('merchant.admin.ownerUserIdPlaceholder')"
             />
             <p class="mt-1 text-xs text-gray-500">{{ t('merchant.admin.ownerUserIdHint') }}</p>
@@ -132,6 +128,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import UserSelectRemote from '@/components/common/UserSelectRemote.vue'
 import { useAppStore } from '@/stores/app'
 import { merchantAPI, type CreateMerchantPayload } from '@/api'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -140,8 +137,16 @@ const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
-const form = reactive({
-  owner_user_id: 0,
+const form = reactive<{
+  owner_user_id: number | null
+  name: string
+  discount: number
+  user_markup_default: number
+  low_balance_threshold: number
+  notify_emails_str: string
+  reason: string
+}>({
+  owner_user_id: null,
   name: '',
   discount: 1,
   user_markup_default: 1,

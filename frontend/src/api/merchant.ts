@@ -160,9 +160,11 @@ export async function adminMerchantList(
   status?: MerchantStatus,
   offset = 0,
   limit = 20,
+  search?: string,
 ): Promise<PaginatedResponse<Merchant>> {
   const params: Record<string, string | number> = { ...paginationParams(offset, limit) }
   if (status) params.status = status
+  if (search) params.q = search
   const { data } = await apiClient.get<PaginatedResponse<Merchant> | Merchant[]>(
     '/admin/merchants',
     { params },

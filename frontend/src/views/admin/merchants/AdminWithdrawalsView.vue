@@ -21,7 +21,9 @@
           <option value="rejected">{{ t('merchant.owner.withdraw.statusRejected') }}</option>
         </select>
         <span class="text-sm text-gray-500">{{ t('merchant.admin.withdraw.filterMerchant') }}</span>
-        <input v-model.number="filterMerchantId" type="number" :placeholder="t('merchant.admin.withdraw.merchantPlaceholder')" class="input w-32" @keyup.enter="load" />
+        <div class="w-64">
+          <MerchantSelectRemote v-model="filterMerchantId" :placeholder="t('merchant.admin.withdraw.merchantPlaceholder')" @update:modelValue="load" />
+        </div>
         <button class="btn btn-secondary" @click="reset">{{ t('common.reset') }}</button>
         <button class="btn btn-secondary ml-auto" :disabled="loading" :title="t('common.refresh')" @click="load">
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -110,6 +112,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import MerchantSelectRemote from '@/components/common/MerchantSelectRemote.vue'
 import { merchantAPI, type WithdrawRequest } from '@/api/merchant'
 import { formatDateTime } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
