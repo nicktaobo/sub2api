@@ -354,7 +354,7 @@ export default {
     affiliateInviteRecords: '邀请记录',
     affiliateRebateRecords: '返利记录',
     affiliateTransferRecords: '提取记录',
-    merchantManagement: '商户管理',
+    merchantManagement: '分销管理',
     merchantWithdrawReview: '提现审核',
     merchantWorkbench: '商户工作台',
     merchantSubUsers: '子用户',
@@ -6964,7 +6964,7 @@ export default {
       },
     },
     admin: {
-      title: '商户管理',
+      title: '分销管理',
       detailTitle: '商户详情',
       createTitle: '创建商户',
       create: '创建商户',

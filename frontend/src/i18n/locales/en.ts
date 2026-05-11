@@ -354,7 +354,7 @@ export default {
     affiliateInviteRecords: 'Invite Records',
     affiliateRebateRecords: 'Rebate Records',
     affiliateTransferRecords: 'Transfer Records',
-    merchantManagement: 'Merchants',
+    merchantManagement: 'Resellers',
     merchantWithdrawReview: 'Withdraw Review',
     merchantWorkbench: 'Merchant Workbench',
     merchantSubUsers: 'Sub Users',
