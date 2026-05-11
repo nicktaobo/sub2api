@@ -18,6 +18,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -66,6 +67,27 @@ func NewMerchantService(
 
 func (s *MerchantService) enabled() bool {
 	return s != nil && s.cfg != nil && s.cfg.Merchant.Enabled
+}
+
+// ----------------------------------------------------------------------------
+// 内部 helper：事务内读 owner.balance
+// ----------------------------------------------------------------------------
+// readOwnerBalanceInTx 走事务的 ent client 直读用户表：现有 userRepository.GetByID 不接受 tx context
+// （读默认 client），事务内调用会拿到 commit 前的旧值——导致 merchant_ledger.balance_after 滞后一个事务。
+// 这里改用 ent 的事务 client（dbuser.IDEQ）保证读到 +/- amount 的最新值。
+func (s *MerchantService) readOwnerBalanceInTx(ctx context.Context, ownerUserID int64) (float64, error) {
+	tx := dbent.TxFromContext(ctx)
+	if tx == nil {
+		return 0, errors.New("readOwnerBalanceInTx: no transaction in context")
+	}
+	m, err := tx.Client().User.Query().Where(dbuser.IDEQ(ownerUserID)).Only(ctx)
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			return 0, ErrUserNotFound
+		}
+		return 0, err
+	}
+	return m.Balance, nil
 }
 
 // ----------------------------------------------------------------------------
@@ -407,12 +429,11 @@ func (s *MerchantService) PayToUser(ctx context.Context, merchantID, subUserID i
 	if err := s.userRepo.UpdateBalance(txCtx, subUserID, amount); err != nil {
 		return err
 	}
-	// 重新读 owner.balance 作为 balance_after
-	owner, err := s.userRepo.GetByID(txCtx, m.OwnerUserID)
+	// 重新读 owner.balance 作为 balance_after（必须 tx 内读）
+	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)
 	if err != nil {
 		return err
 	}
-	bal := owner.Balance
 	idem := fmt.Sprintf("pay_to_user:%d:%d:%d", merchantID, subUserID, time.Now().UnixNano())
 	refType := MerchantRefTypePaymentOrder // 概念上不指向 payment_order；标记为通用
 	_ = refType                             // ledger ref_type/ref_id 留 NULL（PayToUser 不创建 payment_order）
@@ -464,11 +485,10 @@ func (s *MerchantService) AdminRecharge(ctx context.Context, merchantID int64, a
 	if err := s.userRepo.UpdateBalance(txCtx, m.OwnerUserID, amount); err != nil {
 		return err
 	}
-	owner, err := s.userRepo.GetByID(txCtx, m.OwnerUserID)
+	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)
 	if err != nil {
 		return err
 	}
-	bal := owner.Balance
 	idem := fmt.Sprintf("admin_recharge:%d:%d", merchantID, time.Now().UnixNano())
 	if err := s.ledgerRepo.Insert(txCtx, &MerchantLedgerEntry{
 		MerchantID:     merchantID,
@@ -513,11 +533,10 @@ func (s *MerchantService) AdminRefund(ctx context.Context, merchantID int64, amo
 	if err := s.userRepo.DeductBalance(txCtx, m.OwnerUserID, amount); err != nil {
 		return err
 	}
-	owner, err := s.userRepo.GetByID(txCtx, m.OwnerUserID)
+	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)
 	if err != nil {
 		return err
 	}
-	bal := owner.Balance
 	idem := fmt.Sprintf("admin_refund:%d:%d", merchantID, time.Now().UnixNano())
 	if err := s.ledgerRepo.Insert(txCtx, &MerchantLedgerEntry{
 		MerchantID:     merchantID,
