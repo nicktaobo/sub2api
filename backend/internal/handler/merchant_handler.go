@@ -125,6 +125,23 @@ func (h *MerchantHandler) ListLedger(c *gin.Context) {
 	response.Success(c, paginatedOwner(rows, total, offset, limit))
 }
 
+// GET /merchant/pricing_groups — 列出商户可定价的分组（带每个分组当前生效 markup）
+func (h *MerchantHandler) ListPricingGroups(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	rows, err := h.merchantSvc.ListPricingGroups(c.Request.Context(), m.ID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []service.MerchantPricingGroup{}
+	}
+	response.Success(c, rows)
+}
+
 func (h *MerchantHandler) ListGroupMarkups(c *gin.Context) {
 	m := h.resolveOwnerMerchant(c)
 	if m == nil {

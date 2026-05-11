@@ -35,41 +35,60 @@
         </div>
       </div>
 
-      <!-- 分组覆盖列表 -->
+      <!-- 分组定价列表（平铺所有可定价分组） -->
       <div class="card">
-        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-dark-700">
-          <div>
-            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
-              {{ t('merchant.owner.pricing.overridesTitle') }}
-            </h2>
-            <p class="mt-0.5 text-xs text-gray-500">
-              {{ t('merchant.owner.pricing.overridesHint') }}
-            </p>
-          </div>
-          <button class="btn btn-primary" @click="openMarkupForm()">
-            <Icon name="plus" size="sm" />
-            <span class="ml-1">{{ t('merchant.owner.pricing.addOverride') }}</span>
-          </button>
+        <div class="border-b border-gray-200 px-4 py-3 dark:border-dark-700">
+          <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            {{ t('merchant.owner.pricing.groupsTitle') }}
+          </h2>
+          <p class="mt-0.5 text-xs text-gray-500">
+            {{ t('merchant.owner.pricing.groupsHint') }}
+          </p>
         </div>
-        <DataTable :columns="columns" :data="markups" :loading="loading">
-          <template #cell-group_id="{ row }">
+        <DataTable :columns="columns" :data="groups" :loading="loading">
+          <template #cell-name="{ row }">
             <div class="flex items-center gap-2">
-              <span class="font-mono text-sm">#{{ row.group_id }}</span>
-              <span v-if="groupName(row.group_id)" class="text-sm text-gray-700 dark:text-gray-200">
-                {{ groupName(row.group_id) }}
+              <span class="font-medium text-gray-900 dark:text-gray-100">{{ row.name }}</span>
+              <span class="text-xs text-gray-400">#{{ row.id }}</span>
+              <span
+                :class="row.is_exclusive
+                  ? 'rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  : 'rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+              >
+                {{ row.is_exclusive ? t('merchant.owner.pricing.typeExclusive') : t('merchant.owner.pricing.typePublic') }}
               </span>
             </div>
           </template>
-          <template #cell-markup="{ value }">
-            <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}</span>
+          <template #cell-rate_multiplier="{ value }">
+            <span class="font-mono text-sm text-gray-600 dark:text-gray-300">{{ Number(value || 1).toFixed(4) }}</span>
+          </template>
+          <template #cell-markup="{ row }">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-sm font-semibold">
+                {{ effectiveMarkup(row).toFixed(4) }}
+              </span>
+              <span
+                v-if="row.markup != null"
+                class="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+              >
+                {{ t('merchant.owner.pricing.customLabel') }}
+              </span>
+              <span v-else class="text-[10px] text-gray-400">
+                {{ t('merchant.owner.pricing.inheritedLabel') }}
+              </span>
+            </div>
           </template>
           <template #cell-actions="{ row }">
             <div class="flex gap-2">
               <button class="text-sm text-primary-600 hover:underline dark:text-primary-400" @click="openMarkupForm(row)">
                 {{ t('common.edit') }}
               </button>
-              <button class="text-sm text-rose-600 hover:underline dark:text-rose-400" @click="confirmDelete(row)">
-                {{ t('common.delete') }}
+              <button
+                v-if="row.markup != null"
+                class="text-sm text-rose-600 hover:underline dark:text-rose-400"
+                @click="confirmReset(row)"
+              >
+                {{ t('merchant.owner.pricing.resetToDefault') }}
               </button>
             </div>
           </template>
@@ -125,26 +144,14 @@
       </template>
     </BaseDialog>
 
-    <!-- 分组 markup 增/改弹框 -->
+    <!-- 分组 markup 编辑弹框（行内编辑） -->
     <BaseDialog
       :show="markupDialog.show"
-      :title="markupDialog.editing ? t('merchant.owner.pricing.editOverrideTitle') : t('merchant.owner.pricing.addOverrideTitle')"
+      :title="t('merchant.owner.pricing.editGroupTitle', { name: markupDialog.groupName })"
       width="normal"
       @close="markupDialog.show = false"
     >
       <form id="merchant-group-markup-form" class="space-y-4" @submit.prevent="submitMarkup">
-        <div>
-          <label class="input-label">{{ t('merchant.detail.groupPricing.group') }}</label>
-          <Select
-            v-model="markupDialog.group_id"
-            :options="groupOptions"
-            :placeholder="t('merchant.detail.groupPricing.selectGroup')"
-            :disabled="markupDialog.editing"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            {{ t('merchant.owner.pricing.groupSourceHint') }}
-          </p>
-        </div>
         <div>
           <label class="input-label">{{ t('merchant.fields.markup') }}</label>
           <input
@@ -193,56 +200,42 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
-import { merchantAPI, type MerchantGroupMarkup, type MerchantInfo } from '@/api'
-import userGroupsAPI from '@/api/groups'
-import type { Group } from '@/types'
+import { merchantAPI, type MerchantInfo } from '@/api'
+import type { MerchantPricingGroup } from '@/api/merchant'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const markups = ref<MerchantGroupMarkup[]>([])
+const groups = ref<MerchantPricingGroup[]>([])
 const info = ref<MerchantInfo | null>(null)
-const groups = ref<Group[]>([])
 const loading = ref(false)
 
 const defaultMarkup = computed(() => Number(info.value?.user_markup_default ?? 1))
 
-// 已设置覆盖的分组从 add 下拉里剔除（编辑模式不剔除自己）。
-const groupOptions = computed(() => {
-  const usedExcept = (excludeId: number | null): number[] =>
-    markups.value.map((m) => m.group_id).filter((id) => id !== excludeId)
-  const excluded = markupDialog.editing ? usedExcept(markupDialog.group_id) : usedExcept(null)
-  return groups.value
-    .filter((g) => !excluded.includes(g.id))
-    .map((g) => ({ value: g.id, label: `${g.name} (#${g.id})` }))
-})
-
-function groupName(id: number): string {
-  return groups.value.find((g) => g.id === id)?.name ?? ''
+function effectiveMarkup(row: MerchantPricingGroup): number {
+  return row.markup != null ? Number(row.markup) : defaultMarkup.value
 }
 
 const columns = computed<Column[]>(() => [
-  { key: 'group_id', label: t('merchant.detail.groupPricing.group') },
-  { key: 'markup', label: t('merchant.fields.markup') },
+  { key: 'name', label: t('merchant.detail.groupPricing.group') },
+  { key: 'rate_multiplier', label: t('merchant.owner.pricing.siteRate') },
+  { key: 'markup', label: t('merchant.owner.pricing.myMarkup') },
   { key: 'actions', label: t('common.actions') },
 ])
 
 async function load(): Promise<void> {
   loading.value = true
   try {
-    const [m, list, gs] = await Promise.all([
+    const [m, list] = await Promise.all([
       merchantAPI.info(),
-      merchantAPI.listGroupMarkups(),
-      userGroupsAPI.getAvailable().catch(() => [] as Group[]),
+      merchantAPI.listPricingGroups(),
     ])
     info.value = m
-    markups.value = list
-    groups.value = gs
+    groups.value = list
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {
@@ -280,37 +273,29 @@ async function submitDefault(): Promise<void> {
   }
 }
 
-// ============ 分组 markup ============
+// ============ 分组 markup（行内编辑） ============
 
 const markupDialog = reactive({
   show: false,
-  editing: false,
   group_id: null as number | null,
+  groupName: '',
   markup: 1,
   reason: '',
   submitting: false,
 })
 
-function openMarkupForm(row?: MerchantGroupMarkup): void {
-  if (row) {
-    markupDialog.editing = true
-    markupDialog.group_id = row.group_id
-    markupDialog.markup = Number(row.markup ?? 1)
-  } else {
-    markupDialog.editing = false
-    markupDialog.group_id = null
-    markupDialog.markup = 1
-  }
+function openMarkupForm(row: MerchantPricingGroup): void {
+  markupDialog.group_id = row.id
+  markupDialog.groupName = row.name
+  // 已有 override 用它，没有的话以默认 markup 作为起点
+  markupDialog.markup = row.markup != null ? Number(row.markup) : defaultMarkup.value
   markupDialog.reason = ''
   markupDialog.submitting = false
   markupDialog.show = true
 }
 
 async function submitMarkup(): Promise<void> {
-  if (markupDialog.group_id == null) {
-    appStore.showError(t('merchant.errors.groupRequired'))
-    return
-  }
+  if (markupDialog.group_id == null) return
   markupDialog.submitting = true
   try {
     await merchantAPI.setGroupMarkup(
@@ -328,10 +313,10 @@ async function submitMarkup(): Promise<void> {
   }
 }
 
-async function confirmDelete(row: MerchantGroupMarkup): Promise<void> {
-  if (!window.confirm(t('merchant.detail.groupPricing.confirmDelete'))) return
+async function confirmReset(row: MerchantPricingGroup): Promise<void> {
+  if (!window.confirm(t('merchant.owner.pricing.confirmReset', { name: row.name }))) return
   try {
-    await merchantAPI.deleteGroupMarkup(row.group_id)
+    await merchantAPI.deleteGroupMarkup(row.id)
     appStore.showSuccess(t('common.deleted'))
     await load()
   } catch (err) {

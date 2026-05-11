@@ -425,6 +425,23 @@ export async function merchantListGroupMarkups(): Promise<MerchantGroupMarkup[]>
   return data || []
 }
 
+/** 商户可定价的分组（含每个分组当前生效 markup；null = 跟随默认）。 */
+export interface MerchantPricingGroup {
+  id: number
+  name: string
+  platform: string
+  is_exclusive: boolean
+  rate_multiplier: number
+  /** 已设置 override 时为数字；未设置时省略，前端按"跟随默认"展示。 */
+  markup?: number | null
+}
+
+/** GET /merchant/pricing_groups — 商户可定价分组列表（所有 active 非订阅分组） */
+export async function merchantListPricingGroups(): Promise<MerchantPricingGroup[]> {
+  const { data } = await apiClient.get<MerchantPricingGroup[] | null>('/merchant/pricing_groups')
+  return data || []
+}
+
 /** PUT /merchant/markup_default — 商户 owner 自助改默认 markup（markup ≥ 1） */
 export async function merchantSetMarkupDefault(markup: number, reason?: string): Promise<void> {
   await apiClient.put('/merchant/markup_default', { markup, reason })
@@ -629,6 +646,7 @@ export const merchantAPI = {
   payToUser: merchantPayToUser,
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,
+  listPricingGroups: merchantListPricingGroups,
   setMarkupDefault: merchantSetMarkupDefault,
   setGroupMarkup: merchantSetGroupMarkup,
   deleteGroupMarkup: merchantDeleteGroupMarkup,

@@ -36,6 +36,7 @@ type MerchantService struct {
 	ledgerRepo         MerchantLedgerRepository
 	auditLogRepo       MerchantAuditLogRepository
 	groupMarkupRepo    MerchantGroupMarkupRepository
+	groupRepo          GroupRepository
 	userRepo           UserRepository
 	pricingService     *MerchantPricingService // 用于失效缓存
 }
@@ -49,6 +50,7 @@ func NewMerchantService(
 	ledgerRepo MerchantLedgerRepository,
 	auditLogRepo MerchantAuditLogRepository,
 	groupMarkupRepo MerchantGroupMarkupRepository,
+	groupRepo GroupRepository,
 	userRepo UserRepository,
 	pricingService *MerchantPricingService,
 ) *MerchantService {
@@ -60,6 +62,7 @@ func NewMerchantService(
 		ledgerRepo:      ledgerRepo,
 		auditLogRepo:    auditLogRepo,
 		groupMarkupRepo: groupMarkupRepo,
+		groupRepo:       groupRepo,
 		userRepo:        userRepo,
 		pricingService:  pricingService,
 	}
@@ -439,6 +442,58 @@ func (s *MerchantService) DeleteGroupMarkup(ctx context.Context, merchantID, gro
 
 func (s *MerchantService) ListGroupMarkups(ctx context.Context, merchantID int64) ([]*MerchantGroupMarkup, error) {
 	return s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
+}
+
+// MerchantPricingGroup 商户可定价分组（用于商户后台「分组定价」页平铺渲染）。
+//
+// 范围：所有 active 标准（非订阅型）分组。订阅型分组的 markup 不参与 merchant
+// 计费（RFC §3.3.0），故排除。Markup 字段：有 override 时为指针值，否则为 nil
+// 表示「跟随 default markup」。
+type MerchantPricingGroup struct {
+	ID             int64    `json:"id"`
+	Name           string   `json:"name"`
+	Platform       string   `json:"platform"`
+	IsExclusive    bool     `json:"is_exclusive"`
+	RateMultiplier float64  `json:"rate_multiplier"`
+	Markup         *float64 `json:"markup,omitempty"`
+}
+
+// ListPricingGroups 列出某商户可定价的分组（含每个分组当前生效的 markup）。
+func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int64) ([]MerchantPricingGroup, error) {
+	allGroups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	markups, err := s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	markupByGroup := make(map[int64]float64, len(markups))
+	for _, m := range markups {
+		if m != nil {
+			markupByGroup[m.GroupID] = m.Markup
+		}
+	}
+	out := make([]MerchantPricingGroup, 0, len(allGroups))
+	for i := range allGroups {
+		g := allGroups[i]
+		if g.IsSubscriptionType() {
+			continue
+		}
+		item := MerchantPricingGroup{
+			ID:             g.ID,
+			Name:           g.Name,
+			Platform:       g.Platform,
+			IsExclusive:    g.IsExclusive,
+			RateMultiplier: g.RateMultiplier,
+		}
+		if v, ok := markupByGroup[g.ID]; ok {
+			vv := v
+			item.Markup = &vv
+		}
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 // ----------------------------------------------------------------------------

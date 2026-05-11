@@ -243,7 +243,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	merchantLedgerRepository := repository.NewMerchantLedgerRepository(client, db)
 	merchantAuditLogRepository := repository.NewMerchantAuditLogRepository(client)
 	merchantGroupMarkupRepository := repository.NewMerchantGroupMarkupRepository(client)
-	merchantService := service.NewMerchantService(configConfig, client, merchantRepository, merchantDomainRepository, merchantLedgerRepository, merchantAuditLogRepository, merchantGroupMarkupRepository, userRepository, merchantPricingService)
+	merchantService := service.NewMerchantService(configConfig, client, merchantRepository, merchantDomainRepository, merchantLedgerRepository, merchantAuditLogRepository, merchantGroupMarkupRepository, groupRepository, userRepository, merchantPricingService)
 	merchantHandler := admin.NewMerchantHandler(merchantService)
 	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, contentModerationHandler, paymentHandler, affiliateHandler, merchantHandler)
 	usageRecordWorkerPool := service.NewUsageRecordWorkerPool(configConfig)
