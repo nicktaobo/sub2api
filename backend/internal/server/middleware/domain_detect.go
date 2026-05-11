@@ -18,11 +18,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MerchantContext 当前请求识别出的商户上下文。
-type MerchantContext struct {
-	Merchant *service.Merchant
-	Domain   *service.MerchantDomain
-}
+// MerchantContext 是 service.MerchantContext 的本地别名，便于现有代码使用 middleware.MerchantContext。
+//
+// 实际定义在 service 包（含 context.Context 传播 helper），避免循环 import。
+type MerchantContext = service.MerchantContext
 
 // merchantDomainCache 简单的 TTL 缓存：domain → *MerchantContext。
 type merchantDomainCache struct {
@@ -99,6 +98,9 @@ func DomainDetectMiddleware(cfg *config.Config, merchantSvc *service.MerchantSer
 		}
 		if mctx != nil && mctx.Merchant != nil {
 			c.Set(string(ContextKeyMerchant), mctx)
+			// 同时把商户上下文注入 *http.Request 的 context.Context，让 service/repo
+			// 层在仅持有 ctx 的场景（user 创建、邮件发送等）也能取到。
+			c.Request = c.Request.WithContext(service.WithMerchantInGoContext(c.Request.Context(), mctx))
 		}
 		c.Next()
 	}

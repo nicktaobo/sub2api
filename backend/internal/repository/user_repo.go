@@ -81,6 +81,15 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		return err
 	}
 
+	// MERCHANT-SYSTEM v1.0：如果创建路径没显式指定 ParentMerchantID（绝大多数注册流程都不指定），
+	// 但当前请求来自商户域名，则自动归属为该商户的子用户。主站请求 ctx 中没有 merchant，行为不变。
+	if userIn.ParentMerchantID == nil {
+		if mctx := service.MerchantFromGoContext(ctx); mctx != nil && mctx.Merchant != nil {
+			mid := mctx.Merchant.ID
+			userIn.ParentMerchantID = &mid
+		}
+	}
+
 	created, err := txClient.User.Create().
 		SetEmail(userIn.Email).
 		SetUsername(userIn.Username).
@@ -94,6 +103,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
 		SetRpmLimit(userIn.RPMLimit).
+		SetNillableParentMerchantID(userIn.ParentMerchantID).
 		Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)

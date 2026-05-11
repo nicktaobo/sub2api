@@ -23,6 +23,25 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// resolveSiteNameForCtx 解析当前请求的站点名：
+//   - 商户域名请求：用 merchant_domains.site_name（非空时）
+//   - 主站请求 / 商户未设 site_name：回退全局 setting，再 fallback "Sub2API"
+//
+// 让验证码 / 密码重置邮件的 subject/body 与发件站点品牌一致。
+func resolveSiteNameForCtx(ctx context.Context, settingSvc *SettingService) string {
+	if mctx := MerchantFromGoContext(ctx); mctx != nil && mctx.Domain != nil {
+		if name := strings.TrimSpace(mctx.Domain.SiteName); name != "" {
+			return name
+		}
+	}
+	if settingSvc != nil {
+		if name := strings.TrimSpace(settingSvc.GetSiteName(ctx)); name != "" {
+			return name
+		}
+	}
+	return "Sub2API"
+}
+
 var (
 	ErrInvalidCredentials      = infraerrors.Unauthorized("INVALID_CREDENTIALS", "invalid email or password")
 	ErrUserNotActive           = infraerrors.Forbidden("USER_NOT_ACTIVE", "user is not active")
@@ -301,11 +320,8 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string) error {
 		return errors.New("email service not configured")
 	}
 
-	// 获取网站名称
-	siteName := "Sub2API"
-	if s.settingService != nil {
-		siteName = s.settingService.GetSiteName(ctx)
-	}
+	// 获取网站名称：商户域名请求优先用商户 site_name，否则回退主站全局设置
+	siteName := resolveSiteNameForCtx(ctx, s.settingService)
 
 	return s.emailService.SendVerifyCode(ctx, email, siteName)
 }
@@ -344,11 +360,8 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string) (*S
 		return nil, errors.New("email queue service not configured")
 	}
 
-	// 获取网站名称
-	siteName := "Sub2API"
-	if s.settingService != nil {
-		siteName = s.settingService.GetSiteName(ctx)
-	}
+	// 获取网站名称：商户域名请求优先用商户 site_name，否则回退主站全局设置
+	siteName := resolveSiteNameForCtx(ctx, s.settingService)
 
 	// 异步发送
 	logger.LegacyPrintf("service.auth", "[Auth] Enqueueing verify code for: %s", email)
@@ -1214,11 +1227,8 @@ func (s *AuthService) preparePasswordReset(ctx context.Context, email, frontendB
 		return "", "", false
 	}
 
-	// Get site name
-	siteName := "Sub2API"
-	if s.settingService != nil {
-		siteName = s.settingService.GetSiteName(ctx)
-	}
+	// 站名同样支持商户级覆盖（密码重置邮件的 subject/body 都靠它）
+	siteName := resolveSiteNameForCtx(ctx, s.settingService)
 
 	// Build reset URL base
 	resetURL := fmt.Sprintf("%s/reset-password", strings.TrimSuffix(frontendBaseURL, "/"))

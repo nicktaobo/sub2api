@@ -17,6 +17,40 @@ import (
 )
 
 // ----------------------------------------------------------------------------
+// MerchantContext：当前请求识别出的商户上下文 + context.Context 传播
+// ----------------------------------------------------------------------------
+
+// MerchantContext 当前请求识别出的商户上下文（由 DomainDetectMiddleware 注入）。
+// 放在 service 包是为了让 repository / service / middleware 都能引用，
+// 避免循环 import（repo → middleware → service → middleware）。
+type MerchantContext struct {
+	Merchant *Merchant
+	Domain   *MerchantDomain
+}
+
+// merchantGoCtxKey 用私有结构体类型作为 context.Context key，避免 string key 撞名。
+type merchantGoCtxKey struct{}
+
+// WithMerchantInGoContext 把商户上下文塞进 context.Context；mctx 为 nil 时原样返回。
+// DomainDetect 中间件在识别到商户域名后调用，让仅持有 ctx 的 service/repo 也能取到。
+func WithMerchantInGoContext(ctx context.Context, mctx *MerchantContext) context.Context {
+	if ctx == nil || mctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, merchantGoCtxKey{}, mctx)
+}
+
+// MerchantFromGoContext 从 context.Context 取商户上下文。
+// 主站请求或非商户域名返回 nil。
+func MerchantFromGoContext(ctx context.Context) *MerchantContext {
+	if ctx == nil {
+		return nil
+	}
+	v, _ := ctx.Value(merchantGoCtxKey{}).(*MerchantContext)
+	return v
+}
+
+// ----------------------------------------------------------------------------
 // 错误定义
 // ----------------------------------------------------------------------------
 
