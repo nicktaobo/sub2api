@@ -222,43 +222,71 @@ func (r *merchantRepository) LoadPricing(ctx context.Context, merchantID int64) 
 		return nil, nil
 	}
 
-	// 加载 group markups + JOIN groups 过滤软删除
+	// 加载 group sell_rate / cost_rate + JOIN groups 过滤软删除
 	if r.db == nil {
 		return nil, errors.New("merchant repository sql db is nil")
 	}
-	const groupSQL = `
-		SELECT mgm.group_id, mgm.markup
+	const sellSQL = `
+		SELECT mgm.group_id, mgm.sell_rate
 		FROM merchant_group_markups mgm
 		JOIN groups g ON g.id = mgm.group_id
 		WHERE mgm.merchant_id = $1
 		  AND g.deleted_at IS NULL
 	`
-	rows, err := r.db.QueryContext(ctx, groupSQL, merchantID)
+	sellRows, err := r.db.QueryContext(ctx, sellSQL, merchantID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	gm := make(map[int64]float64, 16)
-	for rows.Next() {
+	sellMap := make(map[int64]float64, 16)
+	for sellRows.Next() {
 		var gid int64
-		var markup float64
-		if err := rows.Scan(&gid, &markup); err != nil {
+		var v float64
+		if err := sellRows.Scan(&gid, &v); err != nil {
+			_ = sellRows.Close()
 			return nil, err
 		}
-		gm[gid] = markup
+		sellMap[gid] = v
 	}
-	if err := rows.Err(); err != nil {
+	if err := sellRows.Err(); err != nil {
+		_ = sellRows.Close()
 		return nil, err
 	}
+	_ = sellRows.Close()
+
+	const costSQL = `
+		SELECT mgc.group_id, mgc.cost_rate
+		FROM merchant_group_costs mgc
+		JOIN groups g ON g.id = mgc.group_id
+		WHERE mgc.merchant_id = $1
+		  AND g.deleted_at IS NULL
+	`
+	costRows, err := r.db.QueryContext(ctx, costSQL, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	costMap := make(map[int64]float64, 16)
+	for costRows.Next() {
+		var gid int64
+		var v float64
+		if err := costRows.Scan(&gid, &v); err != nil {
+			_ = costRows.Close()
+			return nil, err
+		}
+		costMap[gid] = v
+	}
+	if err := costRows.Err(); err != nil {
+		_ = costRows.Close()
+		return nil, err
+	}
+	_ = costRows.Close()
 
 	return &service.CachedMerchantPricing{
-		MerchantID:        m.ID,
-		OwnerUserID:       m.OwnerUserID,
-		Status:            m.Status,
-		Discount:          m.Discount,
-		UserMarkupDefault: m.UserMarkupDefault,
-		GroupMarkups:      gm,
+		MerchantID:     m.ID,
+		OwnerUserID:    m.OwnerUserID,
+		Status:         m.Status,
+		Discount:       m.Discount,
+		GroupCosts:     costMap,
+		GroupSellRates: sellMap,
 	}, nil
 }
 

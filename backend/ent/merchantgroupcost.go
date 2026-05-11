@@ -10,11 +10,11 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent/merchant"
-	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 )
 
-// MerchantGroupMarkup is the model entity for the MerchantGroupMarkup schema.
-type MerchantGroupMarkup struct {
+// MerchantGroupCost is the model entity for the MerchantGroupCost schema.
+type MerchantGroupCost struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int64 `json:"id,omitempty"`
@@ -26,16 +26,16 @@ type MerchantGroupMarkup struct {
 	MerchantID int64 `json:"merchant_id,omitempty"`
 	// GroupID holds the value of the "group_id" field.
 	GroupID int64 `json:"group_id,omitempty"`
-	// 商户在该分组对外的售价倍率（绝对值），sub_user 付 = base × sell_rate；必须 ≥ 对应 cost_rate
-	SellRate float64 `json:"sell_rate,omitempty"`
+	// 商户在该分组上的拿货价倍率 > 0；终端用户付的钱里平台扣 base × cost_rate
+	CostRate float64 `json:"cost_rate,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
-	// The values are being populated by the MerchantGroupMarkupQuery when eager-loading is set.
-	Edges        MerchantGroupMarkupEdges `json:"edges"`
+	// The values are being populated by the MerchantGroupCostQuery when eager-loading is set.
+	Edges        MerchantGroupCostEdges `json:"edges"`
 	selectValues sql.SelectValues
 }
 
-// MerchantGroupMarkupEdges holds the relations/edges for other nodes in the graph.
-type MerchantGroupMarkupEdges struct {
+// MerchantGroupCostEdges holds the relations/edges for other nodes in the graph.
+type MerchantGroupCostEdges struct {
 	// Merchant holds the value of the merchant edge.
 	Merchant *Merchant `json:"merchant,omitempty"`
 	// loadedTypes holds the information for reporting if a
@@ -45,7 +45,7 @@ type MerchantGroupMarkupEdges struct {
 
 // MerchantOrErr returns the Merchant value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e MerchantGroupMarkupEdges) MerchantOrErr() (*Merchant, error) {
+func (e MerchantGroupCostEdges) MerchantOrErr() (*Merchant, error) {
 	if e.Merchant != nil {
 		return e.Merchant, nil
 	} else if e.loadedTypes[0] {
@@ -55,15 +55,15 @@ func (e MerchantGroupMarkupEdges) MerchantOrErr() (*Merchant, error) {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*MerchantGroupMarkup) scanValues(columns []string) ([]any, error) {
+func (*MerchantGroupCost) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case merchantgroupmarkup.FieldSellRate:
+		case merchantgroupcost.FieldCostRate:
 			values[i] = new(sql.NullFloat64)
-		case merchantgroupmarkup.FieldID, merchantgroupmarkup.FieldMerchantID, merchantgroupmarkup.FieldGroupID:
+		case merchantgroupcost.FieldID, merchantgroupcost.FieldMerchantID, merchantgroupcost.FieldGroupID:
 			values[i] = new(sql.NullInt64)
-		case merchantgroupmarkup.FieldCreatedAt, merchantgroupmarkup.FieldUpdatedAt:
+		case merchantgroupcost.FieldCreatedAt, merchantgroupcost.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -73,48 +73,48 @@ func (*MerchantGroupMarkup) scanValues(columns []string) ([]any, error) {
 }
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the MerchantGroupMarkup fields.
-func (_m *MerchantGroupMarkup) assignValues(columns []string, values []any) error {
+// to the MerchantGroupCost fields.
+func (_m *MerchantGroupCost) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
 	for i := range columns {
 		switch columns[i] {
-		case merchantgroupmarkup.FieldID:
+		case merchantgroupcost.FieldID:
 			value, ok := values[i].(*sql.NullInt64)
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int64(value.Int64)
-		case merchantgroupmarkup.FieldCreatedAt:
+		case merchantgroupcost.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
-		case merchantgroupmarkup.FieldUpdatedAt:
+		case merchantgroupcost.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
 				_m.UpdatedAt = value.Time
 			}
-		case merchantgroupmarkup.FieldMerchantID:
+		case merchantgroupcost.FieldMerchantID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field merchant_id", values[i])
 			} else if value.Valid {
 				_m.MerchantID = value.Int64
 			}
-		case merchantgroupmarkup.FieldGroupID:
+		case merchantgroupcost.FieldGroupID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field group_id", values[i])
 			} else if value.Valid {
 				_m.GroupID = value.Int64
 			}
-		case merchantgroupmarkup.FieldSellRate:
+		case merchantgroupcost.FieldCostRate:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field sell_rate", values[i])
+				return fmt.Errorf("unexpected type %T for field cost_rate", values[i])
 			} else if value.Valid {
-				_m.SellRate = value.Float64
+				_m.CostRate = value.Float64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -123,39 +123,39 @@ func (_m *MerchantGroupMarkup) assignValues(columns []string, values []any) erro
 	return nil
 }
 
-// Value returns the ent.Value that was dynamically selected and assigned to the MerchantGroupMarkup.
+// Value returns the ent.Value that was dynamically selected and assigned to the MerchantGroupCost.
 // This includes values selected through modifiers, order, etc.
-func (_m *MerchantGroupMarkup) Value(name string) (ent.Value, error) {
+func (_m *MerchantGroupCost) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// QueryMerchant queries the "merchant" edge of the MerchantGroupMarkup entity.
-func (_m *MerchantGroupMarkup) QueryMerchant() *MerchantQuery {
-	return NewMerchantGroupMarkupClient(_m.config).QueryMerchant(_m)
+// QueryMerchant queries the "merchant" edge of the MerchantGroupCost entity.
+func (_m *MerchantGroupCost) QueryMerchant() *MerchantQuery {
+	return NewMerchantGroupCostClient(_m.config).QueryMerchant(_m)
 }
 
-// Update returns a builder for updating this MerchantGroupMarkup.
-// Note that you need to call MerchantGroupMarkup.Unwrap() before calling this method if this MerchantGroupMarkup
+// Update returns a builder for updating this MerchantGroupCost.
+// Note that you need to call MerchantGroupCost.Unwrap() before calling this method if this MerchantGroupCost
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (_m *MerchantGroupMarkup) Update() *MerchantGroupMarkupUpdateOne {
-	return NewMerchantGroupMarkupClient(_m.config).UpdateOne(_m)
+func (_m *MerchantGroupCost) Update() *MerchantGroupCostUpdateOne {
+	return NewMerchantGroupCostClient(_m.config).UpdateOne(_m)
 }
 
-// Unwrap unwraps the MerchantGroupMarkup entity that was returned from a transaction after it was closed,
+// Unwrap unwraps the MerchantGroupCost entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (_m *MerchantGroupMarkup) Unwrap() *MerchantGroupMarkup {
+func (_m *MerchantGroupCost) Unwrap() *MerchantGroupCost {
 	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
-		panic("ent: MerchantGroupMarkup is not a transactional entity")
+		panic("ent: MerchantGroupCost is not a transactional entity")
 	}
 	_m.config.driver = _tx.drv
 	return _m
 }
 
 // String implements the fmt.Stringer.
-func (_m *MerchantGroupMarkup) String() string {
+func (_m *MerchantGroupCost) String() string {
 	var builder strings.Builder
-	builder.WriteString("MerchantGroupMarkup(")
+	builder.WriteString("MerchantGroupCost(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
@@ -169,11 +169,11 @@ func (_m *MerchantGroupMarkup) String() string {
 	builder.WriteString("group_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.GroupID))
 	builder.WriteString(", ")
-	builder.WriteString("sell_rate=")
-	builder.WriteString(fmt.Sprintf("%v", _m.SellRate))
+	builder.WriteString("cost_rate=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CostRate))
 	builder.WriteByte(')')
 	return builder.String()
 }
 
-// MerchantGroupMarkups is a parsable slice of MerchantGroupMarkup.
-type MerchantGroupMarkups []*MerchantGroupMarkup
+// MerchantGroupCosts is a parsable slice of MerchantGroupCost.
+type MerchantGroupCosts []*MerchantGroupCost

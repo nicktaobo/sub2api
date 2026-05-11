@@ -34,6 +34,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -103,6 +104,8 @@ type Client struct {
 	MerchantDomain *MerchantDomainClient
 	// MerchantEarningsOutbox is the client for interacting with the MerchantEarningsOutbox builders.
 	MerchantEarningsOutbox *MerchantEarningsOutboxClient
+	// MerchantGroupCost is the client for interacting with the MerchantGroupCost builders.
+	MerchantGroupCost *MerchantGroupCostClient
 	// MerchantGroupMarkup is the client for interacting with the MerchantGroupMarkup builders.
 	MerchantGroupMarkup *MerchantGroupMarkupClient
 	// MerchantLedger is the client for interacting with the MerchantLedger builders.
@@ -177,6 +180,7 @@ func (c *Client) init() {
 	c.MerchantAuditLog = NewMerchantAuditLogClient(c.config)
 	c.MerchantDomain = NewMerchantDomainClient(c.config)
 	c.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(c.config)
+	c.MerchantGroupCost = NewMerchantGroupCostClient(c.config)
 	c.MerchantGroupMarkup = NewMerchantGroupMarkupClient(c.config)
 	c.MerchantLedger = NewMerchantLedgerClient(c.config)
 	c.MerchantWithdrawRequest = NewMerchantWithdrawRequestClient(c.config)
@@ -310,6 +314,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		MerchantAuditLog:              NewMerchantAuditLogClient(cfg),
 		MerchantDomain:                NewMerchantDomainClient(cfg),
 		MerchantEarningsOutbox:        NewMerchantEarningsOutboxClient(cfg),
+		MerchantGroupCost:             NewMerchantGroupCostClient(cfg),
 		MerchantGroupMarkup:           NewMerchantGroupMarkupClient(cfg),
 		MerchantLedger:                NewMerchantLedgerClient(cfg),
 		MerchantWithdrawRequest:       NewMerchantWithdrawRequestClient(cfg),
@@ -370,6 +375,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		MerchantAuditLog:              NewMerchantAuditLogClient(cfg),
 		MerchantDomain:                NewMerchantDomainClient(cfg),
 		MerchantEarningsOutbox:        NewMerchantEarningsOutboxClient(cfg),
+		MerchantGroupCost:             NewMerchantGroupCostClient(cfg),
 		MerchantGroupMarkup:           NewMerchantGroupMarkupClient(cfg),
 		MerchantLedger:                NewMerchantLedgerClient(cfg),
 		MerchantWithdrawRequest:       NewMerchantWithdrawRequestClient(cfg),
@@ -427,12 +433,13 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
-		c.MerchantGroupMarkup, c.MerchantLedger, c.MerchantWithdrawRequest,
-		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
-		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
+		c.MerchantGroupCost, c.MerchantGroupMarkup, c.MerchantLedger,
+		c.MerchantWithdrawRequest, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -448,12 +455,13 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
-		c.MerchantGroupMarkup, c.MerchantLedger, c.MerchantWithdrawRequest,
-		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
-		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
+		c.MerchantGroupCost, c.MerchantGroupMarkup, c.MerchantLedger,
+		c.MerchantWithdrawRequest, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -500,6 +508,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.MerchantDomain.mutate(ctx, m)
 	case *MerchantEarningsOutboxMutation:
 		return c.MerchantEarningsOutbox.mutate(ctx, m)
+	case *MerchantGroupCostMutation:
+		return c.MerchantGroupCost.mutate(ctx, m)
 	case *MerchantGroupMarkupMutation:
 		return c.MerchantGroupMarkup.mutate(ctx, m)
 	case *MerchantLedgerMutation:
@@ -3201,6 +3211,22 @@ func (c *MerchantClient) QueryGroupMarkups(_m *Merchant) *MerchantGroupMarkupQue
 	return query
 }
 
+// QueryGroupCosts queries the group_costs edge of a Merchant.
+func (c *MerchantClient) QueryGroupCosts(_m *Merchant) *MerchantGroupCostQuery {
+	query := (&MerchantGroupCostClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchant.Table, merchant.FieldID, id),
+			sqlgraph.To(merchantgroupcost.Table, merchantgroupcost.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, merchant.GroupCostsTable, merchant.GroupCostsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryWithdrawRequests queries the withdraw_requests edge of a Merchant.
 func (c *MerchantClient) QueryWithdrawRequests(_m *Merchant) *MerchantWithdrawRequestQuery {
 	query := (&MerchantWithdrawRequestClient{config: c.config}).Query()
@@ -3706,6 +3732,155 @@ func (c *MerchantEarningsOutboxClient) mutate(ctx context.Context, m *MerchantEa
 		return (&MerchantEarningsOutboxDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown MerchantEarningsOutbox mutation op: %q", m.Op())
+	}
+}
+
+// MerchantGroupCostClient is a client for the MerchantGroupCost schema.
+type MerchantGroupCostClient struct {
+	config
+}
+
+// NewMerchantGroupCostClient returns a client for the MerchantGroupCost from the given config.
+func NewMerchantGroupCostClient(c config) *MerchantGroupCostClient {
+	return &MerchantGroupCostClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `merchantgroupcost.Hooks(f(g(h())))`.
+func (c *MerchantGroupCostClient) Use(hooks ...Hook) {
+	c.hooks.MerchantGroupCost = append(c.hooks.MerchantGroupCost, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `merchantgroupcost.Intercept(f(g(h())))`.
+func (c *MerchantGroupCostClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MerchantGroupCost = append(c.inters.MerchantGroupCost, interceptors...)
+}
+
+// Create returns a builder for creating a MerchantGroupCost entity.
+func (c *MerchantGroupCostClient) Create() *MerchantGroupCostCreate {
+	mutation := newMerchantGroupCostMutation(c.config, OpCreate)
+	return &MerchantGroupCostCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MerchantGroupCost entities.
+func (c *MerchantGroupCostClient) CreateBulk(builders ...*MerchantGroupCostCreate) *MerchantGroupCostCreateBulk {
+	return &MerchantGroupCostCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MerchantGroupCostClient) MapCreateBulk(slice any, setFunc func(*MerchantGroupCostCreate, int)) *MerchantGroupCostCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MerchantGroupCostCreateBulk{err: fmt.Errorf("calling to MerchantGroupCostClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MerchantGroupCostCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MerchantGroupCostCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MerchantGroupCost.
+func (c *MerchantGroupCostClient) Update() *MerchantGroupCostUpdate {
+	mutation := newMerchantGroupCostMutation(c.config, OpUpdate)
+	return &MerchantGroupCostUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MerchantGroupCostClient) UpdateOne(_m *MerchantGroupCost) *MerchantGroupCostUpdateOne {
+	mutation := newMerchantGroupCostMutation(c.config, OpUpdateOne, withMerchantGroupCost(_m))
+	return &MerchantGroupCostUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MerchantGroupCostClient) UpdateOneID(id int64) *MerchantGroupCostUpdateOne {
+	mutation := newMerchantGroupCostMutation(c.config, OpUpdateOne, withMerchantGroupCostID(id))
+	return &MerchantGroupCostUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MerchantGroupCost.
+func (c *MerchantGroupCostClient) Delete() *MerchantGroupCostDelete {
+	mutation := newMerchantGroupCostMutation(c.config, OpDelete)
+	return &MerchantGroupCostDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MerchantGroupCostClient) DeleteOne(_m *MerchantGroupCost) *MerchantGroupCostDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MerchantGroupCostClient) DeleteOneID(id int64) *MerchantGroupCostDeleteOne {
+	builder := c.Delete().Where(merchantgroupcost.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MerchantGroupCostDeleteOne{builder}
+}
+
+// Query returns a query builder for MerchantGroupCost.
+func (c *MerchantGroupCostClient) Query() *MerchantGroupCostQuery {
+	return &MerchantGroupCostQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMerchantGroupCost},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MerchantGroupCost entity by its id.
+func (c *MerchantGroupCostClient) Get(ctx context.Context, id int64) (*MerchantGroupCost, error) {
+	return c.Query().Where(merchantgroupcost.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MerchantGroupCostClient) GetX(ctx context.Context, id int64) *MerchantGroupCost {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMerchant queries the merchant edge of a MerchantGroupCost.
+func (c *MerchantGroupCostClient) QueryMerchant(_m *MerchantGroupCost) *MerchantQuery {
+	query := (&MerchantClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchantgroupcost.Table, merchantgroupcost.FieldID, id),
+			sqlgraph.To(merchant.Table, merchant.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, merchantgroupcost.MerchantTable, merchantgroupcost.MerchantColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MerchantGroupCostClient) Hooks() []Hook {
+	return c.hooks.MerchantGroupCost
+}
+
+// Interceptors returns the client interceptors.
+func (c *MerchantGroupCostClient) Interceptors() []Interceptor {
+	return c.inters.MerchantGroupCost
+}
+
+func (c *MerchantGroupCostClient) mutate(ctx context.Context, m *MerchantGroupCostMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MerchantGroupCostCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MerchantGroupCostUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MerchantGroupCostUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MerchantGroupCostDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MerchantGroupCost mutation op: %q", m.Op())
 	}
 }
 
@@ -7241,8 +7416,8 @@ type (
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
-		MerchantDomain, MerchantEarningsOutbox, MerchantGroupMarkup, MerchantLedger,
-		MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
+		MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost, MerchantGroupMarkup,
+		MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
@@ -7253,8 +7428,8 @@ type (
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
 		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
-		MerchantDomain, MerchantEarningsOutbox, MerchantGroupMarkup, MerchantLedger,
-		MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
+		MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost, MerchantGroupMarkup,
+		MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,

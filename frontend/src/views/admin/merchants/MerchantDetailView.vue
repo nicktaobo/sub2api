@@ -81,27 +81,7 @@
                   {{ t('merchant.detail.warnings.discountLow') }}
                 </div>
               </div>
-              <div>
-                <label class="input-label">{{ t('merchant.fields.markupDefault') }}</label>
-                <div class="flex gap-2">
-                  <input
-                    v-model.number="form.user_markup_default"
-                    type="number"
-                    min="1"
-                    step="0.0001"
-                    class="input"
-                  />
-                  <button class="btn btn-primary" :disabled="saving.markup" @click="saveMarkup">
-                    {{ saving.markup ? t('common.saving') : t('common.save') }}
-                  </button>
-                </div>
-                <div
-                  v-if="form.user_markup_default > 2"
-                  class="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300"
-                >
-                  {{ t('merchant.detail.warnings.markupHigh') }}
-                </div>
-              </div>
+              <!-- v2.0: 默认 markup 已废弃，消费侧改用 per-group cost_rate / sell_rate（见 Pricing tab） -->
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -153,33 +133,47 @@
 
         <!-- Group pricing tab -->
         <div v-if="activeTab === 'pricing'" class="space-y-4 p-6">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                {{ t('merchant.detail.groupPricing.title') }}
-              </h3>
-              <p class="text-xs text-gray-500">{{ t('merchant.detail.groupPricing.description') }}</p>
-            </div>
-            <button class="btn btn-primary btn-sm" @click="openMarkupForm()">
-              <Icon name="plus" size="sm" class="mr-1" />
-              {{ t('merchant.detail.groupPricing.addOverride') }}
-            </button>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              {{ t('merchant.detail.groupPricing.title') }}
+            </h3>
+            <p class="text-xs text-gray-500">{{ t('merchant.detail.groupPricing.description') }}</p>
           </div>
-          <DataTable :columns="markupColumns" :data="markups" :loading="loadingMarkups">
-            <template #cell-group_id="{ value }">
-              <span class="font-mono text-sm">#{{ value }}</span>
-              <span class="ml-2 text-sm">{{ groupName(value) }}</span>
+          <DataTable :columns="markupColumns" :data="pricingRows" :loading="loadingMarkups">
+            <template #cell-group_name="{ row }">
+              <span class="font-medium text-gray-900 dark:text-gray-100">{{ row.group_name }}</span>
+              <span class="ml-1 text-xs text-gray-400">#{{ row.group_id }}</span>
             </template>
-            <template #cell-markup="{ value }">
-              <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}</span>
+            <template #cell-rate_multiplier="{ value }">
+              <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}x</span>
+            </template>
+            <template #cell-cost_rate="{ row }">
+              <span class="font-mono text-sm">{{ effectiveCost(row).toFixed(4) }}x</span>
+              <span v-if="row.cost_rate == null" class="ml-1 text-[10px] text-gray-400">
+                {{ t('merchant.detail.groupPricing.followsSite') }}
+              </span>
+            </template>
+            <template #cell-sell_rate="{ row }">
+              <span v-if="row.sell_rate != null" class="font-mono text-sm font-semibold text-primary-600 dark:text-primary-400">
+                {{ Number(row.sell_rate).toFixed(4) }}x
+              </span>
+              <span v-else class="text-xs italic text-gray-400">
+                {{ t('merchant.detail.groupPricing.notConfigured') }}
+              </span>
             </template>
             <template #cell-actions="{ row }">
               <div class="flex items-center gap-2">
-                <button class="btn btn-secondary btn-xs" @click="openMarkupForm(row)">
-                  {{ t('common.edit') }}
+                <button class="btn btn-secondary btn-xs" @click="openCostForm(row)">
+                  {{ t('merchant.detail.groupPricing.editCost') }}
                 </button>
-                <button class="btn btn-secondary btn-xs text-rose-600" @click="deleteMarkup(row)">
-                  {{ t('common.delete') }}
+                <button v-if="row.cost_rate != null" class="btn btn-secondary btn-xs text-rose-600" @click="deleteCost(row)">
+                  {{ t('merchant.detail.groupPricing.clearCost') }}
+                </button>
+                <button class="btn btn-secondary btn-xs" @click="openSellForm(row)">
+                  {{ t('merchant.detail.groupPricing.editSell') }}
+                </button>
+                <button v-if="row.sell_rate != null" class="btn btn-secondary btn-xs text-rose-600" @click="deleteSell(row)">
+                  {{ t('merchant.detail.groupPricing.clearSell') }}
                 </button>
               </div>
             </template>
@@ -254,38 +248,70 @@
       </div>
     </div>
 
-    <!-- Group markup form dialog -->
+    <!-- Cost rate (admin only) dialog -->
     <BaseDialog
-      :show="markupDialog.show"
-      :title="markupDialog.editing ? t('merchant.detail.groupPricing.editTitle') : t('merchant.detail.groupPricing.addTitle')"
+      :show="costDialog.show"
+      :title="t('merchant.detail.groupPricing.editCostTitle', { name: costDialog.groupName })"
       width="normal"
-      @close="markupDialog.show = false"
+      @close="costDialog.show = false"
     >
-      <form id="markup-form" class="space-y-4" @submit.prevent="submitMarkup">
-        <div>
-          <label class="input-label">{{ t('merchant.detail.groupPricing.group') }}</label>
-          <Select
-            v-model="markupDialog.group_id"
-            :options="groupOptions"
-            :placeholder="t('merchant.detail.groupPricing.selectGroup')"
-            :disabled="markupDialog.editing"
-          />
+      <form id="cost-form" class="space-y-4" @submit.prevent="submitCost">
+        <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800/40">
+          <div class="flex justify-between text-gray-500">
+            <span>{{ t('merchant.detail.groupPricing.siteRate') }}</span>
+            <span class="font-mono">{{ costDialog.rateMultiplier.toFixed(4) }}x</span>
+          </div>
         </div>
         <div>
-          <label class="input-label">{{ t('merchant.fields.markup') }}</label>
+          <label class="input-label">{{ t('merchant.detail.groupPricing.costRate') }}</label>
+          <input v-model.number="costDialog.costRate" type="number" min="0.0001" step="0.0001" required class="input" />
+          <p class="mt-1 text-xs text-gray-500">{{ t('merchant.detail.groupPricing.costRateHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">
+            {{ t('merchant.fields.reason') }}
+            <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
+          </label>
+          <textarea v-model="costDialog.reason" rows="2" class="input"></textarea>
+        </div>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button class="btn btn-secondary" @click="costDialog.show = false">{{ t('common.cancel') }}</button>
+          <button type="submit" form="cost-form" :disabled="costDialog.submitting" class="btn btn-primary">
+            {{ costDialog.submitting ? t('common.saving') : t('common.save') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <!-- Sell rate (admin overrides on behalf of merchant) dialog -->
+    <BaseDialog
+      :show="sellDialog.show"
+      :title="t('merchant.detail.groupPricing.editSellTitle', { name: sellDialog.groupName })"
+      width="normal"
+      @close="sellDialog.show = false"
+    >
+      <form id="sell-form" class="space-y-4" @submit.prevent="submitSell">
+        <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800/40">
+          <div class="flex justify-between text-gray-500">
+            <span>{{ t('merchant.detail.groupPricing.costRate') }}</span>
+            <span class="font-mono">{{ sellDialog.costRate.toFixed(4) }}x</span>
+          </div>
+        </div>
+        <div>
+          <label class="input-label">{{ t('merchant.detail.groupPricing.sellRate') }}</label>
           <input
-            v-model.number="markupDialog.markup"
+            v-model.number="sellDialog.sellRate"
             type="number"
-            min="1"
+            :min="sellDialog.costRate"
             step="0.0001"
             required
             class="input"
           />
-          <div
-            v-if="markupDialog.markup > 2"
-            class="mt-1 text-xs text-rose-600"
-          >
-            {{ t('merchant.detail.warnings.markupHigh') }}
+          <p class="mt-1 text-xs text-gray-500">{{ t('merchant.detail.groupPricing.sellRateHint') }}</p>
+          <div v-if="sellDialog.sellRate < sellDialog.costRate" class="mt-1 text-xs text-rose-600">
+            {{ t('merchant.detail.groupPricing.sellBelowCost', { cost: sellDialog.costRate.toFixed(4) }) }}
           </div>
         </div>
         <div>
@@ -293,21 +319,19 @@
             {{ t('merchant.fields.reason') }}
             <span class="ml-1 text-xs font-normal text-gray-400">({{ t('common.optional') }})</span>
           </label>
-          <textarea v-model="markupDialog.reason" rows="2" class="input"></textarea>
+          <textarea v-model="sellDialog.reason" rows="2" class="input"></textarea>
         </div>
       </form>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="markupDialog.show = false">
-            {{ t('common.cancel') }}
-          </button>
+          <button class="btn btn-secondary" @click="sellDialog.show = false">{{ t('common.cancel') }}</button>
           <button
             type="submit"
-            form="markup-form"
-            :disabled="markupDialog.submitting"
+            form="sell-form"
+            :disabled="sellDialog.submitting || sellDialog.sellRate < sellDialog.costRate"
             class="btn btn-primary"
           >
-            {{ markupDialog.submitting ? t('common.saving') : t('common.save') }}
+            {{ sellDialog.submitting ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </template>
@@ -323,7 +347,6 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
@@ -331,6 +354,7 @@ import {
   merchantAPI,
   type Merchant,
   type MerchantGroupMarkup,
+  type MerchantGroupCost,
   type MerchantLedgerEntry,
   type MerchantAuditLogEntry,
 } from '@/api'
@@ -363,7 +387,7 @@ const form = reactive({
   notify_emails_str: '',
 })
 
-const saving = reactive({ discount: false, markup: false })
+const saving = reactive({ discount: false })
 
 function syncFormFromMerchant(): void {
   if (!merchant.value) return
@@ -403,42 +427,56 @@ async function saveDiscount(): Promise<void> {
   }
 }
 
-async function saveMarkup(): Promise<void> {
-  saving.markup = true
-  try {
-    merchant.value = await merchantAPI.adminSetMarkupDefault(merchantId.value, form.user_markup_default)
-    syncFormFromMerchant()
-    appStore.showSuccess(t('common.saved'))
-  } catch (err) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
-  } finally {
-    saving.markup = false
-  }
+// Group pricing（v2.0 cost/sell 双值模型）
+// admin 配 cost_rate（商户拿货价），商户配 sell_rate（对外售价）；admin 可代商户改 sell。
+interface PricingRow {
+  group_id: number
+  group_name: string
+  rate_multiplier: number
+  cost_rate: number | null
+  sell_rate: number | null
 }
 
-// Group pricing
-const markups = ref<MerchantGroupMarkup[]>([])
+const sells = ref<MerchantGroupMarkup[]>([])
+const costs = ref<MerchantGroupCost[]>([])
 const loadingMarkups = ref(false)
 const groups = ref<AdminGroup[]>([])
 
 const markupColumns = computed<Column[]>(() => [
-  { key: 'group_id', label: t('merchant.detail.groupPricing.group') },
-  { key: 'markup', label: t('merchant.fields.markup') },
+  { key: 'group_name', label: t('merchant.detail.groupPricing.group') },
+  { key: 'rate_multiplier', label: t('merchant.detail.groupPricing.siteRate') },
+  { key: 'cost_rate', label: t('merchant.detail.groupPricing.costRate') },
+  { key: 'sell_rate', label: t('merchant.detail.groupPricing.sellRate') },
   { key: 'actions', label: t('common.actions') },
 ])
 
-const groupOptions = computed(() =>
-  groups.value.map((g) => ({ value: g.id, label: `${g.name} (#${g.id})` })),
-)
+const pricingRows = computed<PricingRow[]>(() => {
+  const costMap = new Map<number, number>()
+  for (const c of costs.value) costMap.set(c.group_id, c.cost_rate)
+  const sellMap = new Map<number, number>()
+  for (const s of sells.value) sellMap.set(s.group_id, s.sell_rate)
+  return groups.value.map((g) => ({
+    group_id: g.id,
+    group_name: g.name,
+    rate_multiplier: g.rate_multiplier,
+    cost_rate: costMap.get(g.id) ?? null,
+    sell_rate: sellMap.get(g.id) ?? null,
+  }))
+})
 
-function groupName(id: number): string {
-  return groups.value.find((g) => g.id === id)?.name ?? ''
+function effectiveCost(row: PricingRow): number {
+  return row.cost_rate != null ? row.cost_rate : row.rate_multiplier
 }
 
 async function loadMarkups(): Promise<void> {
   loadingMarkups.value = true
   try {
-    markups.value = await merchantAPI.adminListGroupMarkups(merchantId.value)
+    const [s, c] = await Promise.all([
+      merchantAPI.adminListGroupMarkups(merchantId.value),
+      merchantAPI.adminListGroupCosts(merchantId.value),
+    ])
+    sells.value = s
+    costs.value = c
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {
@@ -454,55 +492,99 @@ async function loadGroups(): Promise<void> {
   }
 }
 
-const markupDialog = reactive({
+const costDialog = reactive({
   show: false,
-  editing: false,
   group_id: null as number | null,
-  markup: 1,
+  groupName: '',
+  rateMultiplier: 1,
+  costRate: 1,
   reason: '',
   submitting: false,
 })
 
-function openMarkupForm(row?: MerchantGroupMarkup): void {
-  if (row) {
-    markupDialog.editing = true
-    markupDialog.group_id = row.group_id
-    markupDialog.markup = Number(row.markup ?? 1)
-  } else {
-    markupDialog.editing = false
-    markupDialog.group_id = null
-    markupDialog.markup = 1
-  }
-  markupDialog.reason = ''
-  markupDialog.submitting = false
-  markupDialog.show = true
+function openCostForm(row: PricingRow): void {
+  costDialog.group_id = row.group_id
+  costDialog.groupName = row.group_name
+  costDialog.rateMultiplier = row.rate_multiplier
+  costDialog.costRate = effectiveCost(row)
+  costDialog.reason = ''
+  costDialog.submitting = false
+  costDialog.show = true
 }
 
-async function submitMarkup(): Promise<void> {
-  if (markupDialog.group_id == null) {
-    appStore.showError(t('merchant.errors.groupRequired'))
-    return
-  }
-  markupDialog.submitting = true
+async function submitCost(): Promise<void> {
+  if (costDialog.group_id == null) return
+  costDialog.submitting = true
   try {
-    await merchantAPI.adminSetGroupMarkup(
+    await merchantAPI.adminSetGroupCost(
       merchantId.value,
-      markupDialog.group_id,
-      markupDialog.markup,
-      markupDialog.reason || undefined,
+      costDialog.group_id,
+      costDialog.costRate,
+      costDialog.reason || undefined,
     )
     appStore.showSuccess(t('common.saved'))
-    markupDialog.show = false
+    costDialog.show = false
     await loadMarkups()
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {
-    markupDialog.submitting = false
+    costDialog.submitting = false
   }
 }
 
-async function deleteMarkup(row: MerchantGroupMarkup): Promise<void> {
-  if (!window.confirm(t('merchant.detail.groupPricing.confirmDelete'))) return
+async function deleteCost(row: PricingRow): Promise<void> {
+  if (!window.confirm(t('merchant.detail.groupPricing.confirmDeleteCost', { name: row.group_name }))) return
+  try {
+    await merchantAPI.adminDeleteGroupCost(merchantId.value, row.group_id)
+    appStore.showSuccess(t('common.deleted'))
+    await loadMarkups()
+  } catch (err) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  }
+}
+
+const sellDialog = reactive({
+  show: false,
+  group_id: null as number | null,
+  groupName: '',
+  costRate: 1,
+  sellRate: 1,
+  reason: '',
+  submitting: false,
+})
+
+function openSellForm(row: PricingRow): void {
+  sellDialog.group_id = row.group_id
+  sellDialog.groupName = row.group_name
+  sellDialog.costRate = effectiveCost(row)
+  sellDialog.sellRate = row.sell_rate != null ? row.sell_rate : sellDialog.costRate
+  sellDialog.reason = ''
+  sellDialog.submitting = false
+  sellDialog.show = true
+}
+
+async function submitSell(): Promise<void> {
+  if (sellDialog.group_id == null) return
+  sellDialog.submitting = true
+  try {
+    await merchantAPI.adminSetGroupMarkup(
+      merchantId.value,
+      sellDialog.group_id,
+      sellDialog.sellRate,
+      sellDialog.reason || undefined,
+    )
+    appStore.showSuccess(t('common.saved'))
+    sellDialog.show = false
+    await loadMarkups()
+  } catch (err) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  } finally {
+    sellDialog.submitting = false
+  }
+}
+
+async function deleteSell(row: PricingRow): Promise<void> {
+  if (!window.confirm(t('merchant.detail.groupPricing.confirmDeleteSell', { name: row.group_name }))) return
   try {
     await merchantAPI.adminDeleteGroupMarkup(merchantId.value, row.group_id)
     appStore.showSuccess(t('common.deleted'))
@@ -599,7 +681,7 @@ watch(activeTab, (tab) => {
   if (tab === 'pricing' && groups.value.length === 0) {
     void loadGroups()
   }
-  if (tab === 'pricing' && markups.value.length === 0) {
+  if (tab === 'pricing' && sells.value.length === 0 && costs.value.length === 0) {
     void loadMarkups()
   }
   if (tab === 'ledger' && ledger.value.length === 0) {

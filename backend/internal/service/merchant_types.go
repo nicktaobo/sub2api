@@ -99,6 +99,8 @@ const (
 	MerchantAuditFieldDiscount     = "discount"
 	MerchantAuditFieldMarkupDef    = "user_markup_default"
 	MerchantAuditFieldGroupMarkup  = "group_markup"
+	MerchantAuditFieldGroupCost    = "group_cost"
+	MerchantAuditFieldGroupSell    = "group_sell"
 	MerchantAuditFieldStatus       = "status"
 	MerchantAuditFieldDomainAdd    = "domain_add"
 	MerchantAuditFieldDomainRemove = "domain_remove"
@@ -193,12 +195,22 @@ type MerchantAuditLogEntry struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// MerchantGroupMarkup 分组级 markup 覆盖（RFC §4.1.5）。
+// MerchantGroupMarkup 分组级对外售价配置（v2.0：sell_rate 绝对倍率语义）。
 type MerchantGroupMarkup struct {
 	ID         int64     `json:"id"`
 	MerchantID int64     `json:"merchant_id"`
 	GroupID    int64     `json:"group_id"`
-	Markup     float64   `json:"markup"`
+	SellRate   float64   `json:"sell_rate"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// MerchantGroupCost 分组级拿货价配置（v2.0 新增；admin 设置）。
+type MerchantGroupCost struct {
+	ID         int64     `json:"id"`
+	MerchantID int64     `json:"merchant_id"`
+	GroupID    int64     `json:"group_id"`
+	CostRate   float64   `json:"cost_rate"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
@@ -296,20 +308,32 @@ type MerchantAuditLogRepository interface {
 	ListByMerchant(ctx context.Context, merchantID int64, offset, limit int) ([]*MerchantAuditLogEntry, int, error)
 }
 
-// MerchantGroupMarkupRepository 分组级 markup 覆盖仓储。
+// MerchantGroupMarkupRepository 分组级对外售价仓储（v2.0：sell_rate）。
 type MerchantGroupMarkupRepository interface {
 	Upsert(ctx context.Context, e *MerchantGroupMarkup) error
 	Delete(ctx context.Context, merchantID, groupID int64) error
 	ListByMerchant(ctx context.Context, merchantID int64) ([]*MerchantGroupMarkup, error)
 }
 
+// MerchantGroupCostRepository 分组级拿货价仓储（v2.0 新增）。
+type MerchantGroupCostRepository interface {
+	Upsert(ctx context.Context, e *MerchantGroupCost) error
+	Delete(ctx context.Context, merchantID, groupID int64) error
+	ListByMerchant(ctx context.Context, merchantID int64) ([]*MerchantGroupCost, error)
+}
+
 // CachedMerchantPricing pricing hook 用的缓存对象（merchant 维度，不含 user 信息）。
-// RFC §5.2.1 Step 2 / Step 2.1。
+//
+// v2.0：消费侧改为 cost_rate / sell_rate 绝对倍率模型——
+//   - GroupCosts: admin 配置的商户拿货价（base × cost_rate = 平台从 sub_user 余额扣除部分）
+//   - GroupSellRates: 商户配置的对外售价（base × sell_rate = sub_user 实际余额扣款）
+//
+// Discount 字段保留但仅用于充值分成场景（payment_merchant_share），与消费计费无关。
 type CachedMerchantPricing struct {
-	MerchantID        int64
-	OwnerUserID       int64
-	Status            string
-	Discount          float64
-	UserMarkupDefault float64
-	GroupMarkups      map[int64]float64 // 已过滤 deleted_at 的 active groups
+	MerchantID     int64
+	OwnerUserID    int64
+	Status         string
+	Discount       float64
+	GroupCosts     map[int64]float64
+	GroupSellRates map[int64]float64
 }

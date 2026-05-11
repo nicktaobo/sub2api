@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -36,6 +37,7 @@ type MerchantQuery struct {
 	withOutboxEntries    *MerchantEarningsOutboxQuery
 	withAuditLogs        *MerchantAuditLogQuery
 	withGroupMarkups     *MerchantGroupMarkupQuery
+	withGroupCosts       *MerchantGroupCostQuery
 	withWithdrawRequests *MerchantWithdrawRequestQuery
 	withSubUsers         *UserQuery
 	modifiers            []func(*sql.Selector)
@@ -178,6 +180,28 @@ func (_q *MerchantQuery) QueryGroupMarkups() *MerchantGroupMarkupQuery {
 			sqlgraph.From(merchant.Table, merchant.FieldID, selector),
 			sqlgraph.To(merchantgroupmarkup.Table, merchantgroupmarkup.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, merchant.GroupMarkupsTable, merchant.GroupMarkupsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryGroupCosts chains the current query on the "group_costs" edge.
+func (_q *MerchantQuery) QueryGroupCosts() *MerchantGroupCostQuery {
+	query := (&MerchantGroupCostClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(merchant.Table, merchant.FieldID, selector),
+			sqlgraph.To(merchantgroupcost.Table, merchantgroupcost.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, merchant.GroupCostsTable, merchant.GroupCostsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -426,6 +450,7 @@ func (_q *MerchantQuery) Clone() *MerchantQuery {
 		withOutboxEntries:    _q.withOutboxEntries.Clone(),
 		withAuditLogs:        _q.withAuditLogs.Clone(),
 		withGroupMarkups:     _q.withGroupMarkups.Clone(),
+		withGroupCosts:       _q.withGroupCosts.Clone(),
 		withWithdrawRequests: _q.withWithdrawRequests.Clone(),
 		withSubUsers:         _q.withSubUsers.Clone(),
 		// clone intermediate query.
@@ -486,6 +511,17 @@ func (_q *MerchantQuery) WithGroupMarkups(opts ...func(*MerchantGroupMarkupQuery
 		opt(query)
 	}
 	_q.withGroupMarkups = query
+	return _q
+}
+
+// WithGroupCosts tells the query-builder to eager-load the nodes that are connected to
+// the "group_costs" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *MerchantQuery) WithGroupCosts(opts ...func(*MerchantGroupCostQuery)) *MerchantQuery {
+	query := (&MerchantGroupCostClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withGroupCosts = query
 	return _q
 }
 
@@ -589,12 +625,13 @@ func (_q *MerchantQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Mer
 	var (
 		nodes       = []*Merchant{}
 		_spec       = _q.querySpec()
-		loadedTypes = [7]bool{
+		loadedTypes = [8]bool{
 			_q.withDomains != nil,
 			_q.withLedgerEntries != nil,
 			_q.withOutboxEntries != nil,
 			_q.withAuditLogs != nil,
 			_q.withGroupMarkups != nil,
+			_q.withGroupCosts != nil,
 			_q.withWithdrawRequests != nil,
 			_q.withSubUsers != nil,
 		}
@@ -652,6 +689,13 @@ func (_q *MerchantQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Mer
 		if err := _q.loadGroupMarkups(ctx, query, nodes,
 			func(n *Merchant) { n.Edges.GroupMarkups = []*MerchantGroupMarkup{} },
 			func(n *Merchant, e *MerchantGroupMarkup) { n.Edges.GroupMarkups = append(n.Edges.GroupMarkups, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withGroupCosts; query != nil {
+		if err := _q.loadGroupCosts(ctx, query, nodes,
+			func(n *Merchant) { n.Edges.GroupCosts = []*MerchantGroupCost{} },
+			func(n *Merchant, e *MerchantGroupCost) { n.Edges.GroupCosts = append(n.Edges.GroupCosts, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -809,6 +853,36 @@ func (_q *MerchantQuery) loadGroupMarkups(ctx context.Context, query *MerchantGr
 	}
 	query.Where(predicate.MerchantGroupMarkup(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(merchant.GroupMarkupsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.MerchantID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "merchant_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *MerchantQuery) loadGroupCosts(ctx context.Context, query *MerchantGroupCostQuery, nodes []*Merchant, init func(*Merchant), assign func(*Merchant, *MerchantGroupCost)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Merchant)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(merchantgroupcost.FieldMerchantID)
+	}
+	query.Where(predicate.MerchantGroupCost(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(merchant.GroupCostsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

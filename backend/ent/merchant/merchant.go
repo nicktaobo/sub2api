@@ -47,6 +47,8 @@ const (
 	EdgeAuditLogs = "audit_logs"
 	// EdgeGroupMarkups holds the string denoting the group_markups edge name in mutations.
 	EdgeGroupMarkups = "group_markups"
+	// EdgeGroupCosts holds the string denoting the group_costs edge name in mutations.
+	EdgeGroupCosts = "group_costs"
 	// EdgeWithdrawRequests holds the string denoting the withdraw_requests edge name in mutations.
 	EdgeWithdrawRequests = "withdraw_requests"
 	// EdgeSubUsers holds the string denoting the sub_users edge name in mutations.
@@ -88,6 +90,13 @@ const (
 	GroupMarkupsInverseTable = "merchant_group_markups"
 	// GroupMarkupsColumn is the table column denoting the group_markups relation/edge.
 	GroupMarkupsColumn = "merchant_id"
+	// GroupCostsTable is the table that holds the group_costs relation/edge.
+	GroupCostsTable = "merchant_group_costs"
+	// GroupCostsInverseTable is the table name for the MerchantGroupCost entity.
+	// It exists in this package in order to avoid circular dependency with the "merchantgroupcost" package.
+	GroupCostsInverseTable = "merchant_group_costs"
+	// GroupCostsColumn is the table column denoting the group_costs relation/edge.
+	GroupCostsColumn = "merchant_id"
 	// WithdrawRequestsTable is the table that holds the withdraw_requests relation/edge.
 	WithdrawRequestsTable = "merchant_withdraw_requests"
 	// WithdrawRequestsInverseTable is the table name for the MerchantWithdrawRequest entity.
@@ -290,6 +299,20 @@ func ByGroupMarkups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByGroupCostsCount orders the results by group_costs count.
+func ByGroupCostsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newGroupCostsStep(), opts...)
+	}
+}
+
+// ByGroupCosts orders the results by group_costs terms.
+func ByGroupCosts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newGroupCostsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByWithdrawRequestsCount orders the results by withdraw_requests count.
 func ByWithdrawRequestsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -350,6 +373,13 @@ func newGroupMarkupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(GroupMarkupsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, GroupMarkupsTable, GroupMarkupsColumn),
+	)
+}
+func newGroupCostsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(GroupCostsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, GroupCostsTable, GroupCostsColumn),
 	)
 }
 func newWithdrawRequestsStep() *sqlgraph.Step {

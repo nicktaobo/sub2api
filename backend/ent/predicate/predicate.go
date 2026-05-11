@@ -63,6 +63,9 @@ type MerchantDomain func(*sql.Selector)
 // MerchantEarningsOutbox is the predicate function for merchantearningsoutbox builders.
 type MerchantEarningsOutbox func(*sql.Selector)
 
+// MerchantGroupCost is the predicate function for merchantgroupcost builders.
+type MerchantGroupCost func(*sql.Selector)
+
 // MerchantGroupMarkup is the predicate function for merchantgroupmarkup builders.
 type MerchantGroupMarkup func(*sql.Selector)
 

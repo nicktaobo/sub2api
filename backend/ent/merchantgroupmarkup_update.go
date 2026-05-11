@@ -70,24 +70,24 @@ func (_u *MerchantGroupMarkupUpdate) AddGroupID(v int64) *MerchantGroupMarkupUpd
 	return _u
 }
 
-// SetMarkup sets the "markup" field.
-func (_u *MerchantGroupMarkupUpdate) SetMarkup(v float64) *MerchantGroupMarkupUpdate {
-	_u.mutation.ResetMarkup()
-	_u.mutation.SetMarkup(v)
+// SetSellRate sets the "sell_rate" field.
+func (_u *MerchantGroupMarkupUpdate) SetSellRate(v float64) *MerchantGroupMarkupUpdate {
+	_u.mutation.ResetSellRate()
+	_u.mutation.SetSellRate(v)
 	return _u
 }
 
-// SetNillableMarkup sets the "markup" field if the given value is not nil.
-func (_u *MerchantGroupMarkupUpdate) SetNillableMarkup(v *float64) *MerchantGroupMarkupUpdate {
+// SetNillableSellRate sets the "sell_rate" field if the given value is not nil.
+func (_u *MerchantGroupMarkupUpdate) SetNillableSellRate(v *float64) *MerchantGroupMarkupUpdate {
 	if v != nil {
-		_u.SetMarkup(*v)
+		_u.SetSellRate(*v)
 	}
 	return _u
 }
 
-// AddMarkup adds value to the "markup" field.
-func (_u *MerchantGroupMarkupUpdate) AddMarkup(v float64) *MerchantGroupMarkupUpdate {
-	_u.mutation.AddMarkup(v)
+// AddSellRate adds value to the "sell_rate" field.
+func (_u *MerchantGroupMarkupUpdate) AddSellRate(v float64) *MerchantGroupMarkupUpdate {
+	_u.mutation.AddSellRate(v)
 	return _u
 }
 
@@ -172,11 +172,11 @@ func (_u *MerchantGroupMarkupUpdate) sqlSave(ctx context.Context) (_node int, er
 	if value, ok := _u.mutation.AddedGroupID(); ok {
 		_spec.AddField(merchantgroupmarkup.FieldGroupID, field.TypeInt64, value)
 	}
-	if value, ok := _u.mutation.Markup(); ok {
-		_spec.SetField(merchantgroupmarkup.FieldMarkup, field.TypeFloat64, value)
+	if value, ok := _u.mutation.SellRate(); ok {
+		_spec.SetField(merchantgroupmarkup.FieldSellRate, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.AddedMarkup(); ok {
-		_spec.AddField(merchantgroupmarkup.FieldMarkup, field.TypeFloat64, value)
+	if value, ok := _u.mutation.AddedSellRate(); ok {
+		_spec.AddField(merchantgroupmarkup.FieldSellRate, field.TypeFloat64, value)
 	}
 	if _u.mutation.MerchantCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -268,24 +268,24 @@ func (_u *MerchantGroupMarkupUpdateOne) AddGroupID(v int64) *MerchantGroupMarkup
 	return _u
 }
 
-// SetMarkup sets the "markup" field.
-func (_u *MerchantGroupMarkupUpdateOne) SetMarkup(v float64) *MerchantGroupMarkupUpdateOne {
-	_u.mutation.ResetMarkup()
-	_u.mutation.SetMarkup(v)
+// SetSellRate sets the "sell_rate" field.
+func (_u *MerchantGroupMarkupUpdateOne) SetSellRate(v float64) *MerchantGroupMarkupUpdateOne {
+	_u.mutation.ResetSellRate()
+	_u.mutation.SetSellRate(v)
 	return _u
 }
 
-// SetNillableMarkup sets the "markup" field if the given value is not nil.
-func (_u *MerchantGroupMarkupUpdateOne) SetNillableMarkup(v *float64) *MerchantGroupMarkupUpdateOne {
+// SetNillableSellRate sets the "sell_rate" field if the given value is not nil.
+func (_u *MerchantGroupMarkupUpdateOne) SetNillableSellRate(v *float64) *MerchantGroupMarkupUpdateOne {
 	if v != nil {
-		_u.SetMarkup(*v)
+		_u.SetSellRate(*v)
 	}
 	return _u
 }
 
-// AddMarkup adds value to the "markup" field.
-func (_u *MerchantGroupMarkupUpdateOne) AddMarkup(v float64) *MerchantGroupMarkupUpdateOne {
-	_u.mutation.AddMarkup(v)
+// AddSellRate adds value to the "sell_rate" field.
+func (_u *MerchantGroupMarkupUpdateOne) AddSellRate(v float64) *MerchantGroupMarkupUpdateOne {
+	_u.mutation.AddSellRate(v)
 	return _u
 }
 
@@ -400,11 +400,11 @@ func (_u *MerchantGroupMarkupUpdateOne) sqlSave(ctx context.Context) (_node *Mer
 	if value, ok := _u.mutation.AddedGroupID(); ok {
 		_spec.AddField(merchantgroupmarkup.FieldGroupID, field.TypeInt64, value)
 	}
-	if value, ok := _u.mutation.Markup(); ok {
-		_spec.SetField(merchantgroupmarkup.FieldMarkup, field.TypeFloat64, value)
+	if value, ok := _u.mutation.SellRate(); ok {
+		_spec.SetField(merchantgroupmarkup.FieldSellRate, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.AddedMarkup(); ok {
-		_spec.AddField(merchantgroupmarkup.FieldMarkup, field.TypeFloat64, value)
+	if value, ok := _u.mutation.AddedSellRate(); ok {
+		_spec.AddField(merchantgroupmarkup.FieldSellRate, field.TypeFloat64, value)
 	}
 	if _u.mutation.MerchantCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -24,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -1116,6 +1117,21 @@ func init() {
 	merchantearningsoutboxDescCreatedAt := merchantearningsoutboxFields[9].Descriptor()
 	// merchantearningsoutbox.DefaultCreatedAt holds the default value on creation for the created_at field.
 	merchantearningsoutbox.DefaultCreatedAt = merchantearningsoutboxDescCreatedAt.Default.(func() time.Time)
+	merchantgroupcostMixin := schema.MerchantGroupCost{}.Mixin()
+	merchantgroupcostMixinFields0 := merchantgroupcostMixin[0].Fields()
+	_ = merchantgroupcostMixinFields0
+	merchantgroupcostFields := schema.MerchantGroupCost{}.Fields()
+	_ = merchantgroupcostFields
+	// merchantgroupcostDescCreatedAt is the schema descriptor for created_at field.
+	merchantgroupcostDescCreatedAt := merchantgroupcostMixinFields0[0].Descriptor()
+	// merchantgroupcost.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantgroupcost.DefaultCreatedAt = merchantgroupcostDescCreatedAt.Default.(func() time.Time)
+	// merchantgroupcostDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantgroupcostDescUpdatedAt := merchantgroupcostMixinFields0[1].Descriptor()
+	// merchantgroupcost.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantgroupcost.DefaultUpdatedAt = merchantgroupcostDescUpdatedAt.Default.(func() time.Time)
+	// merchantgroupcost.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantgroupcost.UpdateDefaultUpdatedAt = merchantgroupcostDescUpdatedAt.UpdateDefault.(func() time.Time)
 	merchantgroupmarkupMixin := schema.MerchantGroupMarkup{}.Mixin()
 	merchantgroupmarkupMixinFields0 := merchantgroupmarkupMixin[0].Fields()
 	_ = merchantgroupmarkupMixinFields0

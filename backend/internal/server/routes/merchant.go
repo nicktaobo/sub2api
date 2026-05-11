@@ -37,7 +37,6 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.GET("/ledger", mh.ListLedger)
 		g.GET("/group_markups", mh.ListGroupMarkups)
 		g.GET("/pricing_groups", mh.ListPricingGroups)
-		g.PUT("/markup_default", mh.SetMarkupDefault)
 		g.PUT("/group_markups", mh.SetGroupMarkup)
 		g.DELETE("/group_markups/:group_id", mh.DeleteGroupMarkup)
 		g.GET("/domains", mh.ListDomains)

@@ -27,6 +27,7 @@ export type {
   Merchant,
   MerchantStatus,
   MerchantGroupMarkup,
+  MerchantGroupCost,
   MerchantLedgerEntry,
   MerchantAuditLogEntry,
   MerchantBrand,

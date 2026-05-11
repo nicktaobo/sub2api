@@ -52,6 +52,8 @@ type Tx struct {
 	MerchantDomain *MerchantDomainClient
 	// MerchantEarningsOutbox is the client for interacting with the MerchantEarningsOutbox builders.
 	MerchantEarningsOutbox *MerchantEarningsOutboxClient
+	// MerchantGroupCost is the client for interacting with the MerchantGroupCost builders.
+	MerchantGroupCost *MerchantGroupCostClient
 	// MerchantGroupMarkup is the client for interacting with the MerchantGroupMarkup builders.
 	MerchantGroupMarkup *MerchantGroupMarkupClient
 	// MerchantLedger is the client for interacting with the MerchantLedger builders.
@@ -246,6 +248,7 @@ func (tx *Tx) init() {
 	tx.MerchantAuditLog = NewMerchantAuditLogClient(tx.config)
 	tx.MerchantDomain = NewMerchantDomainClient(tx.config)
 	tx.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(tx.config)
+	tx.MerchantGroupCost = NewMerchantGroupCostClient(tx.config)
 	tx.MerchantGroupMarkup = NewMerchantGroupMarkupClient(tx.config)
 	tx.MerchantLedger = NewMerchantLedgerClient(tx.config)
 	tx.MerchantWithdrawRequest = NewMerchantWithdrawRequestClient(tx.config)

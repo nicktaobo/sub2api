@@ -5335,11 +5335,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			groupID = *apiKey.GroupID
 		}
 		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
-			UserID:      user.ID,
-			GroupID:     groupID,
-			BaseCost:    cost.ActualCost,
-			BillingType: billingType,
-			APIKeyID:    apiKey.ID,
+			UserID:         user.ID,
+			GroupID:        groupID,
+			RawCost:        cost.TotalCost,
+			SiteActualCost: cost.ActualCost,
+			BillingType:    billingType,
+			APIKeyID:       apiKey.ID,
 		})
 		if merchantPricingResult.BalanceCostOverride != nil {
 			usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride

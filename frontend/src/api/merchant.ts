@@ -49,7 +49,17 @@ export interface Merchant {
 export interface MerchantGroupMarkup {
   merchant_id: number
   group_id: number
-  markup: number
+  /** v2.0: 对外售价绝对倍率（base × sell_rate = sub_user 实付）。 */
+  sell_rate: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface MerchantGroupCost {
+  merchant_id: number
+  group_id: number
+  /** 拿货价绝对倍率，admin 配置。base × cost_rate = 平台从 sub_user 余额扣的部分。 */
+  cost_rate: number
   created_at?: string
   updated_at?: string
 }
@@ -267,16 +277,16 @@ export async function adminMerchantListGroupMarkups(id: number): Promise<Merchan
   return data || []
 }
 
-/** PUT /admin/merchants/:id/group_markups */
+/** PUT /admin/merchants/:id/group_markups — 设商户分组对外售价（admin 代操作） */
 export async function adminMerchantSetGroupMarkup(
   id: number,
   group_id: number,
-  markup: number,
+  sell_rate: number,
   reason?: string,
 ): Promise<MerchantGroupMarkup> {
   const { data } = await apiClient.put<MerchantGroupMarkup>(
     `/admin/merchants/${id}/group_markups`,
-    { group_id, markup, reason },
+    { group_id, sell_rate, reason },
   )
   return data
 }
@@ -288,6 +298,39 @@ export async function adminMerchantDeleteGroupMarkup(
 ): Promise<{ message?: string }> {
   const { data } = await apiClient.delete<{ message?: string }>(
     `/admin/merchants/${id}/group_markups/${group_id}`,
+  )
+  return data || {}
+}
+
+/** GET /admin/merchants/:id/group_costs — 列出商户的分组拿货价配置 */
+export async function adminMerchantListGroupCosts(id: number): Promise<MerchantGroupCost[]> {
+  const { data } = await apiClient.get<MerchantGroupCost[] | null>(
+    `/admin/merchants/${id}/group_costs`,
+  )
+  return data || []
+}
+
+/** PUT /admin/merchants/:id/group_costs — admin 设商户分组拿货价 */
+export async function adminMerchantSetGroupCost(
+  id: number,
+  group_id: number,
+  cost_rate: number,
+  reason?: string,
+): Promise<MerchantGroupCost> {
+  const { data } = await apiClient.put<MerchantGroupCost>(
+    `/admin/merchants/${id}/group_costs`,
+    { group_id, cost_rate, reason },
+  )
+  return data
+}
+
+/** DELETE /admin/merchants/:id/group_costs/:group_id */
+export async function adminMerchantDeleteGroupCost(
+  id: number,
+  group_id: number,
+): Promise<{ message?: string }> {
+  const { data } = await apiClient.delete<{ message?: string }>(
+    `/admin/merchants/${id}/group_costs/${group_id}`,
   )
   return data || {}
 }
@@ -425,15 +468,19 @@ export async function merchantListGroupMarkups(): Promise<MerchantGroupMarkup[]>
   return data || []
 }
 
-/** 商户可定价的分组（含每个分组当前生效 markup；null = 跟随默认）。 */
+/**
+ * 商户可定价的分组（v2.0 模型）。
+ * - cost_rate: admin 配的拿货价（绝对倍率）；缺失时按 rate_multiplier 兜底
+ * - sell_rate: 商户配的对外售价（绝对倍率）；缺失时该 group 不分润，sub_user 按主站价
+ */
 export interface MerchantPricingGroup {
   id: number
   name: string
   platform: string
   is_exclusive: boolean
   rate_multiplier: number
-  /** 已设置 override 时为数字；未设置时省略，前端按"跟随默认"展示。 */
-  markup?: number | null
+  cost_rate?: number | null
+  sell_rate?: number | null
 }
 
 /** GET /merchant/pricing_groups — 商户可定价分组列表（所有 active 非订阅分组） */
@@ -442,21 +489,16 @@ export async function merchantListPricingGroups(): Promise<MerchantPricingGroup[
   return data || []
 }
 
-/** PUT /merchant/markup_default — 商户 owner 自助改默认 markup（markup ≥ 1） */
-export async function merchantSetMarkupDefault(markup: number, reason?: string): Promise<void> {
-  await apiClient.put('/merchant/markup_default', { markup, reason })
-}
-
-/** PUT /merchant/group_markups — 商户 owner 自助设置某分组的 markup 覆盖（markup ≥ 1） */
+/** PUT /merchant/group_markups — 商户 owner 自助设置某分组对外售价倍率（绝对值，≥ cost_rate） */
 export async function merchantSetGroupMarkup(
   group_id: number,
-  markup: number,
+  sell_rate: number,
   reason?: string,
 ): Promise<void> {
-  await apiClient.put('/merchant/group_markups', { group_id, markup, reason })
+  await apiClient.put('/merchant/group_markups', { group_id, sell_rate, reason })
 }
 
-/** DELETE /merchant/group_markups/:group_id — 商户 owner 删除某分组覆盖，回退到 default */
+/** DELETE /merchant/group_markups/:group_id — 商户 owner 删除分组售价，回到不分润状态 */
 export async function merchantDeleteGroupMarkup(group_id: number, reason?: string): Promise<void> {
   await apiClient.delete(`/merchant/group_markups/${group_id}`, {
     params: reason ? { reason } : undefined,
@@ -647,6 +689,9 @@ export const merchantAPI = {
   adminListGroupMarkups: adminMerchantListGroupMarkups,
   adminSetGroupMarkup: adminMerchantSetGroupMarkup,
   adminDeleteGroupMarkup: adminMerchantDeleteGroupMarkup,
+  adminListGroupCosts: adminMerchantListGroupCosts,
+  adminSetGroupCost: adminMerchantSetGroupCost,
+  adminDeleteGroupCost: adminMerchantDeleteGroupCost,
   adminListAuditLog: adminMerchantListAuditLog,
   adminListLedger: adminMerchantListLedger,
   adminUnbindUser: adminMerchantUnbindUser,
@@ -657,7 +702,6 @@ export const merchantAPI = {
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,
   listPricingGroups: merchantListPricingGroups,
-  setMarkupDefault: merchantSetMarkupDefault,
   setGroupMarkup: merchantSetGroupMarkup,
   deleteGroupMarkup: merchantDeleteGroupMarkup,
   listDomains: merchantListDomains,

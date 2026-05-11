@@ -58,13 +58,15 @@ type MerchantEdges struct {
 	AuditLogs []*MerchantAuditLog `json:"audit_logs,omitempty"`
 	// GroupMarkups holds the value of the group_markups edge.
 	GroupMarkups []*MerchantGroupMarkup `json:"group_markups,omitempty"`
+	// GroupCosts holds the value of the group_costs edge.
+	GroupCosts []*MerchantGroupCost `json:"group_costs,omitempty"`
 	// WithdrawRequests holds the value of the withdraw_requests edge.
 	WithdrawRequests []*MerchantWithdrawRequest `json:"withdraw_requests,omitempty"`
 	// SubUsers holds the value of the sub_users edge.
 	SubUsers []*User `json:"sub_users,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [7]bool
+	loadedTypes [8]bool
 }
 
 // DomainsOrErr returns the Domains value or an error if the edge
@@ -112,10 +114,19 @@ func (e MerchantEdges) GroupMarkupsOrErr() ([]*MerchantGroupMarkup, error) {
 	return nil, &NotLoadedError{edge: "group_markups"}
 }
 
+// GroupCostsOrErr returns the GroupCosts value or an error if the edge
+// was not loaded in eager-loading.
+func (e MerchantEdges) GroupCostsOrErr() ([]*MerchantGroupCost, error) {
+	if e.loadedTypes[5] {
+		return e.GroupCosts, nil
+	}
+	return nil, &NotLoadedError{edge: "group_costs"}
+}
+
 // WithdrawRequestsOrErr returns the WithdrawRequests value or an error if the edge
 // was not loaded in eager-loading.
 func (e MerchantEdges) WithdrawRequestsOrErr() ([]*MerchantWithdrawRequest, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.WithdrawRequests, nil
 	}
 	return nil, &NotLoadedError{edge: "withdraw_requests"}
@@ -124,7 +135,7 @@ func (e MerchantEdges) WithdrawRequestsOrErr() ([]*MerchantWithdrawRequest, erro
 // SubUsersOrErr returns the SubUsers value or an error if the edge
 // was not loaded in eager-loading.
 func (e MerchantEdges) SubUsersOrErr() ([]*User, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.SubUsers, nil
 	}
 	return nil, &NotLoadedError{edge: "sub_users"}
@@ -271,6 +282,11 @@ func (_m *Merchant) QueryAuditLogs() *MerchantAuditLogQuery {
 // QueryGroupMarkups queries the "group_markups" edge of the Merchant entity.
 func (_m *Merchant) QueryGroupMarkups() *MerchantGroupMarkupQuery {
 	return NewMerchantClient(_m.config).QueryGroupMarkups(_m)
+}
+
+// QueryGroupCosts queries the "group_costs" edge of the Merchant entity.
+func (_m *Merchant) QueryGroupCosts() *MerchantGroupCostQuery {
+	return NewMerchantClient(_m.config).QueryGroupCosts(_m)
 }
 
 // QueryWithdrawRequests queries the "withdraw_requests" edge of the Merchant entity.

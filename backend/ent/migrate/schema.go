@@ -929,13 +929,43 @@ var (
 			},
 		},
 	}
+	// MerchantGroupCostsColumns holds the columns for the "merchant_group_costs" table.
+	MerchantGroupCostsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "cost_rate", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
+		{Name: "merchant_id", Type: field.TypeInt64},
+	}
+	// MerchantGroupCostsTable holds the schema information for the "merchant_group_costs" table.
+	MerchantGroupCostsTable = &schema.Table{
+		Name:       "merchant_group_costs",
+		Columns:    MerchantGroupCostsColumns,
+		PrimaryKey: []*schema.Column{MerchantGroupCostsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "merchant_group_costs_merchants_group_costs",
+				Columns:    []*schema.Column{MerchantGroupCostsColumns[5]},
+				RefColumns: []*schema.Column{MerchantsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "merchantgroupcost_merchant_id_group_id",
+				Unique:  true,
+				Columns: []*schema.Column{MerchantGroupCostsColumns[5], MerchantGroupCostsColumns[3]},
+			},
+		},
+	}
 	// MerchantGroupMarkupsColumns holds the columns for the "merchant_group_markups" table.
 	MerchantGroupMarkupsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "group_id", Type: field.TypeInt64},
-		{Name: "markup", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
+		{Name: "sell_rate", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
 		{Name: "merchant_id", Type: field.TypeInt64},
 	}
 	// MerchantGroupMarkupsTable holds the schema information for the "merchant_group_markups" table.
@@ -1987,6 +2017,7 @@ var (
 		MerchantAuditLogTable,
 		MerchantDomainsTable,
 		MerchantEarningsOutboxTable,
+		MerchantGroupCostsTable,
 		MerchantGroupMarkupsTable,
 		MerchantLedgerTable,
 		MerchantWithdrawRequestsTable,
@@ -2086,6 +2117,10 @@ func init() {
 	MerchantEarningsOutboxTable.ForeignKeys[0].RefTable = MerchantsTable
 	MerchantEarningsOutboxTable.Annotation = &entsql.Annotation{
 		Table: "merchant_earnings_outbox",
+	}
+	MerchantGroupCostsTable.ForeignKeys[0].RefTable = MerchantsTable
+	MerchantGroupCostsTable.Annotation = &entsql.Annotation{
+		Table: "merchant_group_costs",
 	}
 	MerchantGroupMarkupsTable.ForeignKeys[0].RefTable = MerchantsTable
 	MerchantGroupMarkupsTable.Annotation = &entsql.Annotation{

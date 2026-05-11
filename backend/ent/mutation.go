@@ -31,6 +31,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -85,6 +86,7 @@ const (
 	TypeMerchantAuditLog              = "MerchantAuditLog"
 	TypeMerchantDomain                = "MerchantDomain"
 	TypeMerchantEarningsOutbox        = "MerchantEarningsOutbox"
+	TypeMerchantGroupCost             = "MerchantGroupCost"
 	TypeMerchantGroupMarkup           = "MerchantGroupMarkup"
 	TypeMerchantLedger                = "MerchantLedger"
 	TypeMerchantWithdrawRequest       = "MerchantWithdrawRequest"
@@ -19833,6 +19835,9 @@ type MerchantMutation struct {
 	group_markups             map[int64]struct{}
 	removedgroup_markups      map[int64]struct{}
 	clearedgroup_markups      bool
+	group_costs               map[int64]struct{}
+	removedgroup_costs        map[int64]struct{}
+	clearedgroup_costs        bool
 	withdraw_requests         map[int64]struct{}
 	removedwithdraw_requests  map[int64]struct{}
 	clearedwithdraw_requests  bool
@@ -20736,6 +20741,60 @@ func (m *MerchantMutation) ResetGroupMarkups() {
 	m.removedgroup_markups = nil
 }
 
+// AddGroupCostIDs adds the "group_costs" edge to the MerchantGroupCost entity by ids.
+func (m *MerchantMutation) AddGroupCostIDs(ids ...int64) {
+	if m.group_costs == nil {
+		m.group_costs = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.group_costs[ids[i]] = struct{}{}
+	}
+}
+
+// ClearGroupCosts clears the "group_costs" edge to the MerchantGroupCost entity.
+func (m *MerchantMutation) ClearGroupCosts() {
+	m.clearedgroup_costs = true
+}
+
+// GroupCostsCleared reports if the "group_costs" edge to the MerchantGroupCost entity was cleared.
+func (m *MerchantMutation) GroupCostsCleared() bool {
+	return m.clearedgroup_costs
+}
+
+// RemoveGroupCostIDs removes the "group_costs" edge to the MerchantGroupCost entity by IDs.
+func (m *MerchantMutation) RemoveGroupCostIDs(ids ...int64) {
+	if m.removedgroup_costs == nil {
+		m.removedgroup_costs = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.group_costs, ids[i])
+		m.removedgroup_costs[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedGroupCosts returns the removed IDs of the "group_costs" edge to the MerchantGroupCost entity.
+func (m *MerchantMutation) RemovedGroupCostsIDs() (ids []int64) {
+	for id := range m.removedgroup_costs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// GroupCostsIDs returns the "group_costs" edge IDs in the mutation.
+func (m *MerchantMutation) GroupCostsIDs() (ids []int64) {
+	for id := range m.group_costs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetGroupCosts resets all changes to the "group_costs" edge.
+func (m *MerchantMutation) ResetGroupCosts() {
+	m.group_costs = nil
+	m.clearedgroup_costs = false
+	m.removedgroup_costs = nil
+}
+
 // AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by ids.
 func (m *MerchantMutation) AddWithdrawRequestIDs(ids ...int64) {
 	if m.withdraw_requests == nil {
@@ -21219,7 +21278,7 @@ func (m *MerchantMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *MerchantMutation) AddedEdges() []string {
-	edges := make([]string, 0, 7)
+	edges := make([]string, 0, 8)
 	if m.domains != nil {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21234,6 +21293,9 @@ func (m *MerchantMutation) AddedEdges() []string {
 	}
 	if m.group_markups != nil {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.group_costs != nil {
+		edges = append(edges, merchant.EdgeGroupCosts)
 	}
 	if m.withdraw_requests != nil {
 		edges = append(edges, merchant.EdgeWithdrawRequests)
@@ -21278,6 +21340,12 @@ func (m *MerchantMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case merchant.EdgeGroupCosts:
+		ids := make([]ent.Value, 0, len(m.group_costs))
+		for id := range m.group_costs {
+			ids = append(ids, id)
+		}
+		return ids
 	case merchant.EdgeWithdrawRequests:
 		ids := make([]ent.Value, 0, len(m.withdraw_requests))
 		for id := range m.withdraw_requests {
@@ -21296,7 +21364,7 @@ func (m *MerchantMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *MerchantMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 7)
+	edges := make([]string, 0, 8)
 	if m.removeddomains != nil {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21311,6 +21379,9 @@ func (m *MerchantMutation) RemovedEdges() []string {
 	}
 	if m.removedgroup_markups != nil {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.removedgroup_costs != nil {
+		edges = append(edges, merchant.EdgeGroupCosts)
 	}
 	if m.removedwithdraw_requests != nil {
 		edges = append(edges, merchant.EdgeWithdrawRequests)
@@ -21355,6 +21426,12 @@ func (m *MerchantMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case merchant.EdgeGroupCosts:
+		ids := make([]ent.Value, 0, len(m.removedgroup_costs))
+		for id := range m.removedgroup_costs {
+			ids = append(ids, id)
+		}
+		return ids
 	case merchant.EdgeWithdrawRequests:
 		ids := make([]ent.Value, 0, len(m.removedwithdraw_requests))
 		for id := range m.removedwithdraw_requests {
@@ -21373,7 +21450,7 @@ func (m *MerchantMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *MerchantMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 7)
+	edges := make([]string, 0, 8)
 	if m.cleareddomains {
 		edges = append(edges, merchant.EdgeDomains)
 	}
@@ -21388,6 +21465,9 @@ func (m *MerchantMutation) ClearedEdges() []string {
 	}
 	if m.clearedgroup_markups {
 		edges = append(edges, merchant.EdgeGroupMarkups)
+	}
+	if m.clearedgroup_costs {
+		edges = append(edges, merchant.EdgeGroupCosts)
 	}
 	if m.clearedwithdraw_requests {
 		edges = append(edges, merchant.EdgeWithdrawRequests)
@@ -21412,6 +21492,8 @@ func (m *MerchantMutation) EdgeCleared(name string) bool {
 		return m.clearedaudit_logs
 	case merchant.EdgeGroupMarkups:
 		return m.clearedgroup_markups
+	case merchant.EdgeGroupCosts:
+		return m.clearedgroup_costs
 	case merchant.EdgeWithdrawRequests:
 		return m.clearedwithdraw_requests
 	case merchant.EdgeSubUsers:
@@ -21446,6 +21528,9 @@ func (m *MerchantMutation) ResetEdge(name string) error {
 		return nil
 	case merchant.EdgeGroupMarkups:
 		m.ResetGroupMarkups()
+		return nil
+	case merchant.EdgeGroupCosts:
+		m.ResetGroupCosts()
 		return nil
 	case merchant.EdgeWithdrawRequests:
 		m.ResetWithdrawRequests()
@@ -24502,6 +24587,671 @@ func (m *MerchantEarningsOutboxMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown MerchantEarningsOutbox edge %s", name)
 }
 
+// MerchantGroupCostMutation represents an operation that mutates the MerchantGroupCost nodes in the graph.
+type MerchantGroupCostMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	created_at      *time.Time
+	updated_at      *time.Time
+	group_id        *int64
+	addgroup_id     *int64
+	cost_rate       *float64
+	addcost_rate    *float64
+	clearedFields   map[string]struct{}
+	merchant        *int64
+	clearedmerchant bool
+	done            bool
+	oldValue        func(context.Context) (*MerchantGroupCost, error)
+	predicates      []predicate.MerchantGroupCost
+}
+
+var _ ent.Mutation = (*MerchantGroupCostMutation)(nil)
+
+// merchantgroupcostOption allows management of the mutation configuration using functional options.
+type merchantgroupcostOption func(*MerchantGroupCostMutation)
+
+// newMerchantGroupCostMutation creates new mutation for the MerchantGroupCost entity.
+func newMerchantGroupCostMutation(c config, op Op, opts ...merchantgroupcostOption) *MerchantGroupCostMutation {
+	m := &MerchantGroupCostMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMerchantGroupCost,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMerchantGroupCostID sets the ID field of the mutation.
+func withMerchantGroupCostID(id int64) merchantgroupcostOption {
+	return func(m *MerchantGroupCostMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MerchantGroupCost
+		)
+		m.oldValue = func(ctx context.Context) (*MerchantGroupCost, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MerchantGroupCost.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMerchantGroupCost sets the old MerchantGroupCost of the mutation.
+func withMerchantGroupCost(node *MerchantGroupCost) merchantgroupcostOption {
+	return func(m *MerchantGroupCostMutation) {
+		m.oldValue = func(context.Context) (*MerchantGroupCost, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MerchantGroupCostMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MerchantGroupCostMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MerchantGroupCostMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MerchantGroupCostMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MerchantGroupCost.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MerchantGroupCostMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MerchantGroupCostMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MerchantGroupCost entity.
+// If the MerchantGroupCost object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantGroupCostMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MerchantGroupCostMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *MerchantGroupCostMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *MerchantGroupCostMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the MerchantGroupCost entity.
+// If the MerchantGroupCost object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantGroupCostMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *MerchantGroupCostMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetMerchantID sets the "merchant_id" field.
+func (m *MerchantGroupCostMutation) SetMerchantID(i int64) {
+	m.merchant = &i
+}
+
+// MerchantID returns the value of the "merchant_id" field in the mutation.
+func (m *MerchantGroupCostMutation) MerchantID() (r int64, exists bool) {
+	v := m.merchant
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMerchantID returns the old "merchant_id" field's value of the MerchantGroupCost entity.
+// If the MerchantGroupCost object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantGroupCostMutation) OldMerchantID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMerchantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMerchantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMerchantID: %w", err)
+	}
+	return oldValue.MerchantID, nil
+}
+
+// ResetMerchantID resets all changes to the "merchant_id" field.
+func (m *MerchantGroupCostMutation) ResetMerchantID() {
+	m.merchant = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *MerchantGroupCostMutation) SetGroupID(i int64) {
+	m.group_id = &i
+	m.addgroup_id = nil
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *MerchantGroupCostMutation) GroupID() (r int64, exists bool) {
+	v := m.group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the MerchantGroupCost entity.
+// If the MerchantGroupCost object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantGroupCostMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// AddGroupID adds i to the "group_id" field.
+func (m *MerchantGroupCostMutation) AddGroupID(i int64) {
+	if m.addgroup_id != nil {
+		*m.addgroup_id += i
+	} else {
+		m.addgroup_id = &i
+	}
+}
+
+// AddedGroupID returns the value that was added to the "group_id" field in this mutation.
+func (m *MerchantGroupCostMutation) AddedGroupID() (r int64, exists bool) {
+	v := m.addgroup_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *MerchantGroupCostMutation) ResetGroupID() {
+	m.group_id = nil
+	m.addgroup_id = nil
+}
+
+// SetCostRate sets the "cost_rate" field.
+func (m *MerchantGroupCostMutation) SetCostRate(f float64) {
+	m.cost_rate = &f
+	m.addcost_rate = nil
+}
+
+// CostRate returns the value of the "cost_rate" field in the mutation.
+func (m *MerchantGroupCostMutation) CostRate() (r float64, exists bool) {
+	v := m.cost_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCostRate returns the old "cost_rate" field's value of the MerchantGroupCost entity.
+// If the MerchantGroupCost object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MerchantGroupCostMutation) OldCostRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCostRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCostRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCostRate: %w", err)
+	}
+	return oldValue.CostRate, nil
+}
+
+// AddCostRate adds f to the "cost_rate" field.
+func (m *MerchantGroupCostMutation) AddCostRate(f float64) {
+	if m.addcost_rate != nil {
+		*m.addcost_rate += f
+	} else {
+		m.addcost_rate = &f
+	}
+}
+
+// AddedCostRate returns the value that was added to the "cost_rate" field in this mutation.
+func (m *MerchantGroupCostMutation) AddedCostRate() (r float64, exists bool) {
+	v := m.addcost_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCostRate resets all changes to the "cost_rate" field.
+func (m *MerchantGroupCostMutation) ResetCostRate() {
+	m.cost_rate = nil
+	m.addcost_rate = nil
+}
+
+// ClearMerchant clears the "merchant" edge to the Merchant entity.
+func (m *MerchantGroupCostMutation) ClearMerchant() {
+	m.clearedmerchant = true
+	m.clearedFields[merchantgroupcost.FieldMerchantID] = struct{}{}
+}
+
+// MerchantCleared reports if the "merchant" edge to the Merchant entity was cleared.
+func (m *MerchantGroupCostMutation) MerchantCleared() bool {
+	return m.clearedmerchant
+}
+
+// MerchantIDs returns the "merchant" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MerchantID instead. It exists only for internal usage by the builders.
+func (m *MerchantGroupCostMutation) MerchantIDs() (ids []int64) {
+	if id := m.merchant; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMerchant resets all changes to the "merchant" edge.
+func (m *MerchantGroupCostMutation) ResetMerchant() {
+	m.merchant = nil
+	m.clearedmerchant = false
+}
+
+// Where appends a list predicates to the MerchantGroupCostMutation builder.
+func (m *MerchantGroupCostMutation) Where(ps ...predicate.MerchantGroupCost) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MerchantGroupCostMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MerchantGroupCostMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MerchantGroupCost, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MerchantGroupCostMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MerchantGroupCostMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MerchantGroupCost).
+func (m *MerchantGroupCostMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MerchantGroupCostMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.created_at != nil {
+		fields = append(fields, merchantgroupcost.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, merchantgroupcost.FieldUpdatedAt)
+	}
+	if m.merchant != nil {
+		fields = append(fields, merchantgroupcost.FieldMerchantID)
+	}
+	if m.group_id != nil {
+		fields = append(fields, merchantgroupcost.FieldGroupID)
+	}
+	if m.cost_rate != nil {
+		fields = append(fields, merchantgroupcost.FieldCostRate)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MerchantGroupCostMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case merchantgroupcost.FieldCreatedAt:
+		return m.CreatedAt()
+	case merchantgroupcost.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case merchantgroupcost.FieldMerchantID:
+		return m.MerchantID()
+	case merchantgroupcost.FieldGroupID:
+		return m.GroupID()
+	case merchantgroupcost.FieldCostRate:
+		return m.CostRate()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MerchantGroupCostMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case merchantgroupcost.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case merchantgroupcost.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case merchantgroupcost.FieldMerchantID:
+		return m.OldMerchantID(ctx)
+	case merchantgroupcost.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case merchantgroupcost.FieldCostRate:
+		return m.OldCostRate(ctx)
+	}
+	return nil, fmt.Errorf("unknown MerchantGroupCost field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MerchantGroupCostMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case merchantgroupcost.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case merchantgroupcost.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case merchantgroupcost.FieldMerchantID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMerchantID(v)
+		return nil
+	case merchantgroupcost.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case merchantgroupcost.FieldCostRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCostRate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantGroupCost field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MerchantGroupCostMutation) AddedFields() []string {
+	var fields []string
+	if m.addgroup_id != nil {
+		fields = append(fields, merchantgroupcost.FieldGroupID)
+	}
+	if m.addcost_rate != nil {
+		fields = append(fields, merchantgroupcost.FieldCostRate)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MerchantGroupCostMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case merchantgroupcost.FieldGroupID:
+		return m.AddedGroupID()
+	case merchantgroupcost.FieldCostRate:
+		return m.AddedCostRate()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MerchantGroupCostMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case merchantgroupcost.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupID(v)
+		return nil
+	case merchantgroupcost.FieldCostRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCostRate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantGroupCost numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MerchantGroupCostMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MerchantGroupCostMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MerchantGroupCostMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown MerchantGroupCost nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MerchantGroupCostMutation) ResetField(name string) error {
+	switch name {
+	case merchantgroupcost.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case merchantgroupcost.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case merchantgroupcost.FieldMerchantID:
+		m.ResetMerchantID()
+		return nil
+	case merchantgroupcost.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case merchantgroupcost.FieldCostRate:
+		m.ResetCostRate()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantGroupCost field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MerchantGroupCostMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.merchant != nil {
+		edges = append(edges, merchantgroupcost.EdgeMerchant)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MerchantGroupCostMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case merchantgroupcost.EdgeMerchant:
+		if id := m.merchant; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MerchantGroupCostMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MerchantGroupCostMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MerchantGroupCostMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmerchant {
+		edges = append(edges, merchantgroupcost.EdgeMerchant)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MerchantGroupCostMutation) EdgeCleared(name string) bool {
+	switch name {
+	case merchantgroupcost.EdgeMerchant:
+		return m.clearedmerchant
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MerchantGroupCostMutation) ClearEdge(name string) error {
+	switch name {
+	case merchantgroupcost.EdgeMerchant:
+		m.ClearMerchant()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantGroupCost unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MerchantGroupCostMutation) ResetEdge(name string) error {
+	switch name {
+	case merchantgroupcost.EdgeMerchant:
+		m.ResetMerchant()
+		return nil
+	}
+	return fmt.Errorf("unknown MerchantGroupCost edge %s", name)
+}
+
 // MerchantGroupMarkupMutation represents an operation that mutates the MerchantGroupMarkup nodes in the graph.
 type MerchantGroupMarkupMutation struct {
 	config
@@ -24512,8 +25262,8 @@ type MerchantGroupMarkupMutation struct {
 	updated_at      *time.Time
 	group_id        *int64
 	addgroup_id     *int64
-	markup          *float64
-	addmarkup       *float64
+	sell_rate       *float64
+	addsell_rate    *float64
 	clearedFields   map[string]struct{}
 	merchant        *int64
 	clearedmerchant bool
@@ -24784,60 +25534,60 @@ func (m *MerchantGroupMarkupMutation) ResetGroupID() {
 	m.addgroup_id = nil
 }
 
-// SetMarkup sets the "markup" field.
-func (m *MerchantGroupMarkupMutation) SetMarkup(f float64) {
-	m.markup = &f
-	m.addmarkup = nil
+// SetSellRate sets the "sell_rate" field.
+func (m *MerchantGroupMarkupMutation) SetSellRate(f float64) {
+	m.sell_rate = &f
+	m.addsell_rate = nil
 }
 
-// Markup returns the value of the "markup" field in the mutation.
-func (m *MerchantGroupMarkupMutation) Markup() (r float64, exists bool) {
-	v := m.markup
+// SellRate returns the value of the "sell_rate" field in the mutation.
+func (m *MerchantGroupMarkupMutation) SellRate() (r float64, exists bool) {
+	v := m.sell_rate
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldMarkup returns the old "markup" field's value of the MerchantGroupMarkup entity.
+// OldSellRate returns the old "sell_rate" field's value of the MerchantGroupMarkup entity.
 // If the MerchantGroupMarkup object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *MerchantGroupMarkupMutation) OldMarkup(ctx context.Context) (v float64, err error) {
+func (m *MerchantGroupMarkupMutation) OldSellRate(ctx context.Context) (v float64, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldMarkup is only allowed on UpdateOne operations")
+		return v, errors.New("OldSellRate is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldMarkup requires an ID field in the mutation")
+		return v, errors.New("OldSellRate requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldMarkup: %w", err)
+		return v, fmt.Errorf("querying old value for OldSellRate: %w", err)
 	}
-	return oldValue.Markup, nil
+	return oldValue.SellRate, nil
 }
 
-// AddMarkup adds f to the "markup" field.
-func (m *MerchantGroupMarkupMutation) AddMarkup(f float64) {
-	if m.addmarkup != nil {
-		*m.addmarkup += f
+// AddSellRate adds f to the "sell_rate" field.
+func (m *MerchantGroupMarkupMutation) AddSellRate(f float64) {
+	if m.addsell_rate != nil {
+		*m.addsell_rate += f
 	} else {
-		m.addmarkup = &f
+		m.addsell_rate = &f
 	}
 }
 
-// AddedMarkup returns the value that was added to the "markup" field in this mutation.
-func (m *MerchantGroupMarkupMutation) AddedMarkup() (r float64, exists bool) {
-	v := m.addmarkup
+// AddedSellRate returns the value that was added to the "sell_rate" field in this mutation.
+func (m *MerchantGroupMarkupMutation) AddedSellRate() (r float64, exists bool) {
+	v := m.addsell_rate
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// ResetMarkup resets all changes to the "markup" field.
-func (m *MerchantGroupMarkupMutation) ResetMarkup() {
-	m.markup = nil
-	m.addmarkup = nil
+// ResetSellRate resets all changes to the "sell_rate" field.
+func (m *MerchantGroupMarkupMutation) ResetSellRate() {
+	m.sell_rate = nil
+	m.addsell_rate = nil
 }
 
 // ClearMerchant clears the "merchant" edge to the Merchant entity.
@@ -24914,8 +25664,8 @@ func (m *MerchantGroupMarkupMutation) Fields() []string {
 	if m.group_id != nil {
 		fields = append(fields, merchantgroupmarkup.FieldGroupID)
 	}
-	if m.markup != nil {
-		fields = append(fields, merchantgroupmarkup.FieldMarkup)
+	if m.sell_rate != nil {
+		fields = append(fields, merchantgroupmarkup.FieldSellRate)
 	}
 	return fields
 }
@@ -24933,8 +25683,8 @@ func (m *MerchantGroupMarkupMutation) Field(name string) (ent.Value, bool) {
 		return m.MerchantID()
 	case merchantgroupmarkup.FieldGroupID:
 		return m.GroupID()
-	case merchantgroupmarkup.FieldMarkup:
-		return m.Markup()
+	case merchantgroupmarkup.FieldSellRate:
+		return m.SellRate()
 	}
 	return nil, false
 }
@@ -24952,8 +25702,8 @@ func (m *MerchantGroupMarkupMutation) OldField(ctx context.Context, name string)
 		return m.OldMerchantID(ctx)
 	case merchantgroupmarkup.FieldGroupID:
 		return m.OldGroupID(ctx)
-	case merchantgroupmarkup.FieldMarkup:
-		return m.OldMarkup(ctx)
+	case merchantgroupmarkup.FieldSellRate:
+		return m.OldSellRate(ctx)
 	}
 	return nil, fmt.Errorf("unknown MerchantGroupMarkup field %s", name)
 }
@@ -24991,12 +25741,12 @@ func (m *MerchantGroupMarkupMutation) SetField(name string, value ent.Value) err
 		}
 		m.SetGroupID(v)
 		return nil
-	case merchantgroupmarkup.FieldMarkup:
+	case merchantgroupmarkup.FieldSellRate:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetMarkup(v)
+		m.SetSellRate(v)
 		return nil
 	}
 	return fmt.Errorf("unknown MerchantGroupMarkup field %s", name)
@@ -25009,8 +25759,8 @@ func (m *MerchantGroupMarkupMutation) AddedFields() []string {
 	if m.addgroup_id != nil {
 		fields = append(fields, merchantgroupmarkup.FieldGroupID)
 	}
-	if m.addmarkup != nil {
-		fields = append(fields, merchantgroupmarkup.FieldMarkup)
+	if m.addsell_rate != nil {
+		fields = append(fields, merchantgroupmarkup.FieldSellRate)
 	}
 	return fields
 }
@@ -25022,8 +25772,8 @@ func (m *MerchantGroupMarkupMutation) AddedField(name string) (ent.Value, bool) 
 	switch name {
 	case merchantgroupmarkup.FieldGroupID:
 		return m.AddedGroupID()
-	case merchantgroupmarkup.FieldMarkup:
-		return m.AddedMarkup()
+	case merchantgroupmarkup.FieldSellRate:
+		return m.AddedSellRate()
 	}
 	return nil, false
 }
@@ -25040,12 +25790,12 @@ func (m *MerchantGroupMarkupMutation) AddField(name string, value ent.Value) err
 		}
 		m.AddGroupID(v)
 		return nil
-	case merchantgroupmarkup.FieldMarkup:
+	case merchantgroupmarkup.FieldSellRate:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.AddMarkup(v)
+		m.AddSellRate(v)
 		return nil
 	}
 	return fmt.Errorf("unknown MerchantGroupMarkup numeric field %s", name)
@@ -25086,8 +25836,8 @@ func (m *MerchantGroupMarkupMutation) ResetField(name string) error {
 	case merchantgroupmarkup.FieldGroupID:
 		m.ResetGroupID()
 		return nil
-	case merchantgroupmarkup.FieldMarkup:
-		m.ResetMarkup()
+	case merchantgroupmarkup.FieldSellRate:
+		m.ResetSellRate()
 		return nil
 	}
 	return fmt.Errorf("unknown MerchantGroupMarkup field %s", name)

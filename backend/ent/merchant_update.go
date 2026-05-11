@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -282,6 +283,21 @@ func (_u *MerchantUpdate) AddGroupMarkups(v ...*MerchantGroupMarkup) *MerchantUp
 	return _u.AddGroupMarkupIDs(ids...)
 }
 
+// AddGroupCostIDs adds the "group_costs" edge to the MerchantGroupCost entity by IDs.
+func (_u *MerchantUpdate) AddGroupCostIDs(ids ...int64) *MerchantUpdate {
+	_u.mutation.AddGroupCostIDs(ids...)
+	return _u
+}
+
+// AddGroupCosts adds the "group_costs" edges to the MerchantGroupCost entity.
+func (_u *MerchantUpdate) AddGroupCosts(v ...*MerchantGroupCost) *MerchantUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupCostIDs(ids...)
+}
+
 // AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
 func (_u *MerchantUpdate) AddWithdrawRequestIDs(ids ...int64) *MerchantUpdate {
 	_u.mutation.AddWithdrawRequestIDs(ids...)
@@ -420,6 +436,27 @@ func (_u *MerchantUpdate) RemoveGroupMarkups(v ...*MerchantGroupMarkup) *Merchan
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupMarkupIDs(ids...)
+}
+
+// ClearGroupCosts clears all "group_costs" edges to the MerchantGroupCost entity.
+func (_u *MerchantUpdate) ClearGroupCosts() *MerchantUpdate {
+	_u.mutation.ClearGroupCosts()
+	return _u
+}
+
+// RemoveGroupCostIDs removes the "group_costs" edge to MerchantGroupCost entities by IDs.
+func (_u *MerchantUpdate) RemoveGroupCostIDs(ids ...int64) *MerchantUpdate {
+	_u.mutation.RemoveGroupCostIDs(ids...)
+	return _u
+}
+
+// RemoveGroupCosts removes "group_costs" edges to MerchantGroupCost entities.
+func (_u *MerchantUpdate) RemoveGroupCosts(v ...*MerchantGroupCost) *MerchantUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupCostIDs(ids...)
 }
 
 // ClearWithdrawRequests clears all "withdraw_requests" edges to the MerchantWithdrawRequest entity.
@@ -811,6 +848,51 @@ func (_u *MerchantUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.GroupCostsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupCostsIDs(); len(nodes) > 0 && !_u.mutation.GroupCostsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupCostsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.WithdrawRequestsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1167,6 +1249,21 @@ func (_u *MerchantUpdateOne) AddGroupMarkups(v ...*MerchantGroupMarkup) *Merchan
 	return _u.AddGroupMarkupIDs(ids...)
 }
 
+// AddGroupCostIDs adds the "group_costs" edge to the MerchantGroupCost entity by IDs.
+func (_u *MerchantUpdateOne) AddGroupCostIDs(ids ...int64) *MerchantUpdateOne {
+	_u.mutation.AddGroupCostIDs(ids...)
+	return _u
+}
+
+// AddGroupCosts adds the "group_costs" edges to the MerchantGroupCost entity.
+func (_u *MerchantUpdateOne) AddGroupCosts(v ...*MerchantGroupCost) *MerchantUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupCostIDs(ids...)
+}
+
 // AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
 func (_u *MerchantUpdateOne) AddWithdrawRequestIDs(ids ...int64) *MerchantUpdateOne {
 	_u.mutation.AddWithdrawRequestIDs(ids...)
@@ -1305,6 +1402,27 @@ func (_u *MerchantUpdateOne) RemoveGroupMarkups(v ...*MerchantGroupMarkup) *Merc
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupMarkupIDs(ids...)
+}
+
+// ClearGroupCosts clears all "group_costs" edges to the MerchantGroupCost entity.
+func (_u *MerchantUpdateOne) ClearGroupCosts() *MerchantUpdateOne {
+	_u.mutation.ClearGroupCosts()
+	return _u
+}
+
+// RemoveGroupCostIDs removes the "group_costs" edge to MerchantGroupCost entities by IDs.
+func (_u *MerchantUpdateOne) RemoveGroupCostIDs(ids ...int64) *MerchantUpdateOne {
+	_u.mutation.RemoveGroupCostIDs(ids...)
+	return _u
+}
+
+// RemoveGroupCosts removes "group_costs" edges to MerchantGroupCost entities.
+func (_u *MerchantUpdateOne) RemoveGroupCosts(v ...*MerchantGroupCost) *MerchantUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupCostIDs(ids...)
 }
 
 // ClearWithdrawRequests clears all "withdraw_requests" edges to the MerchantWithdrawRequest entity.
@@ -1719,6 +1837,51 @@ func (_u *MerchantUpdateOne) sqlSave(ctx context.Context) (_node *Merchant, err 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(merchantgroupmarkup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.GroupCostsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupCostsIDs(); len(nodes) > 0 && !_u.mutation.GroupCostsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupCostsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

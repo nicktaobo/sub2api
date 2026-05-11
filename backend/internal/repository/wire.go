@@ -101,6 +101,7 @@ var ProviderSet = wire.NewSet(
 	NewMerchantOutboxRepository,
 	NewMerchantAuditLogRepository,
 	NewMerchantGroupMarkupRepository,
+	NewMerchantGroupCostRepository,
 
 	// Cache implementations
 	NewGatewayCache,

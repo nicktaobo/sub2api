@@ -8446,11 +8446,12 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			groupID = *apiKey.GroupID
 		}
 		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
-			UserID:      user.ID,
-			GroupID:     groupID,
-			BaseCost:    cost.ActualCost,
-			BillingType: billingType,
-			APIKeyID:    apiKey.ID,
+			UserID:         user.ID,
+			GroupID:        groupID,
+			RawCost:        cost.TotalCost,
+			SiteActualCost: cost.ActualCost,
+			BillingType:    billingType,
+			APIKeyID:       apiKey.ID,
 		})
 	}
 

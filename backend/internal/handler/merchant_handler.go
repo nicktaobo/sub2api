@@ -158,52 +158,28 @@ func (h *MerchantHandler) ListGroupMarkups(c *gin.Context) {
 	response.Success(c, rows)
 }
 
-// 商户 owner 自助 markup 管理（admin 仍可代操作，audit 通过 admin_id 区分：
-// 商户自助时 admin_id 为 nil，admin 代操作时填 admin 的 user_id）。
+// 商户 owner 自助售价管理（v2.0：sell_rate 绝对倍率，无 default markup 概念）。
+// admin 仍可代操作，audit 通过 admin_id 区分：owner 自助 adminID=0；admin 代操作填 admin user_id。
+// 商户只能改 sell_rate，cost_rate 始终由 admin 控制。
 
-type ownerSetMarkupDefaultReq struct {
-	Markup float64 `json:"markup" binding:"required"`
-	Reason string  `json:"reason"`
+type ownerSetGroupSellRateReq struct {
+	GroupID  int64   `json:"group_id" binding:"required"`
+	SellRate float64 `json:"sell_rate" binding:"required"`
+	Reason   string  `json:"reason"`
 }
 
-// PUT /merchant/markup_default — 商户改自己的默认 markup
-func (h *MerchantHandler) SetMarkupDefault(c *gin.Context) {
-	m := h.resolveOwnerMerchant(c)
-	if m == nil {
-		return
-	}
-	var req ownerSetMarkupDefaultReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	if err := h.merchantSvc.SetMarkupDefault(c.Request.Context(), m.ID, req.Markup, 0, req.Reason); err != nil {
-		if !response.ErrorFrom(c, err) {
-			response.Error(c, http.StatusBadRequest, err.Error())
-		}
-		return
-	}
-	response.Success(c, gin.H{"ok": true})
-}
-
-type ownerSetGroupMarkupReq struct {
-	GroupID int64   `json:"group_id" binding:"required"`
-	Markup  float64 `json:"markup" binding:"required"`
-	Reason  string  `json:"reason"`
-}
-
-// PUT /merchant/group_markups — 商户设置某分组的 markup 覆盖
+// PUT /merchant/group_markups — 商户设置某分组对外售价倍率
 func (h *MerchantHandler) SetGroupMarkup(c *gin.Context) {
 	m := h.resolveOwnerMerchant(c)
 	if m == nil {
 		return
 	}
-	var req ownerSetGroupMarkupReq
+	var req ownerSetGroupSellRateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.merchantSvc.SetGroupMarkup(c.Request.Context(), m.ID, req.GroupID, req.Markup, 0, req.Reason); err != nil {
+	if err := h.merchantSvc.SetGroupSellRate(c.Request.Context(), m.ID, req.GroupID, req.SellRate, 0, req.Reason); err != nil {
 		if !response.ErrorFrom(c, err) {
 			response.Error(c, http.StatusBadRequest, err.Error())
 		}
@@ -212,7 +188,7 @@ func (h *MerchantHandler) SetGroupMarkup(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true})
 }
 
-// DELETE /merchant/group_markups/:group_id — 商户删除某分组覆盖，回退到 default
+// DELETE /merchant/group_markups/:group_id — 商户删除某分组售价（删后该 group 不分润，sub_user 按主站价）
 func (h *MerchantHandler) DeleteGroupMarkup(c *gin.Context) {
 	m := h.resolveOwnerMerchant(c)
 	if m == nil {
@@ -223,7 +199,7 @@ func (h *MerchantHandler) DeleteGroupMarkup(c *gin.Context) {
 		response.BadRequest(c, "invalid group_id")
 		return
 	}
-	if err := h.merchantSvc.DeleteGroupMarkup(c.Request.Context(), m.ID, groupID, 0, c.Query("reason")); err != nil {
+	if err := h.merchantSvc.DeleteGroupSellRate(c.Request.Context(), m.ID, groupID, 0, c.Query("reason")); err != nil {
 		if !response.ErrorFrom(c, err) {
 			response.Error(c, http.StatusBadRequest, err.Error())
 		}

@@ -63,9 +63,9 @@ func (_c *MerchantGroupMarkupCreate) SetGroupID(v int64) *MerchantGroupMarkupCre
 	return _c
 }
 
-// SetMarkup sets the "markup" field.
-func (_c *MerchantGroupMarkupCreate) SetMarkup(v float64) *MerchantGroupMarkupCreate {
-	_c.mutation.SetMarkup(v)
+// SetSellRate sets the "sell_rate" field.
+func (_c *MerchantGroupMarkupCreate) SetSellRate(v float64) *MerchantGroupMarkupCreate {
+	_c.mutation.SetSellRate(v)
 	return _c
 }
 
@@ -133,8 +133,8 @@ func (_c *MerchantGroupMarkupCreate) check() error {
 	if _, ok := _c.mutation.GroupID(); !ok {
 		return &ValidationError{Name: "group_id", err: errors.New(`ent: missing required field "MerchantGroupMarkup.group_id"`)}
 	}
-	if _, ok := _c.mutation.Markup(); !ok {
-		return &ValidationError{Name: "markup", err: errors.New(`ent: missing required field "MerchantGroupMarkup.markup"`)}
+	if _, ok := _c.mutation.SellRate(); !ok {
+		return &ValidationError{Name: "sell_rate", err: errors.New(`ent: missing required field "MerchantGroupMarkup.sell_rate"`)}
 	}
 	if len(_c.mutation.MerchantIDs()) == 0 {
 		return &ValidationError{Name: "merchant", err: errors.New(`ent: missing required edge "MerchantGroupMarkup.merchant"`)}
@@ -178,9 +178,9 @@ func (_c *MerchantGroupMarkupCreate) createSpec() (*MerchantGroupMarkup, *sqlgra
 		_spec.SetField(merchantgroupmarkup.FieldGroupID, field.TypeInt64, value)
 		_node.GroupID = value
 	}
-	if value, ok := _c.mutation.Markup(); ok {
-		_spec.SetField(merchantgroupmarkup.FieldMarkup, field.TypeFloat64, value)
-		_node.Markup = value
+	if value, ok := _c.mutation.SellRate(); ok {
+		_spec.SetField(merchantgroupmarkup.FieldSellRate, field.TypeFloat64, value)
+		_node.SellRate = value
 	}
 	if nodes := _c.mutation.MerchantIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -293,21 +293,21 @@ func (u *MerchantGroupMarkupUpsert) AddGroupID(v int64) *MerchantGroupMarkupUpse
 	return u
 }
 
-// SetMarkup sets the "markup" field.
-func (u *MerchantGroupMarkupUpsert) SetMarkup(v float64) *MerchantGroupMarkupUpsert {
-	u.Set(merchantgroupmarkup.FieldMarkup, v)
+// SetSellRate sets the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsert) SetSellRate(v float64) *MerchantGroupMarkupUpsert {
+	u.Set(merchantgroupmarkup.FieldSellRate, v)
 	return u
 }
 
-// UpdateMarkup sets the "markup" field to the value that was provided on create.
-func (u *MerchantGroupMarkupUpsert) UpdateMarkup() *MerchantGroupMarkupUpsert {
-	u.SetExcluded(merchantgroupmarkup.FieldMarkup)
+// UpdateSellRate sets the "sell_rate" field to the value that was provided on create.
+func (u *MerchantGroupMarkupUpsert) UpdateSellRate() *MerchantGroupMarkupUpsert {
+	u.SetExcluded(merchantgroupmarkup.FieldSellRate)
 	return u
 }
 
-// AddMarkup adds v to the "markup" field.
-func (u *MerchantGroupMarkupUpsert) AddMarkup(v float64) *MerchantGroupMarkupUpsert {
-	u.Add(merchantgroupmarkup.FieldMarkup, v)
+// AddSellRate adds v to the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsert) AddSellRate(v float64) *MerchantGroupMarkupUpsert {
+	u.Add(merchantgroupmarkup.FieldSellRate, v)
 	return u
 }
 
@@ -405,24 +405,24 @@ func (u *MerchantGroupMarkupUpsertOne) UpdateGroupID() *MerchantGroupMarkupUpser
 	})
 }
 
-// SetMarkup sets the "markup" field.
-func (u *MerchantGroupMarkupUpsertOne) SetMarkup(v float64) *MerchantGroupMarkupUpsertOne {
+// SetSellRate sets the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsertOne) SetSellRate(v float64) *MerchantGroupMarkupUpsertOne {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.SetMarkup(v)
+		s.SetSellRate(v)
 	})
 }
 
-// AddMarkup adds v to the "markup" field.
-func (u *MerchantGroupMarkupUpsertOne) AddMarkup(v float64) *MerchantGroupMarkupUpsertOne {
+// AddSellRate adds v to the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsertOne) AddSellRate(v float64) *MerchantGroupMarkupUpsertOne {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.AddMarkup(v)
+		s.AddSellRate(v)
 	})
 }
 
-// UpdateMarkup sets the "markup" field to the value that was provided on create.
-func (u *MerchantGroupMarkupUpsertOne) UpdateMarkup() *MerchantGroupMarkupUpsertOne {
+// UpdateSellRate sets the "sell_rate" field to the value that was provided on create.
+func (u *MerchantGroupMarkupUpsertOne) UpdateSellRate() *MerchantGroupMarkupUpsertOne {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.UpdateMarkup()
+		s.UpdateSellRate()
 	})
 }
 
@@ -686,24 +686,24 @@ func (u *MerchantGroupMarkupUpsertBulk) UpdateGroupID() *MerchantGroupMarkupUpse
 	})
 }
 
-// SetMarkup sets the "markup" field.
-func (u *MerchantGroupMarkupUpsertBulk) SetMarkup(v float64) *MerchantGroupMarkupUpsertBulk {
+// SetSellRate sets the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsertBulk) SetSellRate(v float64) *MerchantGroupMarkupUpsertBulk {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.SetMarkup(v)
+		s.SetSellRate(v)
 	})
 }
 
-// AddMarkup adds v to the "markup" field.
-func (u *MerchantGroupMarkupUpsertBulk) AddMarkup(v float64) *MerchantGroupMarkupUpsertBulk {
+// AddSellRate adds v to the "sell_rate" field.
+func (u *MerchantGroupMarkupUpsertBulk) AddSellRate(v float64) *MerchantGroupMarkupUpsertBulk {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.AddMarkup(v)
+		s.AddSellRate(v)
 	})
 }
 
-// UpdateMarkup sets the "markup" field to the value that was provided on create.
-func (u *MerchantGroupMarkupUpsertBulk) UpdateMarkup() *MerchantGroupMarkupUpsertBulk {
+// UpdateSellRate sets the "sell_rate" field to the value that was provided on create.
+func (u *MerchantGroupMarkupUpsertBulk) UpdateSellRate() *MerchantGroupMarkupUpsertBulk {
 	return u.Update(func(s *MerchantGroupMarkupUpsert) {
-		s.UpdateMarkup()
+		s.UpdateSellRate()
 	})
 }
 

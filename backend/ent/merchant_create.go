@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
 	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
 	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
 	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
 	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
@@ -232,6 +233,21 @@ func (_c *MerchantCreate) AddGroupMarkups(v ...*MerchantGroupMarkup) *MerchantCr
 		ids[i] = v[i].ID
 	}
 	return _c.AddGroupMarkupIDs(ids...)
+}
+
+// AddGroupCostIDs adds the "group_costs" edge to the MerchantGroupCost entity by IDs.
+func (_c *MerchantCreate) AddGroupCostIDs(ids ...int64) *MerchantCreate {
+	_c.mutation.AddGroupCostIDs(ids...)
+	return _c
+}
+
+// AddGroupCosts adds the "group_costs" edges to the MerchantGroupCost entity.
+func (_c *MerchantCreate) AddGroupCosts(v ...*MerchantGroupCost) *MerchantCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddGroupCostIDs(ids...)
 }
 
 // AddWithdrawRequestIDs adds the "withdraw_requests" edge to the MerchantWithdrawRequest entity by IDs.
@@ -528,6 +544,22 @@ func (_c *MerchantCreate) createSpec() (*Merchant, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(merchantgroupmarkup.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.GroupCostsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   merchant.GroupCostsTable,
+			Columns: []string{merchant.GroupCostsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchantgroupcost.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

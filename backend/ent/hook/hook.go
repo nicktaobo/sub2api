@@ -237,6 +237,18 @@ func (f MerchantEarningsOutboxFunc) Mutate(ctx context.Context, m ent.Mutation) 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MerchantEarningsOutboxMutation", m)
 }
 
+// The MerchantGroupCostFunc type is an adapter to allow the use of ordinary
+// function as MerchantGroupCost mutator.
+type MerchantGroupCostFunc func(context.Context, *ent.MerchantGroupCostMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MerchantGroupCostFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MerchantGroupCostMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MerchantGroupCostMutation", m)
+}
+
 // The MerchantGroupMarkupFunc type is an adapter to allow the use of ordinary
 // function as MerchantGroupMarkup mutator.
 type MerchantGroupMarkupFunc func(context.Context, *ent.MerchantGroupMarkupMutation) (ent.Value, error)

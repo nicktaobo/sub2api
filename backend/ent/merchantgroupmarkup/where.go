@@ -75,9 +75,9 @@ func GroupID(v int64) predicate.MerchantGroupMarkup {
 	return predicate.MerchantGroupMarkup(sql.FieldEQ(FieldGroupID, v))
 }
 
-// Markup applies equality check predicate on the "markup" field. It's identical to MarkupEQ.
-func Markup(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldEQ(FieldMarkup, v))
+// SellRate applies equality check predicate on the "sell_rate" field. It's identical to SellRateEQ.
+func SellRate(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldEQ(FieldSellRate, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
@@ -220,44 +220,44 @@ func GroupIDLTE(v int64) predicate.MerchantGroupMarkup {
 	return predicate.MerchantGroupMarkup(sql.FieldLTE(FieldGroupID, v))
 }
 
-// MarkupEQ applies the EQ predicate on the "markup" field.
-func MarkupEQ(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldEQ(FieldMarkup, v))
+// SellRateEQ applies the EQ predicate on the "sell_rate" field.
+func SellRateEQ(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldEQ(FieldSellRate, v))
 }
 
-// MarkupNEQ applies the NEQ predicate on the "markup" field.
-func MarkupNEQ(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldNEQ(FieldMarkup, v))
+// SellRateNEQ applies the NEQ predicate on the "sell_rate" field.
+func SellRateNEQ(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldNEQ(FieldSellRate, v))
 }
 
-// MarkupIn applies the In predicate on the "markup" field.
-func MarkupIn(vs ...float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldIn(FieldMarkup, vs...))
+// SellRateIn applies the In predicate on the "sell_rate" field.
+func SellRateIn(vs ...float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldIn(FieldSellRate, vs...))
 }
 
-// MarkupNotIn applies the NotIn predicate on the "markup" field.
-func MarkupNotIn(vs ...float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldNotIn(FieldMarkup, vs...))
+// SellRateNotIn applies the NotIn predicate on the "sell_rate" field.
+func SellRateNotIn(vs ...float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldNotIn(FieldSellRate, vs...))
 }
 
-// MarkupGT applies the GT predicate on the "markup" field.
-func MarkupGT(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldGT(FieldMarkup, v))
+// SellRateGT applies the GT predicate on the "sell_rate" field.
+func SellRateGT(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldGT(FieldSellRate, v))
 }
 
-// MarkupGTE applies the GTE predicate on the "markup" field.
-func MarkupGTE(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldGTE(FieldMarkup, v))
+// SellRateGTE applies the GTE predicate on the "sell_rate" field.
+func SellRateGTE(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldGTE(FieldSellRate, v))
 }
 
-// MarkupLT applies the LT predicate on the "markup" field.
-func MarkupLT(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldLT(FieldMarkup, v))
+// SellRateLT applies the LT predicate on the "sell_rate" field.
+func SellRateLT(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldLT(FieldSellRate, v))
 }
 
-// MarkupLTE applies the LTE predicate on the "markup" field.
-func MarkupLTE(v float64) predicate.MerchantGroupMarkup {
-	return predicate.MerchantGroupMarkup(sql.FieldLTE(FieldMarkup, v))
+// SellRateLTE applies the LTE predicate on the "sell_rate" field.
+func SellRateLTE(v float64) predicate.MerchantGroupMarkup {
+	return predicate.MerchantGroupMarkup(sql.FieldLTE(FieldSellRate, v))
 }
 
 // HasMerchant applies the HasEdge predicate on the "merchant" edge.

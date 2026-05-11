@@ -36,6 +36,7 @@ type MerchantService struct {
 	ledgerRepo         MerchantLedgerRepository
 	auditLogRepo       MerchantAuditLogRepository
 	groupMarkupRepo    MerchantGroupMarkupRepository
+	groupCostRepo      MerchantGroupCostRepository
 	groupRepo          GroupRepository
 	userRepo           UserRepository
 	pricingService     *MerchantPricingService // 用于失效缓存
@@ -50,6 +51,7 @@ func NewMerchantService(
 	ledgerRepo MerchantLedgerRepository,
 	auditLogRepo MerchantAuditLogRepository,
 	groupMarkupRepo MerchantGroupMarkupRepository,
+	groupCostRepo MerchantGroupCostRepository,
 	groupRepo GroupRepository,
 	userRepo UserRepository,
 	pricingService *MerchantPricingService,
@@ -62,6 +64,7 @@ func NewMerchantService(
 		ledgerRepo:      ledgerRepo,
 		auditLogRepo:    auditLogRepo,
 		groupMarkupRepo: groupMarkupRepo,
+		groupCostRepo:   groupCostRepo,
 		groupRepo:       groupRepo,
 		userRepo:        userRepo,
 		pricingService:  pricingService,
@@ -373,16 +376,28 @@ func (s *MerchantService) UpdateStatus(ctx context.Context, merchantID int64, ne
 	return nil
 }
 
-// SetGroupMarkup admin 设置某商户在某分组的 markup 覆盖。
-func (s *MerchantService) SetGroupMarkup(ctx context.Context, merchantID, groupID int64, markup float64, adminID int64, reason string) error {
+// SetGroupSellRate 设置某商户在某分组的对外售价倍率（绝对值，≥ 对应 cost_rate）。
+// admin 和商户 owner 都能调（adminID=0 表示商户自助）。
+func (s *MerchantService) SetGroupSellRate(ctx context.Context, merchantID, groupID int64, sellRate float64, adminID int64, reason string) error {
 	if !s.enabled() {
 		return ErrMerchantInvalidParam
 	}
-	if err := validateMarkup(markup); err != nil {
-		return err
+	if sellRate <= 0 {
+		return infraerrors.BadRequest("MERCHANT_SELL_RATE_OUT_OF_RANGE", "sell_rate must be > 0")
 	}
 	if _, err := s.repo.GetByID(ctx, merchantID); err != nil {
 		return err
+	}
+	// 校验 sell_rate ≥ 对应 group 的 cost_rate（未配 cost 则跳过校验，运行时按 site rate 兜底）
+	costs, err := s.groupCostRepo.ListByMerchant(ctx, merchantID)
+	if err != nil {
+		return err
+	}
+	for _, c := range costs {
+		if c != nil && c.GroupID == groupID && sellRate < c.CostRate {
+			return infraerrors.BadRequest("MERCHANT_SELL_BELOW_COST",
+				fmt.Sprintf("sell_rate %.4f below cost_rate %.4f", sellRate, c.CostRate))
+		}
 	}
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
@@ -394,12 +409,12 @@ func (s *MerchantService) SetGroupMarkup(ctx context.Context, merchantID, groupI
 	if err := s.groupMarkupRepo.Upsert(txCtx, &MerchantGroupMarkup{
 		MerchantID: merchantID,
 		GroupID:    groupID,
-		Markup:     markup,
+		SellRate:   sellRate,
 	}); err != nil {
 		return err
 	}
-	newVal := fmt.Sprintf("group_id=%d markup=%g", groupID, markup)
-	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupMarkup,
+	newVal := fmt.Sprintf("group_id=%d sell_rate=%g", groupID, sellRate)
+	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupSell,
 		"", newVal, reason); err != nil {
 		return err
 	}
@@ -412,8 +427,8 @@ func (s *MerchantService) SetGroupMarkup(ctx context.Context, merchantID, groupI
 	return nil
 }
 
-// DeleteGroupMarkup admin 删除某分组覆盖（fallback 到 default）。
-func (s *MerchantService) DeleteGroupMarkup(ctx context.Context, merchantID, groupID int64, adminID int64, reason string) error {
+// DeleteGroupSellRate 删除某分组售价配置；删除后商户在该 group 不再分润，sub_user 按主站价。
+func (s *MerchantService) DeleteGroupSellRate(ctx context.Context, merchantID, groupID int64, adminID int64, reason string) error {
 	if !s.enabled() {
 		return ErrMerchantInvalidParam
 	}
@@ -427,7 +442,87 @@ func (s *MerchantService) DeleteGroupMarkup(ctx context.Context, merchantID, gro
 	if err := s.groupMarkupRepo.Delete(txCtx, merchantID, groupID); err != nil {
 		return err
 	}
-	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupMarkup,
+	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupSell,
+		fmt.Sprintf("group_id=%d", groupID), "(deleted)", reason); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if s.pricingService != nil {
+		s.pricingService.InvalidateMerchant(merchantID)
+	}
+	return nil
+}
+
+// SetGroupCostRate admin 设置某商户在某分组的拿货价倍率（绝对值，> 0）。
+// 不允许设到大于任何已存在的 sell_rate（会让商户亏本卖）。
+func (s *MerchantService) SetGroupCostRate(ctx context.Context, merchantID, groupID int64, costRate float64, adminID int64, reason string) error {
+	if !s.enabled() {
+		return ErrMerchantInvalidParam
+	}
+	if costRate <= 0 {
+		return infraerrors.BadRequest("MERCHANT_COST_RATE_OUT_OF_RANGE", "cost_rate must be > 0")
+	}
+	if _, err := s.repo.GetByID(ctx, merchantID); err != nil {
+		return err
+	}
+	// 校验：cost_rate 不能高于该 group 上已有的 sell_rate（否则商户的现有定价会亏本）
+	sells, err := s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
+	if err != nil {
+		return err
+	}
+	for _, m := range sells {
+		if m != nil && m.GroupID == groupID && m.SellRate < costRate {
+			return infraerrors.BadRequest("MERCHANT_COST_ABOVE_SELL",
+				fmt.Sprintf("cost_rate %.4f above existing sell_rate %.4f; ask merchant to raise sell first",
+					costRate, m.SellRate))
+		}
+	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	if err := s.groupCostRepo.Upsert(txCtx, &MerchantGroupCost{
+		MerchantID: merchantID,
+		GroupID:    groupID,
+		CostRate:   costRate,
+	}); err != nil {
+		return err
+	}
+	newVal := fmt.Sprintf("group_id=%d cost_rate=%g", groupID, costRate)
+	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupCost,
+		"", newVal, reason); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if s.pricingService != nil {
+		s.pricingService.InvalidateMerchant(merchantID)
+	}
+	return nil
+}
+
+// DeleteGroupCostRate 删除某分组拿货价配置；删除后回退到 group.rate_multiplier。
+func (s *MerchantService) DeleteGroupCostRate(ctx context.Context, merchantID, groupID int64, adminID int64, reason string) error {
+	if !s.enabled() {
+		return ErrMerchantInvalidParam
+	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	if err := s.groupCostRepo.Delete(txCtx, merchantID, groupID); err != nil {
+		return err
+	}
+	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldGroupCost,
 		fmt.Sprintf("group_id=%d", groupID), "(deleted)", reason); err != nil {
 		return err
 	}
@@ -444,34 +539,49 @@ func (s *MerchantService) ListGroupMarkups(ctx context.Context, merchantID int64
 	return s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
 }
 
+func (s *MerchantService) ListGroupCosts(ctx context.Context, merchantID int64) ([]*MerchantGroupCost, error) {
+	return s.groupCostRepo.ListByMerchant(ctx, merchantID)
+}
+
 // MerchantPricingGroup 商户可定价分组（用于商户后台「分组定价」页平铺渲染）。
 //
-// 范围：所有 active 标准（非订阅型）分组。订阅型分组的 markup 不参与 merchant
-// 计费（RFC §3.3.0），故排除。Markup 字段：有 override 时为指针值，否则为 nil
-// 表示「跟随 default markup」。
+// 范围：所有 active 标准（非订阅型）分组。订阅型分组不参与商户计费。
+// CostRate=nil 表示 admin 未配（回退到 group.rate_multiplier）；
+// SellRate=nil 表示商户未配（该 group 不分润，sub_user 按主站价）。
 type MerchantPricingGroup struct {
 	ID             int64    `json:"id"`
 	Name           string   `json:"name"`
 	Platform       string   `json:"platform"`
 	IsExclusive    bool     `json:"is_exclusive"`
 	RateMultiplier float64  `json:"rate_multiplier"`
-	Markup         *float64 `json:"markup,omitempty"`
+	CostRate       *float64 `json:"cost_rate,omitempty"`
+	SellRate       *float64 `json:"sell_rate,omitempty"`
 }
 
-// ListPricingGroups 列出某商户可定价的分组（含每个分组当前生效的 markup）。
+// ListPricingGroups 列出某商户可定价的分组（含每个分组当前生效的 cost/sell）。
 func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int64) ([]MerchantPricingGroup, error) {
 	allGroups, err := s.groupRepo.ListActive(ctx)
 	if err != nil {
 		return nil, err
 	}
-	markups, err := s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
+	sells, err := s.groupMarkupRepo.ListByMerchant(ctx, merchantID)
 	if err != nil {
 		return nil, err
 	}
-	markupByGroup := make(map[int64]float64, len(markups))
-	for _, m := range markups {
+	costs, err := s.groupCostRepo.ListByMerchant(ctx, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	sellByGroup := make(map[int64]float64, len(sells))
+	for _, m := range sells {
 		if m != nil {
-			markupByGroup[m.GroupID] = m.Markup
+			sellByGroup[m.GroupID] = m.SellRate
+		}
+	}
+	costByGroup := make(map[int64]float64, len(costs))
+	for _, c := range costs {
+		if c != nil {
+			costByGroup[c.GroupID] = c.CostRate
 		}
 	}
 	out := make([]MerchantPricingGroup, 0, len(allGroups))
@@ -487,9 +597,13 @@ func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int6
 			IsExclusive:    g.IsExclusive,
 			RateMultiplier: g.RateMultiplier,
 		}
-		if v, ok := markupByGroup[g.ID]; ok {
+		if v, ok := costByGroup[g.ID]; ok {
 			vv := v
-			item.Markup = &vv
+			item.CostRate = &vv
+		}
+		if v, ok := sellByGroup[g.ID]; ok {
+			vv := v
+			item.SellRate = &vv
 		}
 		out = append(out, item)
 	}

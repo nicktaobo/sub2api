@@ -266,30 +266,32 @@ func (h *MerchantHandler) ListGroupMarkups(c *gin.Context) {
 	response.Success(c, rows)
 }
 
-type setGroupMarkupReq struct {
-	GroupID int64   `json:"group_id" binding:"required"`
-	Markup  float64 `json:"markup" binding:"required"`
-	Reason  string  `json:"reason"`
+type setGroupSellRateReq struct {
+	GroupID  int64   `json:"group_id" binding:"required"`
+	SellRate float64 `json:"sell_rate" binding:"required"`
+	Reason   string  `json:"reason"`
 }
 
+// PUT /admin/merchants/:id/group_markups — 设置某商户在某分组的对外售价倍率（绝对值）
 func (h *MerchantHandler) SetGroupMarkup(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "invalid id")
 		return
 	}
-	var req setGroupMarkupReq
+	var req setGroupSellRateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.merchantSvc.SetGroupMarkup(c.Request.Context(), id, req.GroupID, req.Markup, adminID(c), req.Reason); err != nil {
+	if err := h.merchantSvc.SetGroupSellRate(c.Request.Context(), id, req.GroupID, req.SellRate, adminID(c), req.Reason); err != nil {
 		writeError(c, err, http.StatusBadRequest)
 		return
 	}
 	response.Success(c, gin.H{"ok": true})
 }
 
+// DELETE /admin/merchants/:id/group_markups/:group_id — 删除某分组售价配置
 func (h *MerchantHandler) DeleteGroupMarkup(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -301,7 +303,69 @@ func (h *MerchantHandler) DeleteGroupMarkup(c *gin.Context) {
 		response.BadRequest(c, "invalid group_id")
 		return
 	}
-	if err := h.merchantSvc.DeleteGroupMarkup(c.Request.Context(), id, groupID, adminID(c), c.Query("reason")); err != nil {
+	if err := h.merchantSvc.DeleteGroupSellRate(c.Request.Context(), id, groupID, adminID(c), c.Query("reason")); err != nil {
+		writeError(c, err, http.StatusBadRequest)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+// GET /admin/merchants/:id/group_costs — 列出商户的所有分组拿货价配置
+func (h *MerchantHandler) ListGroupCosts(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	rows, err := h.merchantSvc.ListGroupCosts(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []*service.MerchantGroupCost{}
+	}
+	response.Success(c, rows)
+}
+
+type setGroupCostRateReq struct {
+	GroupID  int64   `json:"group_id" binding:"required"`
+	CostRate float64 `json:"cost_rate" binding:"required"`
+	Reason   string  `json:"reason"`
+}
+
+// PUT /admin/merchants/:id/group_costs — 设置商户在某分组的拿货价倍率（admin only）
+func (h *MerchantHandler) SetGroupCost(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	var req setGroupCostRateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := h.merchantSvc.SetGroupCostRate(c.Request.Context(), id, req.GroupID, req.CostRate, adminID(c), req.Reason); err != nil {
+		writeError(c, err, http.StatusBadRequest)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+// DELETE /admin/merchants/:id/group_costs/:group_id — 删除商户某分组拿货价配置
+func (h *MerchantHandler) DeleteGroupCost(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid group_id")
+		return
+	}
+	if err := h.merchantSvc.DeleteGroupCostRate(c.Request.Context(), id, groupID, adminID(c), c.Query("reason")); err != nil {
 		writeError(c, err, http.StatusBadRequest)
 		return
 	}

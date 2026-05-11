@@ -1,4 +1,5 @@
-// MERCHANT-SYSTEM v1.0
+// MERCHANT-SYSTEM v2.0
+// 商户分组对外售价仓储（字段从 markup 改为 sell_rate）。
 package repository
 
 import (
@@ -17,15 +18,15 @@ func NewMerchantGroupMarkupRepository(client *dbent.Client) service.MerchantGrou
 	return &merchantGroupMarkupRepository{client: client}
 }
 
-// Upsert 插入或更新 (merchant_id, group_id) 的 markup（UNIQUE 约束）。
+// Upsert 插入或更新 (merchant_id, group_id) 的 sell_rate（UNIQUE 约束）。
 func (r *merchantGroupMarkupRepository) Upsert(ctx context.Context, e *service.MerchantGroupMarkup) error {
 	client := clientFromContext(ctx, r.client)
 	id, err := client.MerchantGroupMarkup.Create().
 		SetMerchantID(e.MerchantID).
 		SetGroupID(e.GroupID).
-		SetMarkup(e.Markup).
+		SetSellRate(e.SellRate).
 		OnConflictColumns(merchantgroupmarkup.FieldMerchantID, merchantgroupmarkup.FieldGroupID).
-		UpdateMarkup().
+		UpdateSellRate().
 		ID(ctx)
 	if err != nil {
 		return err
@@ -58,7 +59,7 @@ func (r *merchantGroupMarkupRepository) ListByMerchant(ctx context.Context, merc
 			ID:         row.ID,
 			MerchantID: row.MerchantID,
 			GroupID:    row.GroupID,
-			Markup:     row.Markup,
+			SellRate:   row.SellRate,
 			CreatedAt:  row.CreatedAt,
 			UpdatedAt:  row.UpdatedAt,
 		})

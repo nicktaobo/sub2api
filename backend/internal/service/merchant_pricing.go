@@ -39,12 +39,18 @@ type MerchantLedgerDraft struct {
 }
 
 // MerchantUsagePricingInput pricing hook 入参。
+//
+// v2.0 改 cost/sell 绝对倍率模型：调用方同时传 RawCost（= bd.TotalCost，base
+// 价 × token，不含任何倍率）和 SiteActualCost（= bd.ActualCost，主站普通用户
+// 实际付的价，已乘 rateMultiplier）。商户在该 group 有 sell_rate 配置时按
+// 绝对倍率算账；未配置则不参与商户分润，sub_user 按主站价付。
 type MerchantUsagePricingInput struct {
-	UserID      int64
-	GroupID     int64 // 来自 apiKey.GroupID（v1 不引入 ResolvedGroupID，详见 RFC §10.2）
-	BaseCost    float64
-	BillingType int8
-	APIKeyID    int64
+	UserID         int64
+	GroupID        int64 // 来自 apiKey.GroupID（v1 不引入 ResolvedGroupID，详见 RFC §10.2）
+	RawCost        float64
+	SiteActualCost float64
+	BillingType    int8
+	APIKeyID       int64
 }
 
 // MerchantUsagePricingResult pricing hook 出参。
@@ -101,13 +107,19 @@ func (s *MerchantPricingService) InvalidateMerchant(merchantID int64) {
 	s.merchantPricingCache.Remove(merchantID)
 }
 
-// ApplyUsageMarkup 主入口（RFC §5.2.1 Step 2）。
+// ApplyUsageMarkup 主入口（v2.0 cost/sell 绝对值模型）。
 //
-//   - 早返回：flag 关闭 / 非 balance 计费 / base ≤ 0 / user 不属于商户 / merchant 不存在
-//   - owner 自用：返回 MerchantLedgerDraft（同步 ledger，不走 markup，不论 status 都写）
+// 路径：
+//   - 早返回：flag 关闭 / 非 balance 计费 / RawCost ≤ 0 / user 不属于商户 / merchant 不存在
+//   - owner 自用：返回 MerchantLedgerDraft（同步 ledger 入账主站价，与 v1 行为一致）
 //   - sub_user suspended：返回 empty（防御性，正常已被 API key auth 拦截）
-//   - sub_user active + markup>1：返回 BalanceCostOverride + MerchantOutboxDraft
-//   - markup=1：sub_user 按 base 扣，不写 outbox
+//   - sub_user active：
+//   - 商户该 group 没配 sell_rate → 返回 empty，sub_user 按主站价付（不分润）
+//   - 商户该 group 配了 sell_rate：
+//   - BalanceCostOverride = RawCost × sell_rate（sub_user 实际扣这么多）
+//   - 商户赚 = RawCost × (sell_rate − cost_rate)，写 outbox
+//   - 平台收 = RawCost × cost_rate（隐式：扣的钱里减去商户的部分）
+//   - cost_rate 未配置时回退 SiteActualCost / RawCost（即跟主站 rateMultiplier 等价，商户不享折扣）
 func (s *MerchantPricingService) ApplyUsageMarkup(ctx context.Context, in MerchantUsagePricingInput) MerchantUsagePricingResult {
 	if s == nil || s.cfg == nil {
 		return MerchantUsagePricingResult{}
@@ -120,7 +132,7 @@ func (s *MerchantPricingService) ApplyUsageMarkup(ctx context.Context, in Mercha
 		return MerchantUsagePricingResult{}
 	}
 	// 免费请求短路（RFC v1.7 P2-4）：避免 amount > 0 CHECK 让计费事务失败
-	if in.BaseCost <= 0 {
+	if in.RawCost <= 0 {
 		return MerchantUsagePricingResult{}
 	}
 
@@ -157,7 +169,8 @@ func (s *MerchantPricingService) ApplyUsageMarkup(ctx context.Context, in Mercha
 		return MerchantUsagePricingResult{} // merchant 不存在或已 soft-deleted
 	}
 
-	// owner 自用（不论 status，保对账等式 §4.2.2.4）
+	// owner 自用（不论 status，保对账等式 §4.2.2.4）。
+	// 入账金额沿用主站价（SiteActualCost），与 v1 行为一致：owner 自用不享 cost_rate 折扣。
 	if pricing.OwnerUserID == in.UserID {
 		return MerchantUsagePricingResult{
 			MerchantLedger: &MerchantLedgerDraft{
@@ -165,7 +178,7 @@ func (s *MerchantPricingService) ApplyUsageMarkup(ctx context.Context, in Mercha
 				OwnerUserID: pricing.OwnerUserID,
 				Source:      MerchantSourceOwnerUsageDebit,
 				Direction:   MerchantLedgerDirectionDebit,
-				Amount:      in.BaseCost,
+				Amount:      in.SiteActualCost,
 				RefType:     MerchantRefTypeUsageBillingDedup,
 			},
 		}
@@ -176,36 +189,52 @@ func (s *MerchantPricingService) ApplyUsageMarkup(ctx context.Context, in Mercha
 		return MerchantUsagePricingResult{}
 	}
 
-	// 解析 group markup
-	markup := s.resolveMarkup(pricing, in.GroupID)
-	if markup <= 1.0 {
-		return MerchantUsagePricingResult{} // 无加价
+	// 解析 cost/sell rate
+	sellRate, hasSell := s.lookupRate(pricing.GroupSellRates, in.GroupID)
+	if !hasSell {
+		// 商户没在该 group 配 sell_rate → 不参与商户分润，sub_user 按主站价
+		return MerchantUsagePricingResult{}
+	}
+	// cost_rate 未配 → 回退到 site rate（即 SiteActualCost / RawCost，确保 cost == 主站价）
+	costRate, hasCost := s.lookupRate(pricing.GroupCosts, in.GroupID)
+	if !hasCost {
+		if in.RawCost > 0 {
+			costRate = in.SiteActualCost / in.RawCost
+		} else {
+			costRate = sellRate // RawCost=0 已经在前面 early-return，这里只为防御性
+		}
+	}
+	// 防御性：service 层会校验 sell ≥ cost，但缓存可能滞后；运行时取较大者避免负利润
+	if sellRate < costRate {
+		sellRate = costRate
 	}
 
-	overrideCost := in.BaseCost * markup
-	markupAmount := in.BaseCost * (markup - 1.0)
+	subUserCharge := in.RawCost * sellRate
+	merchantProfit := in.RawCost * (sellRate - costRate)
+	if merchantProfit <= 0 {
+		// sub_user 按主站价或更低，商户不赚 → 仍然按 sell_rate 扣 sub_user，但不写 outbox
+		return MerchantUsagePricingResult{
+			BalanceCostOverride: &subUserCharge,
+		}
+	}
 	return MerchantUsagePricingResult{
-		BalanceCostOverride: &overrideCost,
+		BalanceCostOverride: &subUserCharge,
 		MerchantOutbox: &MerchantOutboxDraft{
 			MerchantID:         pricing.MerchantID,
 			CounterpartyUserID: in.UserID,
-			Amount:             markupAmount,
+			Amount:             merchantProfit,
 			Source:             MerchantSourceUserMarkupShare,
-			BaseCost:           in.BaseCost,
-			Markup:             markup,
+			BaseCost:           in.RawCost,
+			Markup:             sellRate, // 字段语义保留，记录的是实际生效的 sell_rate（用于审计）
 		},
 	}
 }
 
-// resolveMarkup 优先返回 group 级配置，否则返回 default。
-func (s *MerchantPricingService) resolveMarkup(p *CachedMerchantPricing, groupID int64) float64 {
-	if p == nil {
-		return 1.0
+// lookupRate 从缓存里取某 group 的倍率配置；未命中返回 (0, false)。
+func (s *MerchantPricingService) lookupRate(m map[int64]float64, groupID int64) (float64, bool) {
+	if groupID <= 0 || m == nil {
+		return 0, false
 	}
-	if groupID > 0 && p.GroupMarkups != nil {
-		if v, ok := p.GroupMarkups[groupID]; ok {
-			return v
-		}
-	}
-	return p.UserMarkupDefault
+	v, ok := m[groupID]
+	return v, ok
 }
