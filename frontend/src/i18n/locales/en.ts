@@ -6903,9 +6903,17 @@ export default {
       },
       pricing: {
         title: 'Group Pricing',
-        description: 'View the merchant default markup and group overrides. To change them, contact the platform admin.',
+        description: 'Set the markup you charge your own users (≥ 1.0; 1 means same price as the main site).',
         defaultMarkup: 'Default Markup',
+        defaultMarkupHint: 'Without a per-group override, every group is marked up by this default value.',
         overridesTitle: 'Group Overrides',
+        overridesHint: 'Set a different markup for an individual group. Groups not listed keep the default.',
+        addOverride: 'Add Override',
+        editDefaultTitle: 'Edit Default Markup',
+        addOverrideTitle: 'Add Group Override',
+        editOverrideTitle: 'Edit Group Override',
+        markupHint: 'End-user price = main-site price × this markup. Must be ≥ 1; 1 means same price as the main site.',
+        groupSourceHint: 'You can only override groups you have access to; groups with an existing override are hidden from the list.',
       },
       domains: {
         title: 'Sites',

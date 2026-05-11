@@ -7087,9 +7087,17 @@ export default {
       },
       pricing: {
         title: '分组定价',
-        description: '查看商户默认倍率与分组覆盖；如需修改请联系平台管理员。',
+        description: '设置您卖给自己用户的加价倍率（≥ 1.0，1 = 与主站平价）。',
         defaultMarkup: '默认倍率',
+        defaultMarkupHint: '未设置分组覆盖时，所有分组都按此默认倍率加价。',
         overridesTitle: '分组覆盖',
+        overridesHint: '为单个分组设置不同的倍率，未列出的分组继续使用默认倍率。',
+        addOverride: '添加覆盖',
+        editDefaultTitle: '修改默认倍率',
+        addOverrideTitle: '添加分组覆盖',
+        editOverrideTitle: '编辑分组覆盖',
+        markupHint: '终端用户付价 = 主站价 × 此倍率；倍率必须 ≥ 1，最低取 1 表示与主站同价。',
+        groupSourceHint: '仅能为您可访问的分组添加覆盖；已存在覆盖的分组不会重复出现在列表里。',
       },
       domains: {
         title: '站点管理',

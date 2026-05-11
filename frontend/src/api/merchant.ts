@@ -425,6 +425,27 @@ export async function merchantListGroupMarkups(): Promise<MerchantGroupMarkup[]>
   return data || []
 }
 
+/** PUT /merchant/markup_default — 商户 owner 自助改默认 markup（markup ≥ 1） */
+export async function merchantSetMarkupDefault(markup: number, reason?: string): Promise<void> {
+  await apiClient.put('/merchant/markup_default', { markup, reason })
+}
+
+/** PUT /merchant/group_markups — 商户 owner 自助设置某分组的 markup 覆盖（markup ≥ 1） */
+export async function merchantSetGroupMarkup(
+  group_id: number,
+  markup: number,
+  reason?: string,
+): Promise<void> {
+  await apiClient.put('/merchant/group_markups', { group_id, markup, reason })
+}
+
+/** DELETE /merchant/group_markups/:group_id — 商户 owner 删除某分组覆盖，回退到 default */
+export async function merchantDeleteGroupMarkup(group_id: number, reason?: string): Promise<void> {
+  await apiClient.delete(`/merchant/group_markups/${group_id}`, {
+    params: reason ? { reason } : undefined,
+  })
+}
+
 /** GET /merchant/domains */
 export async function merchantListDomains(): Promise<MerchantDomain[]> {
   const { data } = await apiClient.get<MerchantDomain[] | null>('/merchant/domains')
@@ -608,6 +629,9 @@ export const merchantAPI = {
   payToUser: merchantPayToUser,
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,
+  setMarkupDefault: merchantSetMarkupDefault,
+  setGroupMarkup: merchantSetGroupMarkup,
+  deleteGroupMarkup: merchantDeleteGroupMarkup,
   listDomains: merchantListDomains,
   createDomain: merchantCreateDomain,
   updateDomain: merchantUpdateDomain,
