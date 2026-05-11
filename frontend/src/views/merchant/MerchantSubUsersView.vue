@@ -80,9 +80,9 @@
             {{ t('merchant.owner.subUsers.totalCount', { total }) }}
           </div>
           <div class="flex items-center gap-2">
-            <button class="btn btn-sm btn-secondary" :disabled="page <= 1" @click="onPrev">{{ t('common.prev') }}</button>
+            <button class="btn btn-sm btn-secondary" :disabled="page <= 1" @click="onPrev">{{ t('pagination.previous') }}</button>
             <span class="text-sm">{{ page }} / {{ Math.max(1, Math.ceil(total / pageSize)) }}</span>
-            <button class="btn btn-sm btn-secondary" :disabled="page >= Math.ceil(total / pageSize)" @click="onNext">{{ t('common.next') }}</button>
+            <button class="btn btn-sm btn-secondary" :disabled="page >= Math.ceil(total / pageSize)" @click="onNext">{{ t('pagination.next') }}</button>
           </div>
         </div>
       </div>
