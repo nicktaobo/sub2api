@@ -351,6 +351,34 @@ export async function merchantInfo(): Promise<MerchantInfo> {
   return data
 }
 
+export interface SubUserSummary {
+  id: number
+  email: string
+  username: string
+  balance: number
+  status: string
+  created_at: string
+  last_active_at?: string | null
+}
+
+/** GET /merchant/sub_users */
+export async function merchantListSubUsers(
+  q?: string,
+  offset = 0,
+  limit = 20,
+): Promise<PaginatedResponse<SubUserSummary>> {
+  const params: Record<string, string | number> = { ...paginationParams(offset, limit) }
+  if (q) params.q = q
+  const { data } = await apiClient.get<PaginatedResponse<SubUserSummary> | SubUserSummary[]>(
+    '/merchant/sub_users',
+    { params },
+  )
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, page: 1, page_size: data.length || limit, pages: 1 }
+  }
+  return data
+}
+
 /** POST /merchant/pay */
 export async function merchantPayToUser(
   sub_user_id: number,
@@ -484,6 +512,7 @@ export const merchantAPI = {
   adminUnbindUser: adminMerchantUnbindUser,
   // merchant owner
   info: merchantInfo,
+  listSubUsers: merchantListSubUsers,
   payToUser: merchantPayToUser,
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,

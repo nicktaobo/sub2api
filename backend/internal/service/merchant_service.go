@@ -12,6 +12,7 @@ package service
 import (
 	"context"
 	cryptoRand "crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -673,6 +674,86 @@ func (s *MerchantService) GetDomain(ctx context.Context, domain string) (*Mercha
 
 func (s *MerchantService) ListDomains(ctx context.Context, merchantID int64) ([]*MerchantDomain, error) {
 	return s.domainRepo.ListByMerchant(ctx, merchantID)
+}
+
+// SubUserSummary 子用户摘要，给 owner 后台列表用。
+type SubUserSummary struct {
+	ID             int64     `json:"id"`
+	Email          string    `json:"email"`
+	Username       string    `json:"username"`
+	Balance        float64   `json:"balance"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"created_at"`
+	LastActiveAt   *time.Time `json:"last_active_at,omitempty"`
+}
+
+// ListSubUsers 列出某商户的子用户（按 parent_merchant_id 过滤）。
+func (s *MerchantService) ListSubUsers(ctx context.Context, merchantID int64, search string, offset, limit int) ([]*SubUserSummary, int, error) {
+	if !s.enabled() {
+		return nil, 0, ErrMerchantInvalidParam
+	}
+	tx := dbent.TxFromContext(ctx)
+	client := s.entClient
+	if tx != nil {
+		client = tx.Client()
+	}
+	driver, ok := client.Driver().(interface {
+		DB() *sql.DB
+	})
+	if !ok {
+		return nil, 0, errors.New("entClient driver does not expose *sql.DB")
+	}
+	db := driver.DB()
+
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	search = strings.TrimSpace(search)
+	args := []any{merchantID}
+	where := "u.parent_merchant_id = $1 AND u.deleted_at IS NULL"
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		where += " AND (u.email ILIKE $2 OR u.username ILIKE $2)"
+	}
+
+	var total int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users u WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	args = append(args, limit, offset)
+	limitArg := len(args) - 1
+	offsetArg := len(args)
+	rows, err := db.QueryContext(ctx, `
+		SELECT u.id, u.email, COALESCE(u.username, ''), u.balance, u.status, u.created_at, u.last_active_at
+		FROM users u WHERE `+where+`
+		ORDER BY u.created_at DESC, u.id DESC
+		LIMIT $`+strconv.Itoa(limitArg)+` OFFSET $`+strconv.Itoa(offsetArg), args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := make([]*SubUserSummary, 0, limit)
+	for rows.Next() {
+		var (
+			u            SubUserSummary
+			lastActiveAt sql.NullTime
+		)
+		if err := rows.Scan(&u.ID, &u.Email, &u.Username, &u.Balance, &u.Status, &u.CreatedAt, &lastActiveAt); err != nil {
+			return nil, 0, err
+		}
+		if lastActiveAt.Valid {
+			t := lastActiveAt.Time
+			u.LastActiveAt = &t
+		}
+		out = append(out, &u)
+	}
+	return out, total, rows.Err()
 }
 
 // CreateDomainInput owner 新建域名（含品牌定制）输入。

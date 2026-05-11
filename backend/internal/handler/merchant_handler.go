@@ -68,6 +68,23 @@ func (h *MerchantHandler) GetInfo(c *gin.Context) {
 	})
 }
 
+// GET /merchant/sub_users — 列出子用户
+func (h *MerchantHandler) ListSubUsers(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	search := c.Query("q")
+	rows, total, err := h.merchantSvc.ListSubUsers(c.Request.Context(), m.ID, search, offset, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, paginatedOwner(rows, total, offset, limit))
+}
+
 type payToUserReq struct {
 	SubUserID int64   `json:"sub_user_id" binding:"required"`
 	Amount    float64 `json:"amount" binding:"required"`
