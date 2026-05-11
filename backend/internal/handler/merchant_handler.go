@@ -140,6 +140,132 @@ func (h *MerchantHandler) ListDomains(c *gin.Context) {
 	response.Success(c, rows)
 }
 
+type createDomainReq struct {
+	Domain         string `json:"domain" binding:"required"`
+	SiteName       string `json:"site_name"`
+	SiteLogo       string `json:"site_logo"`
+	BrandColor     string `json:"brand_color"`
+	CustomCSS      string `json:"custom_css"`
+	HomeContent    string `json:"home_content"`
+	SEOTitle       string `json:"seo_title"`
+	SEODescription string `json:"seo_description"`
+	SEOKeywords    string `json:"seo_keywords"`
+}
+
+func (h *MerchantHandler) CreateDomain(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	var req createDomainReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	d, err := h.merchantSvc.CreateDomain(c.Request.Context(), service.CreateDomainInput{
+		MerchantID:     m.ID,
+		Domain:         req.Domain,
+		SiteName:       req.SiteName,
+		SiteLogo:       req.SiteLogo,
+		BrandColor:     req.BrandColor,
+		CustomCSS:      req.CustomCSS,
+		HomeContent:    req.HomeContent,
+		SEOTitle:       req.SEOTitle,
+		SEODescription: req.SEODescription,
+		SEOKeywords:    req.SEOKeywords,
+	})
+	if err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, d)
+}
+
+type updateDomainReq struct {
+	SiteName       string `json:"site_name"`
+	SiteLogo       string `json:"site_logo"`
+	BrandColor     string `json:"brand_color"`
+	CustomCSS      string `json:"custom_css"`
+	HomeContent    string `json:"home_content"`
+	SEOTitle       string `json:"seo_title"`
+	SEODescription string `json:"seo_description"`
+	SEOKeywords    string `json:"seo_keywords"`
+}
+
+func (h *MerchantHandler) UpdateDomain(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	var req updateDomainReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	d, err := h.merchantSvc.UpdateDomain(c.Request.Context(), m.ID, id, service.UpdateDomainInput{
+		SiteName:       req.SiteName,
+		SiteLogo:       req.SiteLogo,
+		BrandColor:     req.BrandColor,
+		CustomCSS:      req.CustomCSS,
+		HomeContent:    req.HomeContent,
+		SEOTitle:       req.SEOTitle,
+		SEODescription: req.SEODescription,
+		SEOKeywords:    req.SEOKeywords,
+	})
+	if err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, d)
+}
+
+func (h *MerchantHandler) VerifyDomain(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	if err := h.merchantSvc.MarkDomainVerified(c.Request.Context(), m.ID, id); err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+func (h *MerchantHandler) DeleteDomain(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	if err := h.merchantSvc.DeleteDomain(c.Request.Context(), m.ID, id); err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
 func (h *MerchantHandler) ListAuditLog(c *gin.Context) {
 	m := h.resolveOwnerMerchant(c)
 	if m == nil {

@@ -105,8 +105,21 @@ export interface MerchantDomain {
   id: number
   merchant_id: number
   domain: string
+  site_name?: string
+  site_logo?: string
+  brand_color?: string
+  custom_css?: string
+  home_content?: string
+  seo_title?: string
+  seo_description?: string
+  seo_keywords?: string
+  verify_token?: string
+  verified?: boolean
+  verified_at?: string | null
   is_primary?: boolean
   created_at?: string
+  updated_at?: string
+  deleted_at?: string | null
 }
 
 // ==================== Request payloads ====================
@@ -385,6 +398,43 @@ export async function merchantListDomains(): Promise<MerchantDomain[]> {
   return data || []
 }
 
+export interface DomainBrandPayload {
+  domain?: string
+  site_name?: string
+  site_logo?: string
+  brand_color?: string
+  custom_css?: string
+  home_content?: string
+  seo_title?: string
+  seo_description?: string
+  seo_keywords?: string
+}
+
+/** POST /merchant/domains */
+export async function merchantCreateDomain(payload: DomainBrandPayload): Promise<MerchantDomain> {
+  const { data } = await apiClient.post<MerchantDomain>('/merchant/domains', payload)
+  return data
+}
+
+/** PUT /merchant/domains/:id */
+export async function merchantUpdateDomain(
+  id: number,
+  payload: DomainBrandPayload,
+): Promise<MerchantDomain> {
+  const { data } = await apiClient.put<MerchantDomain>(`/merchant/domains/${id}`, payload)
+  return data
+}
+
+/** POST /merchant/domains/:id/verify */
+export async function merchantVerifyDomain(id: number): Promise<void> {
+  await apiClient.post(`/merchant/domains/${id}/verify`)
+}
+
+/** DELETE /merchant/domains/:id */
+export async function merchantDeleteDomain(id: number): Promise<void> {
+  await apiClient.delete(`/merchant/domains/${id}`)
+}
+
 /** GET /merchant/audit_log */
 export async function merchantListAuditLog(
   offset = 0,
@@ -438,6 +488,10 @@ export const merchantAPI = {
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,
   listDomains: merchantListDomains,
+  createDomain: merchantCreateDomain,
+  updateDomain: merchantUpdateDomain,
+  verifyDomain: merchantVerifyDomain,
+  deleteDomain: merchantDeleteDomain,
   listAuditLog: merchantListAuditLog,
   // public
   brand: merchantBrand,

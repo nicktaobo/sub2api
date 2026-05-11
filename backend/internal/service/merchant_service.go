@@ -11,6 +11,8 @@ package service
 
 import (
 	"context"
+	cryptoRand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -671,6 +673,138 @@ func (s *MerchantService) GetDomain(ctx context.Context, domain string) (*Mercha
 
 func (s *MerchantService) ListDomains(ctx context.Context, merchantID int64) ([]*MerchantDomain, error) {
 	return s.domainRepo.ListByMerchant(ctx, merchantID)
+}
+
+// CreateDomainInput owner 新建域名（含品牌定制）输入。
+type CreateDomainInput struct {
+	MerchantID     int64
+	Domain         string
+	SiteName       string
+	SiteLogo       string
+	BrandColor     string
+	CustomCSS      string
+	HomeContent    string
+	SEOTitle       string
+	SEODescription string
+	SEOKeywords    string
+}
+
+// CreateDomain 创建一条 merchant_domains 记录。生成随机 verify_token（DNS TXT 验证用）。
+func (s *MerchantService) CreateDomain(ctx context.Context, in CreateDomainInput) (*MerchantDomain, error) {
+	if !s.enabled() {
+		return nil, ErrMerchantInvalidParam
+	}
+	domain := strings.TrimSpace(strings.ToLower(in.Domain))
+	if domain == "" {
+		return nil, infraerrors.BadRequest("MERCHANT_DOMAIN_REQUIRED", "domain is required")
+	}
+	// 生成 verify_token（hex 32 字符）
+	tokenBytes := make([]byte, 16)
+	if _, err := cryptoRand.Read(tokenBytes); err != nil {
+		return nil, err
+	}
+	token := hex.EncodeToString(tokenBytes)
+	d := &MerchantDomain{
+		MerchantID:     in.MerchantID,
+		Domain:         domain,
+		SiteName:       in.SiteName,
+		SiteLogo:       in.SiteLogo,
+		BrandColor:     in.BrandColor,
+		CustomCSS:      in.CustomCSS,
+		HomeContent:    sanitizeBrandHTML(in.HomeContent),
+		SEOTitle:       in.SEOTitle,
+		SEODescription: in.SEODescription,
+		SEOKeywords:    in.SEOKeywords,
+		VerifyToken:    token,
+		Verified:       false,
+	}
+	if err := s.domainRepo.Create(ctx, d); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// UpdateDomainInput owner 更新品牌字段。Domain 字段不允许改（改则删了再建）。
+type UpdateDomainInput struct {
+	SiteName       string
+	SiteLogo       string
+	BrandColor     string
+	CustomCSS      string
+	HomeContent    string
+	SEOTitle       string
+	SEODescription string
+	SEOKeywords    string
+}
+
+// UpdateDomain 更新某域名的品牌字段（owner 自服务）。返回更新后的域名。
+func (s *MerchantService) UpdateDomain(ctx context.Context, merchantID, domainID int64, in UpdateDomainInput) (*MerchantDomain, error) {
+	if !s.enabled() {
+		return nil, ErrMerchantInvalidParam
+	}
+	d, err := s.domainRepo.GetByID(ctx, domainID)
+	if err != nil {
+		return nil, err
+	}
+	if d.MerchantID != merchantID {
+		return nil, ErrMerchantDomainNotFound
+	}
+	d.SiteName = in.SiteName
+	d.SiteLogo = in.SiteLogo
+	d.BrandColor = in.BrandColor
+	d.CustomCSS = in.CustomCSS
+	d.HomeContent = sanitizeBrandHTML(in.HomeContent)
+	d.SEOTitle = in.SEOTitle
+	d.SEODescription = in.SEODescription
+	d.SEOKeywords = in.SEOKeywords
+	if err := s.domainRepo.Update(ctx, d); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// MarkDomainVerified 标记域名已验证（v1 暂不接 DNS TXT 真验证，标记为可信）。
+func (s *MerchantService) MarkDomainVerified(ctx context.Context, merchantID, domainID int64) error {
+	if !s.enabled() {
+		return ErrMerchantInvalidParam
+	}
+	d, err := s.domainRepo.GetByID(ctx, domainID)
+	if err != nil {
+		return err
+	}
+	if d.MerchantID != merchantID {
+		return ErrMerchantDomainNotFound
+	}
+	return s.domainRepo.MarkVerified(ctx, domainID)
+}
+
+// DeleteDomain 软删除域名。
+func (s *MerchantService) DeleteDomain(ctx context.Context, merchantID, domainID int64) error {
+	if !s.enabled() {
+		return ErrMerchantInvalidParam
+	}
+	d, err := s.domainRepo.GetByID(ctx, domainID)
+	if err != nil {
+		return err
+	}
+	if d.MerchantID != merchantID {
+		return ErrMerchantDomainNotFound
+	}
+	return s.domainRepo.SoftDelete(ctx, domainID)
+}
+
+// sanitizeBrandHTML 最小化 sanitize：去除 <script>/<iframe>/on* 事件属性。
+// v1 简化实现；生产应用 bluemonday.UGCPolicy。
+func sanitizeBrandHTML(html string) string {
+	if html == "" {
+		return ""
+	}
+	// 极简过滤：去掉 <script.*</script> + on...= 事件
+	out := html
+	for _, bad := range []string{"<script", "</script", "<iframe", "</iframe", "javascript:"} {
+		out = strings.ReplaceAll(out, bad, "")
+		out = strings.ReplaceAll(out, strings.ToUpper(bad), "")
+	}
+	return out
 }
 
 func (s *MerchantService) ListLedger(ctx context.Context, merchantID int64, offset, limit int) ([]*MerchantLedgerEntry, int, error) {

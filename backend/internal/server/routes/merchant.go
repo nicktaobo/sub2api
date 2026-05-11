@@ -35,6 +35,10 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.GET("/ledger", mh.ListLedger)
 		g.GET("/group_markups", mh.ListGroupMarkups)
 		g.GET("/domains", mh.ListDomains)
+		g.POST("/domains", mh.CreateDomain)
+		g.PUT("/domains/:id", mh.UpdateDomain)
+		g.POST("/domains/:id/verify", mh.VerifyDomain)
+		g.DELETE("/domains/:id", mh.DeleteDomain)
 		g.GET("/audit_log", mh.ListAuditLog)
 	}
 }
