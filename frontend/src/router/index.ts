@@ -795,7 +795,7 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
 
@@ -880,6 +880,18 @@ router.beforeEach((to, _from, next) => {
   if (currentUser && currentUser.parent_merchant_id && to.path.startsWith('/admin')) {
     next('/dashboard')
     return
+  }
+
+  // Merchant owner guard: 普通用户 / 子用户不允许访问 /merchant/* 自助页面。
+  // 刷新页面时 ownedMerchantId 可能还没探测完，先尝试探测一次再判断，避免误伤真 owner。
+  if (to.path.startsWith('/merchant/')) {
+    if (!authStore.isMerchantOwner) {
+      await authStore.refreshMerchantOwnership()
+    }
+    if (!authStore.isMerchantOwner) {
+      next('/dashboard')
+      return
+    }
   }
 
 

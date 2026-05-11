@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
+import { merchantAPI } from '@/api/merchant'
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
@@ -13,6 +14,7 @@ const AUTH_USER_KEY = 'auth_user'
 const REFRESH_TOKEN_KEY = 'refresh_token'
 const TOKEN_EXPIRES_AT_KEY = 'token_expires_at' // 存储过期时间戳而非有效期
 const PENDING_AUTH_SESSION_KEY = 'pending_auth_session'
+const OWNED_MERCHANT_ID_KEY = 'owned_merchant_id'
 const AUTO_REFRESH_INTERVAL = 60 * 1000 // 60 seconds for user data refresh
 const TOKEN_REFRESH_BUFFER = 120 * 1000 // 120 seconds before expiry to refresh token
 
@@ -77,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
   const tokenExpiresAt = ref<number | null>(null) // 过期时间戳（毫秒）
   const runMode = ref<'standard' | 'simple'>('standard')
   const pendingAuthSession = ref<PendingAuthSessionSummary | null>(null)
+  const ownedMerchantId = ref<number | null>(null)
   let refreshIntervalId: ReturnType<typeof setInterval> | null = null
   let tokenRefreshTimeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -90,8 +93,32 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value?.role === 'admin'
   })
 
+  const isMerchantOwner = computed(() => ownedMerchantId.value !== null)
+
   const isSimpleMode = computed(() => runMode.value === 'simple')
   const hasPendingAuthSession = computed(() => pendingAuthSession.value !== null)
+
+  // 静默探测当前用户是否是某商户的 owner（403 视为非 owner）。
+  async function refreshMerchantOwnership(): Promise<void> {
+    if (!token.value) {
+      ownedMerchantId.value = null
+      localStorage.removeItem(OWNED_MERCHANT_ID_KEY)
+      return
+    }
+    try {
+      const info = await merchantAPI.info()
+      ownedMerchantId.value = info?.id ?? null
+      if (ownedMerchantId.value !== null) {
+        localStorage.setItem(OWNED_MERCHANT_ID_KEY, String(ownedMerchantId.value))
+      } else {
+        localStorage.removeItem(OWNED_MERCHANT_ID_KEY)
+      }
+    } catch {
+      // 403/404 = 非 owner；其他错误也按非 owner 兜底（菜单先收起）。
+      ownedMerchantId.value = null
+      localStorage.removeItem(OWNED_MERCHANT_ID_KEY)
+    }
+  }
 
   // ==================== Actions ====================
 
@@ -113,11 +140,15 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = JSON.parse(savedUser)
         refreshTokenValue.value = savedRefreshToken
         tokenExpiresAt.value = savedExpiresAt ? parseInt(savedExpiresAt, 10) : null
+        const savedMerchantId = localStorage.getItem(OWNED_MERCHANT_ID_KEY)
+        ownedMerchantId.value = savedMerchantId ? parseInt(savedMerchantId, 10) : null
 
         // Immediately refresh user data from backend (async, don't block)
         refreshUser().catch((error) => {
           console.error('Failed to refresh user on init:', error)
         })
+        // 重新探测商户 owner 身份（避免缓存过期 / 商户被解除）
+        refreshMerchantOwnership()
 
         // Start auto-refresh interval for user data
         startAutoRefresh()
@@ -309,6 +340,9 @@ export const useAuthStore = defineStore('auth', () => {
     if (response.refresh_token && response.expires_in) {
       scheduleTokenRefresh(response.expires_in)
     }
+
+    // 探测当前用户是否是某商户的 owner（决定侧栏菜单是否显示商户区）
+    refreshMerchantOwnership()
   }
 
   /**
@@ -450,10 +484,12 @@ export const useAuthStore = defineStore('auth', () => {
     refreshTokenValue.value = null
     tokenExpiresAt.value = null
     user.value = null
+    ownedMerchantId.value = null
     localStorage.removeItem(AUTH_TOKEN_KEY)
     localStorage.removeItem(AUTH_USER_KEY)
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
+    localStorage.removeItem(OWNED_MERCHANT_ID_KEY)
 
     if (options?.preservePendingAuthSession) {
       pendingAuthSession.value = getPersistedPendingAuthSession()
@@ -476,8 +512,10 @@ export const useAuthStore = defineStore('auth', () => {
     // Computed
     isAuthenticated,
     isAdmin,
+    isMerchantOwner,
     isSimpleMode,
     hasPendingAuthSession,
+    ownedMerchantId: readonly(ownedMerchantId),
 
     // Actions
     login,
@@ -487,6 +525,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkAuth,
     refreshUser,
+    refreshMerchantOwnership,
     setPendingAuthSession,
     clearPendingAuthSession
   }

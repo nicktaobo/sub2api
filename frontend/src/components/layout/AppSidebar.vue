@@ -674,13 +674,20 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
-    { path: '/merchant/dashboard', label: t('nav.merchantWorkbench'), icon: DashboardIcon, hideInSimpleMode: true },
-    { path: '/merchant/stats', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/merchant/withdrawals', label: t('nav.merchantWithdrawals'), icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/merchant/sub-users', label: t('nav.merchantSubUsers'), icon: UsersIcon, hideInSimpleMode: true },
-    { path: '/merchant/ledger', label: t('nav.merchantLedger'), icon: OrderIcon, hideInSimpleMode: true },
-    { path: '/merchant/group-pricing', label: t('nav.merchantGroupPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
-    { path: '/merchant/domains', label: t('nav.merchantDomains'), icon: GlobeIcon, hideInSimpleMode: true },
+  )
+  // 商户菜单仅对商户 owner 显示（普通用户 / 子用户不显示）。
+  if (authStore.isMerchantOwner) {
+    items.push(
+      { path: '/merchant/dashboard', label: t('nav.merchantWorkbench'), icon: DashboardIcon, hideInSimpleMode: true },
+      { path: '/merchant/stats', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
+      { path: '/merchant/withdrawals', label: t('nav.merchantWithdrawals'), icon: CreditCardIcon, hideInSimpleMode: true },
+      { path: '/merchant/sub-users', label: t('nav.merchantSubUsers'), icon: UsersIcon, hideInSimpleMode: true },
+      { path: '/merchant/ledger', label: t('nav.merchantLedger'), icon: OrderIcon, hideInSimpleMode: true },
+      { path: '/merchant/group-pricing', label: t('nav.merchantGroupPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
+      { path: '/merchant/domains', label: t('nav.merchantDomains'), icon: GlobeIcon, hideInSimpleMode: true },
+    )
+  }
+  items.push(
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
