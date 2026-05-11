@@ -677,18 +677,6 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'merchant.owner.domains.title'
     }
   },
-  {
-    path: '/merchant/audit',
-    name: 'MerchantAudit',
-    component: () => import('@/views/merchant/MerchantAuditLogView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Merchant Audit',
-      titleKey: 'merchant.owner.audit.title'
-    }
-  },
-
   // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',

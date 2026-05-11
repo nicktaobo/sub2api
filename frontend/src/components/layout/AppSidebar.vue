@@ -679,7 +679,6 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/merchant/ledger', label: t('nav.merchantLedger'), icon: OrderIcon, hideInSimpleMode: true },
     { path: '/merchant/group-pricing', label: t('nav.merchantGroupPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
     { path: '/merchant/domains', label: t('nav.merchantDomains'), icon: GlobeIcon, hideInSimpleMode: true },
-    { path: '/merchant/audit', label: t('nav.merchantAudit'), icon: BellIcon, hideInSimpleMode: true },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,

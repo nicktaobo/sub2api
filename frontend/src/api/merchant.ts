@@ -463,26 +463,8 @@ export async function merchantDeleteDomain(id: number): Promise<void> {
   await apiClient.delete(`/merchant/domains/${id}`)
 }
 
-/** GET /merchant/audit_log */
-export async function merchantListAuditLog(
-  offset = 0,
-  limit = 20,
-): Promise<PaginatedResponse<MerchantAuditLogEntry>> {
-  const { data } = await apiClient.get<PaginatedResponse<MerchantAuditLogEntry> | MerchantAuditLogEntry[]>(
-    '/merchant/audit_log',
-    { params: paginationParams(offset, limit) },
-  )
-  if (Array.isArray(data)) {
-    return {
-      items: data,
-      total: data.length,
-      page: 1,
-      page_size: data.length || limit,
-      pages: 1,
-    }
-  }
-  return data
-}
+// 注：owner 端不再开放 audit log（admin 端 /admin/merchants/:id/audit_log 仍保留）。
+// 商户关心的资金事件已在 /merchant/ledger 完整展示。
 
 // ==================== Public endpoint ====================
 
@@ -521,7 +503,6 @@ export const merchantAPI = {
   updateDomain: merchantUpdateDomain,
   verifyDomain: merchantVerifyDomain,
   deleteDomain: merchantDeleteDomain,
-  listAuditLog: merchantListAuditLog,
   // public
   brand: merchantBrand,
 }

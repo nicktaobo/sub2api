@@ -283,20 +283,6 @@ func (h *MerchantHandler) DeleteDomain(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true})
 }
 
-func (h *MerchantHandler) ListAuditLog(c *gin.Context) {
-	m := h.resolveOwnerMerchant(c)
-	if m == nil {
-		return
-	}
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	rows, total, err := h.merchantSvc.ListAuditLog(c.Request.Context(), m.ID, offset, limit)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	response.Success(c, paginatedOwner(rows, total, offset, limit))
-}
 
 // paginatedOwner 与 admin.paginated 同形态。这里复制一份避免跨包依赖。
 func paginatedOwner[T any](rows []T, total int, offset, limit int) gin.H {
