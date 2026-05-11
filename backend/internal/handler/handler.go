@@ -61,6 +61,7 @@ type Handlers struct {
 	// MERCHANT-SYSTEM v1.0
 	MerchantBrand *MerchantBrandHandler
 	Merchant      *MerchantHandler
+	MerchantLogo  *MerchantLogoHandler
 }
 
 // BuildInfo contains build-time information

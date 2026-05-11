@@ -5,6 +5,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -14,10 +16,11 @@ import (
 
 type MerchantBrandHandler struct {
 	merchantSvc *service.MerchantService
+	settingSvc  *service.SettingService
 }
 
-func NewMerchantBrandHandler(merchantSvc *service.MerchantService) *MerchantBrandHandler {
-	return &MerchantBrandHandler{merchantSvc: merchantSvc}
+func NewMerchantBrandHandler(merchantSvc *service.MerchantService, settingSvc *service.SettingService) *MerchantBrandHandler {
+	return &MerchantBrandHandler{merchantSvc: merchantSvc, settingSvc: settingSvc}
 }
 
 type merchantBrandResponse struct {
@@ -62,5 +65,11 @@ func (h *MerchantBrandHandler) GetCurrent(c *gin.Context) {
 		resp.SEODescription = d.SEODescription
 		resp.SEOKeywords = d.SEOKeywords
 	}
+
+	// 商户没自定义 home_content 时，回退主站设置里的 home_content，避免分站首页空白
+	if strings.TrimSpace(resp.HomeContent) == "" && h.settingSvc != nil {
+		resp.HomeContent = h.settingSvc.GetHomeContent(c.Request.Context())
+	}
+
 	response.Success(c, resp)
 }

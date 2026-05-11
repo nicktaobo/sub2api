@@ -678,7 +678,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		balanceLowNotifyThreshold = v
 	}
 
-	return &PublicSettings{
+	result := &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
 		EmailVerifyEnabled:               emailVerifyEnabled,
 		ForceEmailOnThirdPartySignup:     settings[SettingKeyForceEmailOnThirdPartySignup] == "true",
@@ -732,7 +732,69 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
-	}, nil
+	}
+
+	// MERCHANT-SYSTEM v1.0：商户域名请求覆盖品牌相关字段并清掉不应该泄漏到分站的主站配置
+	applyMerchantOverridesToPublicSettings(ctx, result)
+
+	return result, nil
+}
+
+// applyMerchantOverridesToPublicSettings 商户分站点请求时叠加在 PublicSettings 上的覆盖逻辑。
+//
+// 决策（与产品对齐）：
+//   - 品牌字段 site_name / site_logo / site_subtitle：用商户值，空则回退主站
+//   - home_content：用商户值，空则回退主站（确保商户没填 HTML 时分站也有内容）
+//   - OAuth 各家开关 / BackendModeEnabled：分站不展示主站登录入口，全部 false
+//   - APIBaseURL / ContactInfo / DocURL：主站联系/文档不应泄漏到分站，清空
+//   - CustomMenuItems / CustomEndpoints：主站自定义菜单不应泄漏到分站，清空
+//   - 支付相关（PaymentEnabled / PurchaseSubscription*）保持主站值，商户复用主站支付系统
+//
+// 主站请求 ctx 中无 merchant，整个函数空跑，行为不变。
+func applyMerchantOverridesToPublicSettings(ctx context.Context, p *PublicSettings) {
+	if p == nil {
+		return
+	}
+	mctx := MerchantFromGoContext(ctx)
+	if mctx == nil || mctx.Domain == nil {
+		return
+	}
+	d := mctx.Domain
+
+	// 品牌：商户值优先，空则保留主站
+	if s := strings.TrimSpace(d.SiteName); s != "" {
+		p.SiteName = s
+	}
+	if s := strings.TrimSpace(d.SiteLogo); s != "" {
+		p.SiteLogo = s
+	}
+	// home_content 空则保留主站；非空则覆盖
+	if s := strings.TrimSpace(d.HomeContent); s != "" {
+		p.HomeContent = s
+	}
+	// site_subtitle 商户没有专属字段，分站直接清空避免主站营销文案泄漏
+	p.SiteSubtitle = ""
+
+	// 第三方登录入口：分站不展示主站 OAuth，强制关闭
+	p.LinuxDoOAuthEnabled = false
+	p.WeChatOAuthEnabled = false
+	p.WeChatOAuthOpenEnabled = false
+	p.WeChatOAuthMPEnabled = false
+	p.WeChatOAuthMobileEnabled = false
+	p.OIDCOAuthEnabled = false
+	p.OIDCOAuthProviderName = ""
+	p.GitHubOAuthEnabled = false
+	p.GoogleOAuthEnabled = false
+	p.BackendModeEnabled = false
+
+	// 主站联系/文档/API base 不漏出
+	p.APIBaseURL = ""
+	p.ContactInfo = ""
+	p.DocURL = ""
+
+	// 主站自定义菜单/端点不漏出（CustomMenuItems / CustomEndpoints 是 JSON 字符串，置空 = 空数组解析）
+	p.CustomMenuItems = ""
+	p.CustomEndpoints = ""
 }
 
 // channelMonitorIntervalMin / channelMonitorIntervalMax bound the default interval
@@ -2046,6 +2108,13 @@ func (s *SettingService) GetSiteName(ctx context.Context) string {
 	if err != nil || value == "" {
 		return "Sub2API"
 	}
+	return value
+}
+
+// GetHomeContent 直接取主站 home_content（不做 merchant 覆盖）。
+// merchant_brand_handler 在商户没填 home_content 时调用，用来兜底成主站首页内容。
+func (s *SettingService) GetHomeContent(ctx context.Context) string {
+	value, _ := s.settingRepo.GetValue(ctx, SettingKeyHomeContent)
 	return value
 }
 

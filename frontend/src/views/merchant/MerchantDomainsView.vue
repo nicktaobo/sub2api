@@ -211,8 +211,30 @@
 
           <div>
             <label class="label">{{ t('merchant.owner.domains.siteLogo') }}</label>
-            <input v-model="dialog.form.site_logo" type="text" class="input" :placeholder="t('merchant.owner.domains.siteLogoPlaceholder')" />
-            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.domains.siteLogoHint') }}</p>
+            <div class="flex items-start gap-3">
+              <img
+                v-if="dialog.form.site_logo"
+                :src="dialog.form.site_logo"
+                alt="logo"
+                class="h-16 w-16 rounded border border-gray-200 object-contain bg-white"
+              />
+              <div v-else class="h-16 w-16 rounded border border-dashed border-gray-300 flex items-center justify-center text-xs text-gray-400">
+                {{ t('merchant.owner.domains.siteLogoNoPreview') }}
+              </div>
+              <div class="flex-1 space-y-2">
+                <div class="flex items-center gap-2">
+                  <button type="button" class="btn btn-secondary" :disabled="uploadingLogo" @click="onPickLogo">
+                    {{ uploadingLogo ? t('common.uploading') : t('merchant.owner.domains.siteLogoUpload') }}
+                  </button>
+                  <button v-if="dialog.form.site_logo" type="button" class="btn btn-secondary" @click="dialog.form.site_logo = ''">
+                    {{ t('common.clear') }}
+                  </button>
+                  <input ref="logoFileInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="onLogoFileChange" />
+                </div>
+                <input v-model="dialog.form.site_logo" type="text" class="input" :placeholder="t('merchant.owner.domains.siteLogoPlaceholder')" />
+                <p class="text-xs text-gray-500">{{ t('merchant.owner.domains.siteLogoHint') }}</p>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -272,6 +294,42 @@ const dnsInfo = ref<DNSSetupInfo | null>(null)
 const loading = ref(false)
 const submitting = ref(false)
 const verifying = ref<number | null>(null)
+const uploadingLogo = ref(false)
+const logoFileInput = ref<HTMLInputElement | null>(null)
+
+const LOGO_MAX_BYTES = 1 << 20 // 1MB
+const LOGO_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+
+function onPickLogo() {
+  logoFileInput.value?.click()
+}
+
+async function onLogoFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    if (!LOGO_ALLOWED_TYPES.includes(file.type)) {
+      throw new Error(t('merchant.owner.domains.siteLogoBadType'))
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      throw new Error(t('merchant.owner.domains.siteLogoTooLarge'))
+    }
+    uploadingLogo.value = true
+    const { url } = await merchantAPI.uploadLogo(file)
+    dialog.form.site_logo = url
+  } catch (err) {
+    const msg =
+      err instanceof Error
+        ? err.message
+        : extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error'))
+    appStore.showError(msg)
+  } finally {
+    uploadingLogo.value = false
+    // 允许重复选同一个文件
+    if (input) input.value = ''
+  }
+}
 
 const dialog = reactive({
   open: false,

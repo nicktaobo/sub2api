@@ -106,6 +106,7 @@ func ProvideHandlers(
 	availableChannelHandler *AvailableChannelHandler,
 	merchantBrandHandler *MerchantBrandHandler,
 	merchantHandler *MerchantHandler,
+	merchantLogoHandler *MerchantLogoHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -128,6 +129,7 @@ func ProvideHandlers(
 		AvailableChannel: availableChannelHandler,
 		MerchantBrand:    merchantBrandHandler,
 		Merchant:         merchantHandler,
+		MerchantLogo:     merchantLogoHandler,
 	}
 }
 
@@ -151,6 +153,7 @@ var ProviderSet = wire.NewSet(
 	NewAvailableChannelHandler,
 	NewMerchantBrandHandler, // MERCHANT-SYSTEM v1.0
 	NewMerchantHandler,
+	NewMerchantLogoHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

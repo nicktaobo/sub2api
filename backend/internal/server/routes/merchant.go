@@ -48,5 +48,17 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.GET("/dns_setup", mh.DNSSetupInfo)
 		g.GET("/withdrawals", mh.ListWithdrawals)
 		g.POST("/withdrawals", mh.CreateWithdraw)
+		if h.MerchantLogo != nil {
+			g.POST("/upload/logo", h.MerchantLogo.Upload)
+		}
 	}
+}
+
+// RegisterMerchantAssetRoute 注册公开的商户静态资产路径（logo 等）。
+// 顶层挂载（不在 /api/v1 下），无需 auth，前端 <img src> 直接引用。
+func RegisterMerchantAssetRoute(r *gin.Engine, h *handler.Handlers) {
+	if r == nil || h == nil || h.MerchantLogo == nil {
+		return
+	}
+	r.GET("/merchant-assets/:merchant_id/:filename", h.MerchantLogo.Serve)
 }

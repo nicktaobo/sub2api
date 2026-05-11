@@ -501,6 +501,16 @@ export async function merchantVerifyDomain(id: number): Promise<void> {
   await apiClient.post(`/merchant/domains/${id}/verify`)
 }
 
+/** POST /merchant/upload/logo (multipart/form-data, field "file") → { url } */
+export async function merchantUploadLogo(file: File): Promise<{ url: string }> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await apiClient.post<{ url: string }>('/merchant/upload/logo', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
 /** DELETE /merchant/domains/:id */
 export async function merchantDeleteDomain(id: number): Promise<void> {
   await apiClient.delete(`/merchant/domains/${id}`)
@@ -655,6 +665,7 @@ export const merchantAPI = {
   updateDomain: merchantUpdateDomain,
   verifyDomain: merchantVerifyDomain,
   deleteDomain: merchantDeleteDomain,
+  uploadLogo: merchantUploadLogo,
   dnsSetup: merchantDNSSetup,
   stats: merchantStats,
   listWithdrawals: merchantListWithdrawals,

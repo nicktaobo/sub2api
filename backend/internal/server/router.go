@@ -88,6 +88,9 @@ func SetupRouter(
 	// MERCHANT-SYSTEM v1.0：给 Caddy on_demand_tls 用的 ask endpoint（顶层，仅 loopback）
 	routes.RegisterCaddyAskRoute(r, cfg, merchantSvc)
 
+	// MERCHANT-SYSTEM v1.0：商户 logo 等品牌资产的公开静态服务（顶层，无 auth）
+	routes.RegisterMerchantAssetRoute(r, handlers)
+
 	// 注册路由
 	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient, merchantRepo)
 
