@@ -1,0 +1,86 @@
+name: Docker Image (local_dev)
+
+# 推 local_dev 分支或手动触发时，构建并推送 docker 镜像到 GHCR
+on:
+  push:
+    branches:
+      - local_dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}  # e.g. wei-shaw/sub2api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set lowercase image name
+        id: img
+        run: echo "name=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Compute tags
+        id: tags
+        run: |
+          SHA_SHORT=${GITHUB_SHA::7}
+          DATE_TAG=$(date -u +%Y%m%d-%H%M)
+          IMG="${{ env.REGISTRY }}/${{ steps.img.outputs.name }}"
+          {
+            echo "tags<<EOF"
+            echo "${IMG}:local-dev"
+            echo "${IMG}:local-dev-${SHA_SHORT}"
+            echo "${IMG}:local-dev-${DATE_TAG}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          echo "sha_short=${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "date_tag=${DATE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            VERSION=local-dev-${{ steps.tags.outputs.sha_short }}
+            COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=local-dev
+          cache-to: type=gha,scope=local-dev,mode=max
+          provenance: false
+
+      - name: Summary
+        run: |
+          IMG="${{ env.REGISTRY }}/${{ steps.img.outputs.name }}"
+          {
+            echo "## 镜像已发布"
+            echo ""
+            echo '```bash'
+            echo "docker pull ${IMG}:local-dev                          # 永远指向最新"
+            echo "docker pull ${IMG}:local-dev-${{ steps.tags.outputs.sha_short }}    # 钉到本次 commit"
+            echo "docker pull ${IMG}:local-dev-${{ steps.tags.outputs.date_tag }}     # 按时间钉"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
