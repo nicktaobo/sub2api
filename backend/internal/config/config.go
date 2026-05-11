@@ -98,6 +98,12 @@ type Config struct {
 // 关闭时整个商户系统等价于不存在（hook 短路、worker 仅清理积压、admin/商户后台返回 503）。
 type MerchantConfig struct {
 	Enabled bool `mapstructure:"enabled"`
+	// ServerIP 商户域名 A 记录应指向的服务器公网 IP。owner 后台展示给商户做 DNS 配置。
+	// 留空时前端展示 "请联系平台管理员获取"。
+	ServerIP string `mapstructure:"server_ip"`
+	// SkipDNSVerify 跳过真实 DNS TXT 查询（仅本地/测试用），点"立即验证"直接通过。
+	// 生产环境保持 false。
+	SkipDNSVerify bool `mapstructure:"skip_dns_verify"`
 }
 
 type LogConfig struct {

@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -843,8 +844,12 @@ func (s *MerchantService) UpdateDomain(ctx context.Context, merchantID, domainID
 	return d, nil
 }
 
-// MarkDomainVerified 标记域名已验证（v1 暂不接 DNS TXT 真验证，标记为可信）。
-func (s *MerchantService) MarkDomainVerified(ctx context.Context, merchantID, domainID int64) error {
+// VerifyDomain 真实查 DNS TXT 记录验证所有权（RFC §4.1.2）。
+//
+// 检查 `_domain-verify.<domain>` 的 TXT 记录是否含 `domain-verify=<verify_token>`。
+// 配置 SkipDNSVerify=true 时（本地/开发用）直接通过。
+// 失败时返回带原因的 ApplicationError，前端可直接展示给 owner。
+func (s *MerchantService) VerifyDomain(ctx context.Context, merchantID, domainID int64) error {
 	if !s.enabled() {
 		return ErrMerchantInvalidParam
 	}
@@ -855,7 +860,62 @@ func (s *MerchantService) MarkDomainVerified(ctx context.Context, merchantID, do
 	if d.MerchantID != merchantID {
 		return ErrMerchantDomainNotFound
 	}
+	if d.Verified {
+		return nil
+	}
+
+	if !s.cfg.Merchant.SkipDNSVerify {
+		expected := "domain-verify=" + d.VerifyToken
+		host := "_domain-verify." + d.Domain
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		records, lookupErr := net.DefaultResolver.LookupTXT(lookupCtx, host)
+		if lookupErr != nil {
+			return infraerrors.BadRequest(
+				"MERCHANT_DOMAIN_DNS_LOOKUP_FAILED",
+				"DNS TXT lookup failed for "+host+": "+lookupErr.Error(),
+			)
+		}
+		matched := false
+		for _, txt := range records {
+			if strings.TrimSpace(txt) == expected {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return infraerrors.BadRequest(
+				"MERCHANT_DOMAIN_VERIFY_TOKEN_MISMATCH",
+				"expected TXT record "+expected+" not found on "+host,
+			)
+		}
+	}
+
 	return s.domainRepo.MarkVerified(ctx, domainID)
+}
+
+// MarkDomainVerified 是 VerifyDomain 的别名，保留兼容（旧名）。
+func (s *MerchantService) MarkDomainVerified(ctx context.Context, merchantID, domainID int64) error {
+	return s.VerifyDomain(ctx, merchantID, domainID)
+}
+
+// DNSSetupInfo 给 owner 后台展示 DNS 配置指引用。
+type DNSSetupInfo struct {
+	ServerIP     string `json:"server_ip"`      // A 记录 VALUE
+	HasServerIP  bool   `json:"has_server_ip"`  // 平台是否配置了 IP（否则前端提示联系管理员）
+	TXTHostPrefix string `json:"txt_host_prefix"` // "_domain-verify"
+	SkipDNSVerify bool  `json:"skip_dns_verify"` // dev 模式标记
+}
+
+// GetDNSSetupInfo 返回平台 DNS 配置元数据（owner 后台用）。
+func (s *MerchantService) GetDNSSetupInfo() DNSSetupInfo {
+	cfg := s.cfg.Merchant
+	return DNSSetupInfo{
+		ServerIP:      cfg.ServerIP,
+		HasServerIP:   strings.TrimSpace(cfg.ServerIP) != "",
+		TXTHostPrefix: "_domain-verify",
+		SkipDNSVerify: cfg.SkipDNSVerify,
+	}
 }
 
 // DeleteDomain 软删除域名。

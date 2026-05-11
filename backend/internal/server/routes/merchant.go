@@ -40,5 +40,6 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.PUT("/domains/:id", mh.UpdateDomain)
 		g.POST("/domains/:id/verify", mh.VerifyDomain)
 		g.DELETE("/domains/:id", mh.DeleteDomain)
+		g.GET("/dns_setup", mh.DNSSetupInfo)
 	}
 }

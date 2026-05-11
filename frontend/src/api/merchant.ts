@@ -463,6 +463,19 @@ export async function merchantDeleteDomain(id: number): Promise<void> {
   await apiClient.delete(`/merchant/domains/${id}`)
 }
 
+export interface DNSSetupInfo {
+  server_ip: string
+  has_server_ip: boolean
+  txt_host_prefix: string
+  skip_dns_verify: boolean
+}
+
+/** GET /merchant/dns_setup */
+export async function merchantDNSSetup(): Promise<DNSSetupInfo> {
+  const { data } = await apiClient.get<DNSSetupInfo>('/merchant/dns_setup')
+  return data
+}
+
 // 注：owner 端不再开放 audit log（admin 端 /admin/merchants/:id/audit_log 仍保留）。
 // 商户关心的资金事件已在 /merchant/ledger 完整展示。
 
@@ -503,6 +516,7 @@ export const merchantAPI = {
   updateDomain: merchantUpdateDomain,
   verifyDomain: merchantVerifyDomain,
   deleteDomain: merchantDeleteDomain,
+  dnsSetup: merchantDNSSetup,
   // public
   brand: merchantBrand,
 }

@@ -14,55 +14,165 @@
           <button class="btn btn-secondary" :disabled="loading" :title="t('common.refresh')" @click="load">
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </button>
-          <button class="btn btn-primary" @click="openCreate">
-            {{ t('merchant.owner.domains.addDomain') }}
-          </button>
+          <button class="btn btn-primary" @click="openCreate">+ {{ t('merchant.owner.domains.addDomain') }}</button>
         </div>
       </div>
 
-      <!-- 列表 -->
-      <div class="card overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 dark:bg-dark-800">
-            <tr>
-              <th class="px-4 py-3 text-left">{{ t('merchant.owner.domains.domain') }}</th>
-              <th class="px-4 py-3 text-left">{{ t('merchant.owner.domains.siteName') }}</th>
-              <th class="px-4 py-3 text-left">{{ t('merchant.owner.domains.verifyStatus') }}</th>
-              <th class="px-4 py-3 text-left">{{ t('merchant.owner.domains.brandColor') }}</th>
-              <th class="px-4 py-3 text-left">{{ t('merchant.owner.domains.createdAt') }}</th>
-              <th class="px-4 py-3 text-right">{{ t('merchant.owner.domains.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading && !items.length">
-              <td colspan="6" class="px-4 py-12 text-center text-gray-400">{{ t('common.loading') }}</td>
-            </tr>
-            <tr v-else-if="!items.length">
-              <td colspan="6" class="px-4 py-12 text-center text-gray-400">{{ t('common.empty') }}</td>
-            </tr>
-            <tr v-for="d in items" :key="d.id" class="border-t border-gray-200 dark:border-dark-700">
-              <td class="px-4 py-3 font-mono">{{ d.domain }}</td>
-              <td class="px-4 py-3">{{ d.site_name || '-' }}</td>
-              <td class="px-4 py-3">
-                <span v-if="d.verified" class="text-emerald-600">{{ t('merchant.owner.domains.verified') }}</span>
-                <span v-else class="text-amber-600">{{ t('merchant.owner.domains.unverified') }}</span>
-              </td>
-              <td class="px-4 py-3">
-                <div v-if="d.brand_color" class="flex items-center gap-2">
-                  <span class="inline-block h-4 w-4 rounded border border-gray-300" :style="{ backgroundColor: d.brand_color }"></span>
-                  <code class="text-xs">{{ d.brand_color }}</code>
-                </div>
-                <span v-else class="text-gray-400">-</span>
-              </td>
-              <td class="px-4 py-3 text-gray-500">{{ d.created_at ? formatDateTime(d.created_at) : '-' }}</td>
-              <td class="px-4 py-3 text-right space-x-2">
-                <button class="btn btn-sm btn-secondary" @click="openEdit(d)">{{ t('common.edit') }}</button>
-                <button v-if="!d.verified" class="btn btn-sm btn-primary" @click="onVerify(d)">{{ t('merchant.owner.domains.markVerified') }}</button>
-                <button class="btn btn-sm btn-danger" @click="onDelete(d)">{{ t('common.delete') }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- 空态 -->
+      <div v-if="!loading && !items.length" class="card flex flex-col items-center gap-3 py-12">
+        <Icon name="globe" size="xl" class="text-gray-300" />
+        <p class="text-sm text-gray-500">{{ t('merchant.owner.domains.empty') }}</p>
+        <button class="btn btn-primary" @click="openCreate">+ {{ t('merchant.owner.domains.addDomain') }}</button>
+      </div>
+
+      <!-- 域名卡片列表 -->
+      <div v-for="d in items" :key="d.id" class="card overflow-hidden">
+        <!-- 卡片头部 -->
+        <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-dark-700">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/20">
+              <Icon :name="d.verified ? 'checkCircle' : 'clock'" size="md" :class="d.verified ? 'text-emerald-600' : 'text-amber-600'" />
+            </div>
+            <div>
+              <div class="text-base font-semibold">{{ d.domain }}</div>
+              <span
+                class="mt-0.5 inline-block rounded px-2 py-0.5 text-xs"
+                :class="d.verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+              >
+                {{ d.verified ? t('merchant.owner.domains.verified') : t('merchant.owner.domains.unverified') }}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="!d.verified"
+              class="btn btn-sm btn-primary"
+              :disabled="verifying === d.id"
+              @click="onVerify(d)"
+            >
+              <Icon name="check" size="sm" class="mr-1" />
+              {{ verifying === d.id ? t('common.loading') : t('merchant.owner.domains.verifyNow') }}
+            </button>
+            <button class="btn btn-sm btn-secondary" @click="openEdit(d)" :title="t('common.edit')">
+              <Icon name="edit" size="sm" />
+            </button>
+            <button class="btn btn-sm btn-danger" @click="onDelete(d)" :title="t('common.delete')">
+              <Icon name="trash" size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <!-- 未验证：DNS 步骤指引 -->
+        <div v-if="!d.verified" class="space-y-4 px-5 py-5">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t('merchant.owner.domains.dnsInstructions') }}
+          </p>
+
+          <!-- 步骤 1：A 记录 -->
+          <div>
+            <p class="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+              {{ t('merchant.owner.domains.step1Title') }}
+            </p>
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 dark:bg-dark-800">
+                  <tr>
+                    <th class="w-20 px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsType') }}</th>
+                    <th class="px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsHost') }}</th>
+                    <th class="px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsValue') }}</th>
+                    <th class="w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-t border-gray-200 dark:border-dark-700">
+                    <td class="px-3 py-2 font-mono">A</td>
+                    <td class="px-3 py-2 font-mono">@</td>
+                    <td class="px-3 py-2 font-mono">
+                      <span v-if="dnsInfo?.has_server_ip">{{ dnsInfo.server_ip }}</span>
+                      <span v-else class="text-amber-600">{{ t('merchant.owner.domains.serverIpMissing') }}</span>
+                    </td>
+                    <td class="px-3 py-2 text-right">
+                      <button
+                        v-if="dnsInfo?.has_server_ip"
+                        class="text-gray-400 hover:text-gray-600"
+                        :title="t('common.copy')"
+                        @click="copy(dnsInfo!.server_ip)"
+                      >
+                        <Icon name="copy" size="sm" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.domains.step1Hint') }}</p>
+          </div>
+
+          <!-- 步骤 2：TXT 记录 -->
+          <div>
+            <p class="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+              {{ t('merchant.owner.domains.step2Title') }}
+            </p>
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 dark:bg-dark-800">
+                  <tr>
+                    <th class="w-20 px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsType') }}</th>
+                    <th class="px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsHost') }}</th>
+                    <th class="px-3 py-2 text-left text-gray-500">{{ t('merchant.owner.domains.dnsValue') }}</th>
+                    <th class="w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-t border-gray-200 dark:border-dark-700">
+                    <td class="px-3 py-2 font-mono">TXT</td>
+                    <td class="px-3 py-2 font-mono break-all">{{ txtHost(d) }}</td>
+                    <td class="px-3 py-2 font-mono break-all">{{ txtValue(d) }}</td>
+                    <td class="px-3 py-2 text-right">
+                      <button class="text-gray-400 hover:text-gray-600" :title="t('common.copy')" @click="copy(txtValue(d))">
+                        <Icon name="copy" size="sm" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.domains.step2Hint') }}</p>
+          </div>
+
+          <!-- 步骤 3：验证 -->
+          <div>
+            <p class="mb-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+              {{ t('merchant.owner.domains.step3Title') }}
+            </p>
+            <button class="btn btn-primary" :disabled="verifying === d.id" @click="onVerify(d)">
+              <Icon name="check" size="sm" class="mr-1" />
+              {{ verifying === d.id ? t('common.loading') : t('merchant.owner.domains.verifyNow') }}
+            </button>
+            <p v-if="dnsInfo?.skip_dns_verify" class="mt-2 text-xs text-amber-600">
+              {{ t('merchant.owner.domains.skipDnsHint') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- 已验证：品牌信息摘要 -->
+        <div v-else class="grid grid-cols-1 gap-4 px-5 py-4 text-sm md:grid-cols-3">
+          <div>
+            <div class="text-xs text-gray-500">{{ t('merchant.owner.domains.siteName') }}</div>
+            <div class="mt-0.5">{{ d.site_name || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">{{ t('merchant.owner.domains.brandColor') }}</div>
+            <div class="mt-0.5 flex items-center gap-2">
+              <span v-if="d.brand_color" class="inline-block h-4 w-4 rounded border border-gray-300" :style="{ backgroundColor: d.brand_color }"></span>
+              <code class="text-xs">{{ d.brand_color || '-' }}</code>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">{{ t('merchant.owner.domains.verifiedAt') }}</div>
+            <div class="mt-0.5">{{ d.verified_at ? formatDateTime(d.verified_at) : '-' }}</div>
+          </div>
+        </div>
       </div>
 
       <!-- 添加/编辑对话框 -->
@@ -149,7 +259,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import { merchantAPI, type MerchantDomain, type DomainBrandPayload } from '@/api/merchant'
+import { merchantAPI, type MerchantDomain, type DomainBrandPayload, type DNSSetupInfo } from '@/api/merchant'
 import { formatDateTime } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -158,8 +268,10 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const items = ref<MerchantDomain[]>([])
+const dnsInfo = ref<DNSSetupInfo | null>(null)
 const loading = ref(false)
 const submitting = ref(false)
+const verifying = ref<number | null>(null)
 
 const dialog = reactive({
   open: false,
@@ -213,10 +325,33 @@ function openEdit(d: MerchantDomain) {
   dialog.open = true
 }
 
+function txtHost(d: MerchantDomain) {
+  const prefix = dnsInfo.value?.txt_host_prefix || '_domain-verify'
+  return `${prefix}.${d.domain}`
+}
+
+function txtValue(d: MerchantDomain) {
+  return `domain-verify=${d.verify_token || ''}`
+}
+
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    appStore.showSuccess(t('common.copied'))
+  } catch {
+    appStore.showError(t('common.copyFailed'))
+  }
+}
+
 async function load() {
   loading.value = true
   try {
-    items.value = await merchantAPI.listDomains()
+    const [list, info] = await Promise.all([
+      merchantAPI.listDomains(),
+      merchantAPI.dnsSetup().catch(() => null),
+    ])
+    items.value = list
+    dnsInfo.value = info
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {
@@ -246,12 +381,15 @@ async function onSubmit() {
 }
 
 async function onVerify(d: MerchantDomain) {
+  verifying.value = d.id
   try {
     await merchantAPI.verifyDomain(d.id)
     appStore.showSuccess(t('merchant.owner.domains.verifiedToast'))
     await load()
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  } finally {
+    verifying.value = null
   }
 }
 

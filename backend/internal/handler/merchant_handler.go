@@ -255,13 +255,22 @@ func (h *MerchantHandler) VerifyDomain(c *gin.Context) {
 		response.BadRequest(c, "invalid id")
 		return
 	}
-	if err := h.merchantSvc.MarkDomainVerified(c.Request.Context(), m.ID, id); err != nil {
+	if err := h.merchantSvc.VerifyDomain(c.Request.Context(), m.ID, id); err != nil {
 		if !response.ErrorFrom(c, err) {
 			response.Error(c, http.StatusBadRequest, err.Error())
 		}
 		return
 	}
 	response.Success(c, gin.H{"ok": true})
+}
+
+// DNSSetupInfo 返回平台域名配置元信息，给 owner 后台展示 DNS 步骤用。
+func (h *MerchantHandler) DNSSetupInfo(c *gin.Context) {
+	if _, ok := jwtUserID(c); !ok {
+		response.Unauthorized(c, "unauthorized")
+		return
+	}
+	response.Success(c, h.merchantSvc.GetDNSSetupInfo())
 }
 
 func (h *MerchantHandler) DeleteDomain(c *gin.Context) {

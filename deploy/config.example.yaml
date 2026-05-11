@@ -1099,3 +1099,7 @@ update:
 # Worker 在 flag 关闭后仍处理 outbox 积压，避免临时启用过又关闭后历史 outbox 永远不结算。
 merchant:
   enabled: false
+  # 商户自定义域名 A 记录应指向的服务器公网 IP（owner 后台展示给商户做 DNS 配置）
+  server_ip: ""
+  # 跳过真实 DNS TXT 查询（仅开发/本地测试用），点"立即验证"直接通过；生产保持 false
+  skip_dns_verify: false
