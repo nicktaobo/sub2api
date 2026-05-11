@@ -663,8 +663,9 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Merchant Ledger',
-      titleKey: 'merchant.owner.ledger.title'
+      // 合并页：顶部分成统计概览 + 下方资金流水明细，统一用 stats.title 作主标题。
+      title: 'Merchant Stats',
+      titleKey: 'merchant.owner.stats.title'
     }
   },
   {
@@ -690,10 +691,9 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // 资金流水合并入分成统计后，保留老路径作向下兼容 redirect。
     path: '/merchant/stats',
-    name: 'MerchantStats',
-    component: () => import('@/views/merchant/MerchantStatsView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: false, title: 'Merchant Stats', titleKey: 'merchant.owner.stats.title' }
+    redirect: '/merchant/ledger'
   },
   {
     path: '/merchant/withdrawals',

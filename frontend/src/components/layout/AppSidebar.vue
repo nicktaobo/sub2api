@@ -680,10 +680,9 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   if (authStore.isMerchantOwner) {
     items.push(
       { path: '/merchant/dashboard', label: t('nav.merchantWorkbench'), icon: DashboardIcon, hideInSimpleMode: true },
-      { path: '/merchant/stats', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
+      { path: '/merchant/ledger', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
       { path: '/merchant/withdrawals', label: t('nav.merchantWithdrawals'), icon: CreditCardIcon, hideInSimpleMode: true },
       { path: '/merchant/sub-users', label: t('nav.merchantSubUsers'), icon: UsersIcon, hideInSimpleMode: true },
-      { path: '/merchant/ledger', label: t('nav.merchantLedger'), icon: OrderIcon, hideInSimpleMode: true },
       { path: '/merchant/group-pricing', label: t('nav.merchantGroupPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
       { path: '/merchant/domains', label: t('nav.merchantDomains'), icon: GlobeIcon, hideInSimpleMode: true },
     )
