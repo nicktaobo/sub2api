@@ -357,7 +357,7 @@ export default {
     merchantManagement: 'Resellers',
     merchantWithdrawReview: 'Withdraw Review',
     merchantWorkbench: 'Merchant Workbench',
-    merchantSubUsers: 'Sub Users',
+    merchantSubUsers: 'Users',
     merchantLedger: 'Ledger',
     merchantGroupPricing: 'Group Pricing',
     merchantDomains: 'Domains',
@@ -6875,7 +6875,7 @@ export default {
         last24h: 'Computed from your local ledger view',
       },
       subUsers: {
-        title: 'Sub-Users',
+        title: 'Users',
         description: 'View sub-users bound to this merchant and pay them from your balance.',
         searchPlaceholder: 'Search by email or username',
         email: 'Email',

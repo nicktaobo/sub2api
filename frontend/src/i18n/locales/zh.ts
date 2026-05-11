@@ -357,7 +357,7 @@ export default {
     merchantManagement: '分销管理',
     merchantWithdrawReview: '提现审核',
     merchantWorkbench: '商户工作台',
-    merchantSubUsers: '子用户',
+    merchantSubUsers: '用户管理',
     merchantLedger: '资金流水',
     merchantGroupPricing: '分组定价',
     merchantDomains: '域名',
@@ -7059,7 +7059,7 @@ export default {
         last24h: '基于本地账本统计',
       },
       subUsers: {
-        title: '子用户管理',
+        title: '用户管理',
         description: '查看绑定到本商户的子用户，给他们充值（从你的余额转出）。',
         searchPlaceholder: '按邮箱或用户名搜索',
         email: '邮箱',
