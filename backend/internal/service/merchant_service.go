@@ -559,7 +559,22 @@ type MerchantPricingGroup struct {
 }
 
 // ListPricingGroups 列出某商户可定价的分组（含每个分组当前生效的 cost/sell）。
+//
+// 可见范围跟「普通用户」一致：以商户 owner 的 user 身份为准——
+//   - 公开标准分组：所有 owner 都可见
+//   - 专属标准分组：仅 admin 把它加进 owner.AllowedGroups 时可见
+//   - 订阅型分组：始终隐藏（merchant 不参与订阅计费）
+//
+// 这样商户不会看到 admin 没授权给他的专属分组。
 func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int64) ([]MerchantPricingGroup, error) {
+	m, err := s.repo.GetByID(ctx, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := s.userRepo.GetByID(ctx, m.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
 	allGroups, err := s.groupRepo.ListActive(ctx)
 	if err != nil {
 		return nil, err
@@ -573,9 +588,9 @@ func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int6
 		return nil, err
 	}
 	sellByGroup := make(map[int64]float64, len(sells))
-	for _, m := range sells {
-		if m != nil {
-			sellByGroup[m.GroupID] = m.SellRate
+	for _, gm := range sells {
+		if gm != nil {
+			sellByGroup[gm.GroupID] = gm.SellRate
 		}
 	}
 	costByGroup := make(map[int64]float64, len(costs))
@@ -588,6 +603,9 @@ func (s *MerchantService) ListPricingGroups(ctx context.Context, merchantID int6
 	for i := range allGroups {
 		g := allGroups[i]
 		if g.IsSubscriptionType() {
+			continue
+		}
+		if !owner.CanBindGroup(g.ID, g.IsExclusive) {
 			continue
 		}
 		item := MerchantPricingGroup{
