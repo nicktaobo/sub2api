@@ -200,6 +200,7 @@ type APIKeyService struct {
 	userGroupRateRepo     UserGroupRateRepository
 	cache                 APIKeyCache
 	rateLimitCacheInvalid RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
+	merchantPricing       *MerchantPricingService   // optional: 给商户子用户展示 sell_rate
 	cfg                   *config.Config
 	authCacheL1           *ristretto.Cache
 	authCfg               apiKeyAuthCacheConfig
@@ -235,6 +236,12 @@ func NewAPIKeyService(
 // Called after construction (e.g. in wire) to avoid circular dependencies.
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {
 	s.rateLimitCacheInvalid = inv
+}
+
+// SetMerchantPricing 注入 MerchantPricingService，用于在展示可用分组时替换商户子用户看到的 rate_multiplier。
+// post-construction setter，避免和 NewAPIKeyService 现有签名冲突。nil 表示商户系统未启用。
+func (s *APIKeyService) SetMerchantPricing(mp *MerchantPricingService) {
+	s.merchantPricing = mp
 }
 
 func (s *APIKeyService) compileAPIKeyIPRules(apiKey *APIKey) {
@@ -769,6 +776,21 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 	for _, group := range allGroups {
 		if s.canUserBindGroupInternal(user, &group, subscribedGroupIDs) {
 			availableGroups = append(availableGroups, group)
+		}
+	}
+
+	// MERCHANT-SYSTEM v3.0：商户子用户在该分组配了 sell_rate 时，把展示用倍率换成 sell_rate，
+	// 保证"展示价 = 计费价"一致。订阅型分组不参与商户定价；owner / suspended / 主站普通用户
+	// 在 LookupSellRateForUser 内部已返回 false，此处自动跳过替换。
+	if s.merchantPricing != nil {
+		for i := range availableGroups {
+			g := &availableGroups[i]
+			if g.IsSubscriptionType() {
+				continue
+			}
+			if sellRate, ok := s.merchantPricing.LookupSellRateForUser(ctx, userID, g.ID); ok {
+				g.RateMultiplier = sellRate
+			}
 		}
 	}
 
