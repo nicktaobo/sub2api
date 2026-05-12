@@ -663,8 +663,8 @@ func (s *MerchantService) PayToUser(ctx context.Context, merchantID, subUserID i
 	defer func() { _ = tx.Rollback() }()
 	txCtx := dbent.NewTxContext(ctx, tx)
 
-	// 扣 owner.balance
-	if err := s.userRepo.DeductBalance(txCtx, m.OwnerUserID, amount); err != nil {
+	// 扣 owner.balance —— 必须 strict，避免商户余额被扣成负数
+	if err := s.userRepo.DeductBalanceStrict(txCtx, m.OwnerUserID, amount); err != nil {
 		return err
 	}
 	// 加 sub_user.balance（不写 merchant_ledger 这一侧）
@@ -772,7 +772,7 @@ func (s *MerchantService) AdminRefund(ctx context.Context, merchantID int64, amo
 	defer func() { _ = tx.Rollback() }()
 	txCtx := dbent.NewTxContext(ctx, tx)
 
-	if err := s.userRepo.DeductBalance(txCtx, m.OwnerUserID, amount); err != nil {
+	if err := s.userRepo.DeductBalanceStrict(txCtx, m.OwnerUserID, amount); err != nil {
 		return err
 	}
 	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)

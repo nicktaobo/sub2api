@@ -216,7 +216,8 @@ func (s *MerchantService) AdminApproveWithdrawal(ctx context.Context, withdrawID
 	defer func() { _ = tx.Rollback() }()
 	txCtx := dbent.NewTxContext(ctx, tx)
 
-	if err := s.userRepo.DeductBalance(txCtx, m.OwnerUserID, w.Amount); err != nil {
+	// 提现：商户余额不足时 ErrInsufficientBalance 中断（避免审批通过后扣成负数）
+	if err := s.userRepo.DeductBalanceStrict(txCtx, m.OwnerUserID, w.Amount); err != nil {
 		return err
 	}
 	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)

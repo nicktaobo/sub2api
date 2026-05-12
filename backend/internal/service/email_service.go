@@ -157,6 +157,20 @@ func (s *EmailService) SendEmail(ctx context.Context, to, subject, body string) 
 	return s.SendEmailWithConfig(config, to, subject, body)
 }
 
+// SendEmailAs 发送邮件并临时覆盖 From display name（fromNameOverride 非空时生效）。
+// 商户分站点的验证码 / 密码重置邮件用这个版本，让收件人看到的发件人名是商户站名而非主站名。
+// SMTP 帐号 (config.From) 仍然是平台的——商户不需要自己配 SMTP。
+func (s *EmailService) SendEmailAs(ctx context.Context, to, subject, body, fromNameOverride string) error {
+	config, err := s.GetSMTPConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if name := strings.TrimSpace(fromNameOverride); name != "" {
+		config.FromName = name
+	}
+	return s.SendEmailWithConfig(config, to, subject, body)
+}
+
 const smtpDialTimeout = 10 * time.Second
 const smtpIOTimeout = 20 * time.Second
 
@@ -331,8 +345,8 @@ func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName strin
 	subject := fmt.Sprintf("[%s] Email Verification Code", siteName)
 	body := s.buildVerifyCodeEmailBody(code, siteName)
 
-	// 发送邮件
-	if err := s.SendEmail(ctx, email, subject, body); err != nil {
+	// 发送邮件：发件人 display name 用 siteName（商户分站走商户站名）
+	if err := s.SendEmailAs(ctx, email, subject, body, siteName); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
 
@@ -506,8 +520,8 @@ func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, siteNa
 	subject := fmt.Sprintf("[%s] 密码重置请求", siteName)
 	body := s.buildPasswordResetEmailBody(fullResetURL, siteName)
 
-	// Send email
-	if err := s.SendEmail(ctx, email, subject, body); err != nil {
+	// Send email：发件人 display name 用 siteName（商户分站走商户站名）
+	if err := s.SendEmailAs(ctx, email, subject, body, siteName); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
 

@@ -95,6 +95,10 @@ type UserRepository interface {
 
 	UpdateBalance(ctx context.Context, id int64, amount float64) error
 	DeductBalance(ctx context.Context, id int64, amount float64) error
+	// DeductBalanceStrict 扣除用户余额且禁止扣成负数。原子条件更新；
+	// 余额不足返回 ErrInsufficientBalance，用户不存在返回 ErrUserNotFound。
+	// merchant 充值/退款/提现等财务路径必须用这个版本。
+	DeductBalanceStrict(ctx context.Context, id int64, amount float64) error
 	UpdateConcurrency(ctx context.Context, id int64, amount int) error
 	BatchSetConcurrency(ctx context.Context, userIDs []int64, value int) (int, error)
 	BatchAddConcurrency(ctx context.Context, userIDs []int64, delta int) (int, error)

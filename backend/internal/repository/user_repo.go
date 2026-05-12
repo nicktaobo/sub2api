@@ -735,6 +735,34 @@ func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount flo
 	return nil
 }
 
+// DeductBalanceStrict 见 service.UserRepository 接口注释：扣余额且不允许扣成负数。
+// 采用 `WHERE id = $id AND balance >= $amount` 的原子条件更新，避免读—判断—写的竞态。
+func (r *userRepository) DeductBalanceStrict(ctx context.Context, id int64, amount float64) error {
+	if amount < 0 {
+		return service.ErrInsufficientBalance
+	}
+	client := clientFromContext(ctx, r.client)
+	n, err := client.User.Update().
+		Where(dbuser.IDEQ(id), dbuser.BalanceGTE(amount)).
+		AddBalance(-amount).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	// 没扣到：要么用户不存在，要么余额不足。区分一下让上层错误码更准。
+	exists, err := client.User.Query().Where(dbuser.IDEQ(id)).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return service.ErrUserNotFound
+	}
+	return service.ErrInsufficientBalance
+}
+
 func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
 	client := clientFromContext(ctx, r.client)
 	n, err := client.User.Update().Where(dbuser.IDEQ(id)).AddConcurrency(amount).Save(ctx)
