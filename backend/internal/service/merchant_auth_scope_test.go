@@ -1,3 +1,5 @@
+//go:build unit
+
 // MERCHANT-SYSTEM v3.0
 // ValidateUserDomainScope 单元测试：覆盖 7 个核心场景。
 
@@ -8,8 +10,6 @@ import (
 	"errors"
 	"testing"
 )
-
-func ptrInt64(v int64) *int64 { return &v }
 
 func TestValidateUserDomainScope_MerchantSystemDisabled(t *testing.T) {
 	// 商户系统关闭：任何用户在任何域名都放行。
