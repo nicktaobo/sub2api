@@ -406,9 +406,19 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
-                <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                  + {{ t('common.add', 'Add') }}
-                </button>
+                <div class="flex items-center gap-3">
+                  <button
+                    v-if="section.model_pricing.length > 0"
+                    type="button"
+                    @click="openFillDialog(sIdx)"
+                    class="text-xs text-primary-600 hover:text-primary-700"
+                  >
+                    ⚡ {{ t('admin.channels.bulkFill.button', '按官方价批量填充') }}
+                  </button>
+                  <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                    + {{ t('common.add', 'Add') }}
+                  </button>
+                </div>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -580,6 +590,51 @@
                 ? t('common.update', 'Update')
                 : t('common.create', 'Create')
             }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <!-- Bulk fill from official pricing -->
+    <BaseDialog
+      :show="fillDialog.show"
+      :title="t('admin.channels.bulkFill.title', '按官方价批量填充')"
+      width="normal"
+      @close="fillDialog.show = false"
+    >
+      <form id="bulk-fill-form" class="space-y-4" @submit.prevent="submitBulkFill">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          {{ t('admin.channels.bulkFill.description', '本平台所有定价条目用各自第一个模型的官方价 × 倍率填充。多模型条目以第一个模型为准；阶梯定价不动。') }}
+        </p>
+        <div>
+          <label class="input-label">{{ t('admin.channels.bulkFill.multiplier', '倍率') }}</label>
+          <input
+            v-model.number="fillDialog.multiplier"
+            type="number"
+            min="0.0001"
+            step="0.0001"
+            required
+            class="input"
+          />
+          <p class="mt-1 text-xs text-gray-500">
+            {{ t('admin.channels.bulkFill.multiplierHint', '最终价 = 官方价 × 倍率。例：1.0 = 官方价，1.2 = 加价 20%。') }}
+          </p>
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="fillDialog.overwriteExisting" type="checkbox" class="rounded" />
+          <span>{{ t('admin.channels.bulkFill.overwrite', '覆盖已有价格的条目') }}</span>
+        </label>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button class="btn btn-secondary" @click="fillDialog.show = false">{{ t('common.cancel', 'Cancel') }}</button>
+          <button
+            type="submit"
+            form="bulk-fill-form"
+            :disabled="fillDialog.submitting"
+            class="btn btn-primary"
+          >
+            {{ fillDialog.submitting ? t('admin.channels.bulkFill.filling', '填充中...') : t('common.confirm', '确认') }}
           </button>
         </div>
       </template>
@@ -840,6 +895,80 @@ function updatePricingEntry(sectionIdx: number, idx: number, updated: PricingFor
 
 function removePricingEntry(sectionIdx: number, idx: number) {
   form.platforms[sectionIdx].model_pricing.splice(idx, 1)
+}
+
+// ── Bulk fill from official pricing ──
+// 对当前 platform section 内所有 entry，用各自第一个模型的官方价 × 倍率
+// 批量回填 token 价（input/output/cache_*/image_output_price），阶梯定价不动。
+const fillDialog = reactive({
+  show: false,
+  sectionIdx: null as number | null,
+  multiplier: 1,
+  overwriteExisting: true,
+  submitting: false,
+})
+
+function openFillDialog(sIdx: number) {
+  fillDialog.sectionIdx = sIdx
+  fillDialog.multiplier = 1
+  fillDialog.overwriteExisting = true
+  fillDialog.submitting = false
+  fillDialog.show = true
+}
+
+function scaleOrNull(v: number | null, m: number): number | null {
+  if (v == null) return null
+  return Number((v * m).toPrecision(10))
+}
+
+async function submitBulkFill() {
+  if (fillDialog.sectionIdx == null) return
+  fillDialog.submitting = true
+  const section = form.platforms[fillDialog.sectionIdx]
+  const entries = section.model_pricing
+  let filled = 0
+  let skipped = 0
+  let notFound = 0
+  try {
+    await Promise.all(entries.map(async (entry, idx) => {
+      if (!entry.models || entry.models.length === 0) {
+        skipped++
+        return
+      }
+      const hasPrice =
+        entry.input_price != null ||
+        entry.output_price != null ||
+        entry.cache_write_price != null ||
+        entry.cache_read_price != null
+      if (hasPrice && !fillDialog.overwriteExisting) {
+        skipped++
+        return
+      }
+      try {
+        const result = await adminAPI.channels.getModelDefaultPricing(entry.models[0])
+        if (!result.found) {
+          notFound++
+          return
+        }
+        const m = fillDialog.multiplier
+        section.model_pricing.splice(idx, 1, {
+          ...entry,
+          input_price: scaleOrNull(perTokenToMTok(result.input_price ?? null), m),
+          output_price: scaleOrNull(perTokenToMTok(result.output_price ?? null), m),
+          cache_write_price: scaleOrNull(perTokenToMTok(result.cache_write_price ?? null), m),
+          cache_read_price: scaleOrNull(perTokenToMTok(result.cache_read_price ?? null), m),
+          image_output_price: scaleOrNull(perTokenToMTok(result.image_output_price ?? null), m),
+        })
+        filled++
+      } catch {
+        notFound++
+      }
+    }))
+    appStore.showSuccess(t('admin.channels.bulkFill.result', { filled, skipped, notFound }))
+    fillDialog.show = false
+  } finally {
+    fillDialog.submitting = false
+  }
 }
 
 // ── Model Mapping helpers ──
