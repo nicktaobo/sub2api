@@ -25,8 +25,11 @@
               <div class="mt-1 text-2xl font-bold text-purple-600">¥{{ fmt(stats?.total_recharge) }}</div>
             </div>
             <div class="card p-4">
-              <div class="text-xs text-gray-500">{{ t('merchant.owner.stats.totalShare') }}</div>
-              <div class="mt-1 text-2xl font-bold text-emerald-600">¥{{ fmt(stats?.total_share) }}</div>
+              <div class="text-xs text-gray-500">{{ t('merchant.owner.stats.totalProfit') }}</div>
+              <div class="mt-1 text-2xl font-bold text-emerald-600">¥{{ fmt(stats?.total_profit) }}</div>
+              <div v-if="selfRechargeAmount > 0" class="mt-1 text-[11px] text-gray-400">
+                {{ t('merchant.owner.stats.totalProfitHint', { amount: fmt(selfRechargeAmount) }) }}
+              </div>
             </div>
             <div class="card p-4">
               <div class="text-xs text-gray-500">{{ t('merchant.owner.stats.withdrawn') }}</div>
@@ -115,8 +118,15 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 
-// 顶部统计卡片：总充值 / 总分成 / 已提现 / 待提现 / 可用余额。
+// 顶部统计卡片：总充值 / 累计利润 / 已提现 / 待提现 / 可用余额。
 const stats = ref<MerchantStats | null>(null)
+
+// 累计自充值 = total_share − total_profit；用作"累计利润"卡片底部提示。
+const selfRechargeAmount = computed(() => {
+  if (!stats.value) return 0
+  const v = Number(stats.value.total_share ?? 0) - Number(stats.value.total_profit ?? 0)
+  return v > 0 ? v : 0
+})
 
 function fmt(n?: number): string {
   return Number(n ?? 0).toFixed(2)

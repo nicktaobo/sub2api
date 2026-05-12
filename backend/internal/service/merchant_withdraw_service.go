@@ -20,7 +20,8 @@ import (
 // MerchantStats 商户分成统计。
 type MerchantStats struct {
 	TotalRecharge    float64 `json:"total_recharge"`    // sub_user 累计充值
-	TotalShare       float64 `json:"total_share"`       // 累计分成
+	TotalProfit      float64 `json:"total_profit"`      // 纯利润：仅 user_markup_share（消费倍率差）
+	TotalShare       float64 `json:"total_share"`       // 累计入账：user_markup_share + self_recharge（提现额度基础）
 	WithdrawnAmount  float64 `json:"withdrawn_amount"`  // 已提现 paid
 	PendingWithdraw  float64 `json:"pending_withdraw"`  // 审核中 (pending+approved)
 	AvailableBalance float64 `json:"available_balance"` // 可提现
@@ -66,6 +67,18 @@ func (s *MerchantService) GetMerchantStats(ctx context.Context, merchantID int64
 		  AND direction = 'credit'
 		  AND source IN ('user_markup_share', 'self_recharge')
 	`, merchantID).Scan(&stats.TotalShare); err != nil {
+		return nil, err
+	}
+
+	// 纯利润：仅消费倍率差产生的分成（不含自充值本金）。v3.0 后唯一进商户钱包
+	// 的利润来源就是 user_markup_share；前端"累计分成"卡片用这个值更符合语义。
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(amount), 0)::float8
+		FROM merchant_ledger
+		WHERE merchant_id = $1
+		  AND direction = 'credit'
+		  AND source = 'user_markup_share'
+	`, merchantID).Scan(&stats.TotalProfit); err != nil {
 		return nil, err
 	}
 

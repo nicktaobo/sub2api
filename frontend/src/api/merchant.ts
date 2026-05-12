@@ -563,6 +563,9 @@ export interface DNSSetupInfo {
 
 export interface MerchantStats {
   total_recharge: number
+  /** v3.0 纯利润：仅来自子用户消费倍率差（user_markup_share）。 */
+  total_profit: number
+  /** 累计入账（含 owner 自充本金），作为提现额度基础。 */
   total_share: number
   withdrawn_amount: number
   pending_withdraw: number
