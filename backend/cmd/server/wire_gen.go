@@ -256,7 +256,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	totpHandler := handler.NewTotpHandler(totpService)
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService, channelService)
 	paymentWebhookHandler := handler.NewPaymentWebhookHandler(paymentService, registry)
-	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService, billingService)
+	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService, billingService, merchantPricingService)
 	merchantBrandHandler := handler.NewMerchantBrandHandler(merchantService, settingService)
 	handlerMerchantHandler := handler.NewMerchantHandler(merchantService, userService)
 	merchantLogoHandler := handler.NewMerchantLogoHandler(merchantService)

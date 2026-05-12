@@ -238,3 +238,44 @@ func (s *MerchantPricingService) lookupRate(m map[int64]float64, groupID int64) 
 	v, ok := m[groupID]
 	return v, ok
 }
+
+// LookupSellRateForUser 在前端展示场景下返回某 user 在某 group 的"实际看到的"
+// 售价倍率。仅对**商户 sub_user**（不含 owner，不含主站普通用户）且商户在该 group
+// 配过 sell_rate 时返回 (sellRate, true)，其余场景返回 (0, false) — 调用方据此
+// 回退到 group.rate_multiplier。
+//
+// 复用 ApplyUsageMarkup 的双层缓存与查找路径，保持"展示价 = 计费价"一致。
+func (s *MerchantPricingService) LookupSellRateForUser(ctx context.Context, userID, groupID int64) (float64, bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Merchant.Enabled {
+		return 0, false
+	}
+	if userID <= 0 || groupID <= 0 {
+		return 0, false
+	}
+	merchantID, ok := s.userMerchantCache.Get(userID)
+	if !ok {
+		mid, err := s.repo.LookupMerchantIDForUser(ctx, userID)
+		if err != nil {
+			return 0, false
+		}
+		merchantID = mid
+		s.userMerchantCache.Set(userID, merchantID)
+	}
+	if merchantID == 0 {
+		return 0, false
+	}
+	pricing, ok := s.merchantPricingCache.Get(merchantID)
+	if !ok {
+		p, err := s.repo.LoadPricing(ctx, merchantID)
+		if err != nil || p == nil {
+			return 0, false
+		}
+		pricing = p
+		s.merchantPricingCache.Set(merchantID, pricing)
+	}
+	// owner 自用按主站价（与 ApplyUsageMarkup owner 分支一致）；suspended 也不替换。
+	if pricing.OwnerUserID == userID || pricing.Status != MerchantStatusActive {
+		return 0, false
+	}
+	return s.lookupRate(pricing.GroupSellRates, groupID)
+}

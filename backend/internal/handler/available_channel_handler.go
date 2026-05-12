@@ -21,10 +21,11 @@ import (
 //  4. 字段白名单：仅返回用户需要的字段（省略 BillingModelSource / RestrictModels
 //     / 内部 ID / Status 等管理字段）。
 type AvailableChannelHandler struct {
-	channelService *service.ChannelService
-	apiKeyService  *service.APIKeyService
-	settingService *service.SettingService
-	billingService *service.BillingService
+	channelService  *service.ChannelService
+	apiKeyService   *service.APIKeyService
+	settingService  *service.SettingService
+	billingService  *service.BillingService
+	merchantPricing *service.MerchantPricingService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -33,12 +34,14 @@ func NewAvailableChannelHandler(
 	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
 	billingService *service.BillingService,
+	merchantPricing *service.MerchantPricingService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
-		channelService: channelService,
-		apiKeyService:  apiKeyService,
-		settingService: settingService,
-		billingService: billingService,
+		channelService:  channelService,
+		apiKeyService:   apiKeyService,
+		settingService:  settingService,
+		billingService:  billingService,
+		merchantPricing: merchantPricing,
 	}
 }
 
@@ -174,8 +177,46 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	}
 
 	h.enrichOfficialPricing(out)
+	h.applyMerchantSellRate(c, subject.UserID, out)
 
 	response.Success(c, out)
+}
+
+// applyMerchantSellRate 商户 sub_user 视角下，把每个 group 的 RateMultiplier
+// 替换成商户配置的 sell_rate（商户没配的 group 维持主站价）。
+// 这保证前端展示的"我看到的倍率"和实际计费时 sub_user 余额扣的钱一致。
+func (h *AvailableChannelHandler) applyMerchantSellRate(c *gin.Context, userID int64, out []userAvailableChannel) {
+	if h.merchantPricing == nil || userID <= 0 {
+		return
+	}
+	ctx := c.Request.Context()
+	cache := make(map[int64]float64, 8)
+	miss := make(map[int64]struct{}, 8)
+	lookup := func(groupID int64) (float64, bool) {
+		if v, ok := cache[groupID]; ok {
+			return v, true
+		}
+		if _, hit := miss[groupID]; hit {
+			return 0, false
+		}
+		v, ok := h.merchantPricing.LookupSellRateForUser(ctx, userID, groupID)
+		if ok {
+			cache[groupID] = v
+		} else {
+			miss[groupID] = struct{}{}
+		}
+		return v, ok
+	}
+	for ci := range out {
+		for si := range out[ci].Platforms {
+			groups := out[ci].Platforms[si].Groups
+			for gi := range groups {
+				if v, ok := lookup(groups[gi].ID); ok {
+					groups[gi].RateMultiplier = v
+				}
+			}
+		}
+	}
 }
 
 // enrichOfficialPricing 为每个模型补充官方价（来自 LiteLLM 价格表，USD/per token）。
