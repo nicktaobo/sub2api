@@ -81,14 +81,11 @@ export interface MerchantLedgerEntry {
 export interface MerchantAuditLogEntry {
   id: number
   merchant_id: number
-  actor_user_id: number
-  actor_email?: string | null
-  actor_username?: string | null
-  action: string
+  admin_id?: number | null
+  field: string
+  old_value?: string | null
+  new_value?: string | null
   reason?: string | null
-  before?: Record<string, unknown> | null
-  after?: Record<string, unknown> | null
-  metadata?: Record<string, unknown> | null
   created_at: string
 }
 
@@ -197,6 +194,26 @@ export async function adminMerchantCreate(payload: CreateMerchantPayload): Promi
 /** GET /admin/merchants/:id */
 export async function adminMerchantGet(id: number): Promise<Merchant> {
   const { data } = await apiClient.get<Merchant>(`/admin/merchants/${id}`)
+  return data
+}
+
+/** Admin 视角看某商户的全量统计（利润 / 本金 / 提现 / 子用户规模）。 */
+export interface AdminMerchantStats {
+  total_profit: number
+  current_balance: number
+  total_self_recharge: number
+  total_pay_to_user: number
+  total_refund_from_user: number
+  total_withdrawn: number
+  pending_withdraw: number
+  sub_user_count: number
+  sub_user_total_balance: number
+  sub_user_total_recharge: number
+}
+
+/** GET /admin/merchants/:id/stats */
+export async function adminMerchantStats(id: number): Promise<AdminMerchantStats> {
+  const { data } = await apiClient.get<AdminMerchantStats>(`/admin/merchants/${id}/stats`)
   return data
 }
 
@@ -660,6 +677,7 @@ export const merchantAPI = {
   adminList: adminMerchantList,
   adminCreate: adminMerchantCreate,
   adminGet: adminMerchantGet,
+  adminStats: adminMerchantStats,
   adminSetStatus: adminMerchantSetStatus,
   adminRecharge: adminMerchantRecharge,
   adminRefund: adminMerchantRefund,

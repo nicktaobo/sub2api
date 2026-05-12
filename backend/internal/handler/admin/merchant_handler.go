@@ -121,6 +121,21 @@ func (h *MerchantHandler) Get(c *gin.Context) {
 	response.Success(c, m)
 }
 
+// Stats admin 视角看某商户的全量统计（利润 / 本金 / 提现 / 子用户规模）。
+func (h *MerchantHandler) Stats(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	s, err := h.merchantSvc.GetAdminMerchantStats(c.Request.Context(), id)
+	if err != nil {
+		writeError(c, err, http.StatusInternalServerError)
+		return
+	}
+	response.Success(c, s)
+}
+
 // ----------------------------------------------------------------------------
 // Status / Recharge / Refund
 // ----------------------------------------------------------------------------

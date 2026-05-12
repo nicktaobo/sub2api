@@ -92,6 +92,125 @@ func (s *MerchantService) GetMerchantStats(ctx context.Context, merchantID int64
 	return stats, nil
 }
 
+// AdminMerchantStats admin 视角看某个商户的全量统计（区分利润 vs 本金）。
+type AdminMerchantStats struct {
+	TotalProfit          float64 `json:"total_profit"`            // user_markup_share credit sum（核心利润）
+	CurrentBalance       float64 `json:"current_balance"`         // owner.balance 当前可用现金
+	TotalSelfRecharge    float64 `json:"total_self_recharge"`     // self_recharge credit sum（本金）
+	TotalPayToUser       float64 `json:"total_pay_to_user"`       // pay_to_user debit sum
+	TotalRefundFromUser  float64 `json:"total_refund_from_user"`  // refund_from_user credit sum
+	TotalWithdrawn       float64 `json:"total_withdrawn"`         // 已提现 paid
+	PendingWithdraw      float64 `json:"pending_withdraw"`        // 审核中 pending+approved
+	SubUserCount         int     `json:"sub_user_count"`
+	SubUserTotalBalance  float64 `json:"sub_user_total_balance"`  // 子用户余额合计
+	SubUserTotalRecharge float64 `json:"sub_user_total_recharge"` // 子用户累计充值
+}
+
+// GetAdminMerchantStats admin 端：返回某商户全量统计（利润和本金分项）。
+func (s *MerchantService) GetAdminMerchantStats(ctx context.Context, merchantID int64) (*AdminMerchantStats, error) {
+	if !s.enabled() {
+		return nil, ErrMerchantInvalidParam
+	}
+	m, err := s.repo.GetByID(ctx, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	db, err := s.sqlDB()
+	if err != nil {
+		return nil, err
+	}
+	stats := &AdminMerchantStats{}
+
+	// owner 当前余额
+	if err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(balance, 0)::float8 FROM users WHERE id = $1`,
+		m.OwnerUserID,
+	).Scan(&stats.CurrentBalance); err != nil {
+		return nil, err
+	}
+
+	// merchant_ledger 按 source 分组聚合（一次查询拿全 5 个 source 的总额）
+	rows, err := db.QueryContext(ctx, `
+		SELECT source, direction, COALESCE(SUM(amount), 0)::float8
+		FROM merchant_ledger
+		WHERE merchant_id = $1
+		GROUP BY source, direction
+	`, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var source, direction string
+		var amount float64
+		if err := rows.Scan(&source, &direction, &amount); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		switch source {
+		case MerchantSourceUserMarkupShare:
+			if direction == MerchantLedgerDirectionCredit {
+				stats.TotalProfit += amount
+			}
+		case MerchantSourceSelfRecharge:
+			if direction == MerchantLedgerDirectionCredit {
+				stats.TotalSelfRecharge += amount
+			}
+		case MerchantSourcePayToUser:
+			if direction == MerchantLedgerDirectionDebit {
+				stats.TotalPayToUser += amount
+			}
+		case MerchantSourceRefundFromUser:
+			if direction == MerchantLedgerDirectionCredit {
+				stats.TotalRefundFromUser += amount
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+
+	// 提现：已支付 / 审核中
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(amount), 0)::float8
+		FROM merchant_withdraw_requests
+		WHERE merchant_id = $1 AND status = 'paid'
+	`, merchantID).Scan(&stats.TotalWithdrawn); err != nil {
+		return nil, err
+	}
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(amount), 0)::float8
+		FROM merchant_withdraw_requests
+		WHERE merchant_id = $1 AND status IN ('pending', 'approved')
+	`, merchantID).Scan(&stats.PendingWithdraw); err != nil {
+		return nil, err
+	}
+
+	// 子用户规模
+	if err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(balance), 0)::float8
+		FROM users
+		WHERE parent_merchant_id = $1 AND deleted_at IS NULL
+	`, merchantID).Scan(&stats.SubUserCount, &stats.SubUserTotalBalance); err != nil {
+		return nil, err
+	}
+
+	// 子用户累计充值
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(po.amount), 0)::float8
+		FROM payment_orders po
+		JOIN users u ON u.id = po.user_id
+		WHERE u.parent_merchant_id = $1
+		  AND po.status IN ('completed', 'paid')
+		  AND po.order_type = 'balance'
+	`, merchantID).Scan(&stats.SubUserTotalRecharge); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
 // CreateWithdrawInput owner 申请提现。
 type CreateWithdrawInput struct {
 	MerchantID     int64

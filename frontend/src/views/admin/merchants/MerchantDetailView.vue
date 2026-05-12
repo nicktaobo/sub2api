@@ -54,53 +54,117 @@
           </nav>
         </div>
 
-        <!-- Info tab -->
+        <!-- Stats overview tab -->
         <div v-if="activeTab === 'info'" class="space-y-6 p-6">
-          <div v-if="!merchant" class="py-8 text-center text-gray-500">{{ t('common.loading') }}</div>
-          <template v-else>
-            <div class="grid gap-4 md:grid-cols-2">
-              <div>
-                <label class="input-label">{{ t('merchant.fields.lowBalanceThreshold') }}</label>
-                <input
-                  v-model.number="form.low_balance_threshold"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  class="input"
-                  disabled
-                />
-                <p class="mt-1 text-xs text-gray-400">{{ t('merchant.detail.thresholdReadonlyHint') }}</p>
+          <div v-if="!merchant || loadingStats" class="py-8 text-center text-gray-500">{{ t('common.loading') }}</div>
+          <template v-else-if="stats">
+            <!-- 4 张核心 KPI 卡片 -->
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-700/40 dark:bg-emerald-900/10">
+                <div class="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                  {{ t('merchant.adminStats.totalProfit') }}
+                </div>
+                <div class="mt-2 font-mono text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                  ${{ fmt(stats.total_profit) }}
+                </div>
+                <div class="mt-1 text-[11px] text-emerald-700/70 dark:text-emerald-300/70">
+                  {{ t('merchant.adminStats.totalProfitHint') }}
+                </div>
               </div>
-              <div>
-                <label class="input-label">{{ t('merchant.fields.notifyEmails') }}</label>
-                <textarea
-                  v-model="form.notify_emails_str"
-                  class="input"
-                  rows="2"
-                  disabled
-                ></textarea>
-                <p class="mt-1 text-xs text-gray-400">{{ t('merchant.detail.notifyEmailsReadonlyHint') }}</p>
+              <div class="rounded-lg border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-700/40 dark:bg-blue-900/10">
+                <div class="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                  {{ t('merchant.adminStats.currentBalance') }}
+                </div>
+                <div class="mt-2 font-mono text-2xl font-bold text-blue-700 dark:text-blue-300">
+                  ${{ fmt(stats.current_balance) }}
+                </div>
+                <div class="mt-1 text-[11px] text-blue-700/70 dark:text-blue-300/70">
+                  {{ t('merchant.adminStats.currentBalanceHint') }}
+                </div>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800/50">
+                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  {{ t('merchant.adminStats.subUserCount') }}
+                </div>
+                <div class="mt-2 font-mono text-2xl font-bold text-gray-900 dark:text-white">
+                  {{ stats.sub_user_count }}
+                </div>
+                <div class="mt-1 text-[11px] text-gray-500">
+                  {{ t('merchant.adminStats.subUserTotalBalance') }}: ${{ fmt(stats.sub_user_total_balance) }}
+                </div>
+              </div>
+              <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-700/40 dark:bg-amber-900/10">
+                <div class="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  {{ t('merchant.adminStats.pendingWithdraw') }}
+                </div>
+                <div class="mt-2 font-mono text-2xl font-bold text-amber-700 dark:text-amber-300">
+                  ${{ fmt(stats.pending_withdraw) }}
+                </div>
+                <div class="mt-1 text-[11px] text-amber-700/70 dark:text-amber-300/70">
+                  {{ t('merchant.adminStats.totalWithdrawn') }}: ${{ fmt(stats.total_withdrawn) }}
+                </div>
               </div>
             </div>
 
+            <!-- 资金流转明细 -->
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/50">
               <h3 class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                {{ t('merchant.detail.metrics') }}
+                {{ t('merchant.adminStats.fundsFlowTitle') }}
               </h3>
-              <div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2 md:grid-cols-3">
                 <div>
-                  <div class="text-xs text-gray-500">{{ t('merchant.fields.balanceBaseline') }}</div>
-                  <div class="font-mono text-lg">${{ Number(merchant.balance_baseline ?? 0).toFixed(2) }}</div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.totalSelfRecharge') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.total_self_recharge) }}</div>
                 </div>
                 <div>
-                  <div class="text-xs text-gray-500">{{ t('merchant.fields.ownerBalance') }}</div>
-                  <div class="font-mono text-lg">${{ Number(merchant.owner_balance ?? 0).toFixed(2) }}</div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.totalPayToUser') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.total_pay_to_user) }}</div>
                 </div>
                 <div>
-                  <div class="text-xs text-gray-500">{{ t('merchant.fields.createdAt') }}</div>
-                  <div class="text-sm">{{ formatDateTime(merchant.created_at) }}</div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.totalRefundFromUser') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.total_refund_from_user) }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.subUserTotalRecharge') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.sub_user_total_recharge) }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.totalWithdrawn') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.total_withdrawn) }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.adminStats.subUserTotalBalance') }}</div>
+                  <div class="font-mono text-base">${{ fmt(stats.sub_user_total_balance) }}</div>
                 </div>
               </div>
+            </div>
+
+            <!-- 商户元数据 -->
+            <div class="rounded-lg border border-gray-100 bg-white p-4 dark:border-dark-700 dark:bg-dark-800/30">
+              <h3 class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                {{ t('merchant.adminStats.metaTitle') }}
+              </h3>
+              <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2 md:grid-cols-3 text-sm">
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.fields.createdAt') }}</div>
+                  <div>{{ formatDateTime(merchant.created_at) }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.fields.balanceBaseline') }}</div>
+                  <div class="font-mono">${{ Number(merchant.balance_baseline ?? 0).toFixed(2) }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t('merchant.fields.lowBalanceThreshold') }}</div>
+                  <div class="font-mono">${{ Number(merchant.low_balance_threshold ?? 0).toFixed(2) }}</div>
+                </div>
+                <div class="sm:col-span-2 md:col-span-3">
+                  <div class="text-xs text-gray-500">{{ t('merchant.fields.notifyEmails') }}</div>
+                  <div class="break-all text-gray-600 dark:text-gray-300">
+                    {{ notifyEmailsDisplay || t('merchant.adminStats.notifyEmailsEmpty') }}
+                  </div>
+                </div>
+              </div>
+              <p class="mt-3 text-xs text-gray-400">{{ t('merchant.adminStats.metaReadonlyHint') }}</p>
             </div>
           </template>
         </div>
@@ -195,11 +259,19 @@
         <div v-if="activeTab === 'audit'" class="p-6">
           <DataTable :columns="auditColumns" :data="audit" :loading="loadingAudit">
             <template #cell-actor="{ row }">
-              <span class="text-sm">#{{ row.actor_user_id }}</span>
-              <span v-if="row.actor_email" class="ml-1 text-xs text-gray-500">{{ row.actor_email }}</span>
+              <span v-if="row.admin_id" class="text-sm">admin #{{ row.admin_id }}</span>
+              <span v-else class="text-sm italic text-gray-500">{{ t('merchant.auditActor.system') }}</span>
             </template>
-            <template #cell-action="{ value }">
-              <span class="font-mono text-xs">{{ value }}</span>
+            <template #cell-action="{ row }">
+              <span class="font-mono text-xs">{{ auditFieldLabel(row.field) }}</span>
+            </template>
+            <template #cell-change="{ row }">
+              <div class="text-xs leading-tight">
+                <span v-if="row.old_value" class="text-rose-600 line-through">{{ row.old_value }}</span>
+                <span v-if="row.old_value && row.new_value" class="mx-1 text-gray-400">→</span>
+                <span v-if="row.new_value" class="text-emerald-700 dark:text-emerald-400">{{ row.new_value }}</span>
+                <span v-if="!row.old_value && !row.new_value" class="text-gray-400">-</span>
+              </div>
             </template>
             <template #cell-reason="{ value }">
               <span class="text-sm">{{ value || '-' }}</span>
@@ -332,6 +404,7 @@ import {
   type MerchantLedgerEntry,
   type MerchantAuditLogEntry,
 } from '@/api'
+import type { AdminMerchantStats } from '@/api/merchant'
 import { groupsAPI } from '@/api/admin'
 import type { AdminGroup } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -353,32 +426,41 @@ const tabs = computed(() => [
   { value: 'audit' as const, label: t('merchant.detail.tabs.audit') },
 ])
 
-// Form state
-const form = reactive({
-  low_balance_threshold: 0,
-  notify_emails_str: '',
+// 统计概览（admin 视角）
+const stats = ref<AdminMerchantStats | null>(null)
+const loadingStats = ref(false)
+
+const notifyEmailsDisplay = computed(() => {
+  if (!merchant.value) return ''
+  const emails = merchant.value.notify_emails
+  if (!Array.isArray(emails)) return ''
+  return emails
+    .map((e) => (typeof e === 'string' ? e : e?.email ?? ''))
+    .filter(Boolean)
+    .join(', ')
 })
 
-function syncFormFromMerchant(): void {
-  if (!merchant.value) return
-  form.low_balance_threshold = Number(merchant.value.low_balance_threshold ?? 0)
-  const emails = merchant.value.notify_emails
-  if (Array.isArray(emails)) {
-    form.notify_emails_str = emails
-      .map((e) => (typeof e === 'string' ? e : e?.email ?? ''))
-      .filter(Boolean)
-      .join(', ')
-  } else {
-    form.notify_emails_str = ''
-  }
+function fmt(n: number | null | undefined): string {
+  return Number(n ?? 0).toFixed(2)
 }
 
 async function loadMerchant(): Promise<void> {
   try {
     merchant.value = await merchantAPI.adminGet(merchantId.value)
-    syncFormFromMerchant()
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  }
+}
+
+async function loadStats(): Promise<void> {
+  if (!merchantId.value) return
+  loadingStats.value = true
+  try {
+    stats.value = await merchantAPI.adminStats(merchantId.value)
+  } catch (err) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  } finally {
+    loadingStats.value = false
   }
 }
 
@@ -604,8 +686,16 @@ const auditColumns = computed<Column[]>(() => [
   { key: 'created_at', label: t('merchant.fields.time') },
   { key: 'actor', label: t('merchant.fields.actor') },
   { key: 'action', label: t('merchant.fields.action') },
+  { key: 'change', label: t('merchant.fields.change') },
   { key: 'reason', label: t('merchant.fields.reason') },
 ])
+
+// 把 audit field 枚举值翻译成可读标签，未知值原样返回。
+function auditFieldLabel(field: string): string {
+  const key = `merchant.auditFields.${field}`
+  const translated = t(key)
+  return translated === key ? field : translated
+}
 
 async function loadAudit(): Promise<void> {
   loadingAudit.value = true
@@ -653,5 +743,6 @@ function goBack(): void {
 
 onMounted(() => {
   void loadMerchant()
+  void loadStats()
 })
 </script>
