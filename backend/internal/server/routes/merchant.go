@@ -34,6 +34,7 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.GET("/stats", mh.GetStats)
 		g.GET("/sub_users", mh.ListSubUsers)
 		g.POST("/pay", mh.PayToUser)
+		g.POST("/refund", mh.RefundFromUser)
 		g.GET("/ledger", mh.ListLedger)
 		g.GET("/group_markups", mh.ListGroupMarkups)
 		g.GET("/pricing_groups", mh.ListPricingGroups)
