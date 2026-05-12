@@ -426,6 +426,15 @@ export async function merchantPayToUser(
   return data
 }
 
+/** POST /merchant/refund — 商户从子用户撤回余额（sub_user.balance → owner.balance） */
+export async function merchantRefundFromUser(
+  sub_user_id: number,
+  amount: number,
+  reason?: string,
+): Promise<void> {
+  await apiClient.post('/merchant/refund', { sub_user_id, amount, reason })
+}
+
 /** GET /merchant/ledger */
 export async function merchantListLedger(
   offset = 0,
@@ -683,6 +692,7 @@ export const merchantAPI = {
   info: merchantInfo,
   listSubUsers: merchantListSubUsers,
   payToUser: merchantPayToUser,
+  refundFromUser: merchantRefundFromUser,
   listLedger: merchantListLedger,
   listGroupMarkups: merchantListGroupMarkups,
   listPricingGroups: merchantListPricingGroups,

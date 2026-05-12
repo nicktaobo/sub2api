@@ -66,9 +66,19 @@
               <td class="px-4 py-3 text-gray-500">{{ u.created_at ? formatDateTime(u.created_at) : '-' }}</td>
               <td class="px-4 py-3 text-gray-500">{{ u.last_active_at ? formatDateTime(u.last_active_at) : '-' }}</td>
               <td class="px-4 py-3 text-right">
-                <button class="btn btn-sm btn-primary" @click="openPay(u)">
-                  {{ t('merchant.owner.subUsers.payAction') }}
-                </button>
+                <div class="inline-flex items-center gap-2">
+                  <button class="btn btn-sm btn-primary" @click="openPay(u)">
+                    {{ t('merchant.owner.subUsers.payAction') }}
+                  </button>
+                  <button
+                    class="btn btn-sm btn-secondary"
+                    :disabled="!Number(u.balance)"
+                    :title="!Number(u.balance) ? t('merchant.owner.subUsers.refundDisabledNoBalance') : ''"
+                    @click="openRefund(u)"
+                  >
+                    {{ t('merchant.owner.subUsers.refundAction') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -118,6 +128,46 @@
           </button>
         </template>
       </BaseDialog>
+
+      <!-- 退款对话框 -->
+      <BaseDialog
+        :show="refundDialog.open"
+        :title="t('merchant.owner.subUsers.refundTitle')"
+        width="normal"
+        @close="refundDialog.open = false"
+      >
+        <div class="space-y-4">
+          <div class="rounded-md bg-amber-50 px-4 py-3 dark:bg-amber-900/20">
+            <p class="text-xs text-gray-500 dark:text-amber-300">{{ t('merchant.owner.subUsers.targetUser') }}</p>
+            <p class="font-medium">#{{ refundDialog.user?.id }} {{ refundDialog.user?.email }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-amber-300">
+              {{ t('merchant.owner.subUsers.currentBalance') }}: ${{ Number(refundDialog.user?.balance || 0).toFixed(2) }}
+            </p>
+          </div>
+          <div>
+            <label class="label">{{ t('merchant.owner.subUsers.refundAmount') }} <span class="text-red-500">*</span></label>
+            <input
+              v-model.number="refundDialog.amount"
+              type="number"
+              min="0"
+              :max="Number(refundDialog.user?.balance || 0)"
+              step="0.01"
+              class="input"
+            />
+            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.subUsers.refundHint') }}</p>
+          </div>
+          <div>
+            <label class="label">{{ t('merchant.owner.subUsers.reason') }}</label>
+            <textarea v-model="refundDialog.reason" rows="2" class="input"></textarea>
+          </div>
+        </div>
+        <template #footer>
+          <button class="btn btn-secondary" @click="refundDialog.open = false">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" :disabled="refunding" @click="onRefund">
+            {{ refunding ? t('common.saving') : t('merchant.owner.subUsers.confirmRefund') }}
+          </button>
+        </template>
+      </BaseDialog>
     </div>
   </AppLayout>
 </template>
@@ -144,8 +194,16 @@ const searchInput = ref('')
 const searchQuery = ref('')
 const loading = ref(false)
 const paying = ref(false)
+const refunding = ref(false)
 
 const payDialog = reactive({
+  open: false,
+  user: null as SubUserSummary | null,
+  amount: 0,
+  reason: '',
+})
+
+const refundDialog = reactive({
   open: false,
   user: null as SubUserSummary | null,
   amount: 0,
@@ -208,6 +266,40 @@ async function onPay() {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {
     paying.value = false
+  }
+}
+
+function openRefund(u: SubUserSummary) {
+  refundDialog.user = u
+  refundDialog.amount = 0
+  refundDialog.reason = ''
+  refundDialog.open = true
+}
+
+async function onRefund() {
+  if (!refundDialog.user || !refundDialog.amount || refundDialog.amount <= 0) {
+    appStore.showError(t('merchant.errors.invalidAmount'))
+    return
+  }
+  const userBalance = Number(refundDialog.user.balance || 0)
+  if (refundDialog.amount > userBalance) {
+    appStore.showError(t('merchant.owner.subUsers.refundExceedsBalance'))
+    return
+  }
+  refunding.value = true
+  try {
+    await merchantAPI.refundFromUser(
+      refundDialog.user.id,
+      refundDialog.amount,
+      refundDialog.reason || undefined,
+    )
+    appStore.showSuccess(t('merchant.owner.subUsers.refundSuccess'))
+    refundDialog.open = false
+    await load()
+  } catch (err) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  } finally {
+    refunding.value = false
   }
 }
 
