@@ -89,10 +89,22 @@ func ensureLoginUserActive(user *service.User) error {
 	return nil
 }
 
+func (h *AuthHandler) merchantEnabled() bool {
+	return h != nil && h.cfg != nil && h.cfg.Merchant.Enabled
+}
+
 // respondWithTokenPair 生成 Token 对并返回认证响应
 // 如果 Token 对生成失败，回退到只返回 Access Token（向后兼容）
 func (h *AuthHandler) respondWithTokenPair(c *gin.Context, user *service.User) {
 	if err := ensureLoginUserActive(user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// MERCHANT-SYSTEM v3.0：handler 收口再做一次域名归属校验，覆盖
+	// 注册 / TOTP 二次校验 / OAuth (handler 直签 token pair) 等所有走
+	// respondWithTokenPair 的路径。service 层入口已校验，此处是纵深防御。
+	if err := service.ValidateUserDomainScope(c.Request.Context(), user, h.merchantEnabled()); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

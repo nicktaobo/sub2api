@@ -466,6 +466,13 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 		return "", nil, ErrUserNotActive
 	}
 
+	// MERCHANT-SYSTEM v3.0：商户域名归属隔离——子用户必须从其所属商户域名登录，
+	// 主站登录禁止任何 sub_user 进入；OAuth/RefreshTokenPair 等所有签发 token 的入口
+	// 也都会再做一次同样的校验（纵深防御）。
+	if err := ValidateUserDomainScope(ctx, user, s.MerchantEnabled()); err != nil {
+		return "", nil, err
+	}
+
 	// 生成JWT token
 	token, err := s.GenerateToken(user)
 	if err != nil {
@@ -473,6 +480,11 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	}
 
 	return token, user, nil
+}
+
+// MerchantEnabled 暴露给上层（如 JWT 中间件）判断商户系统是否启用。
+func (s *AuthService) MerchantEnabled() bool {
+	return s != nil && s.cfg != nil && s.cfg.Merchant.Enabled
 }
 
 // LoginOrRegisterOAuth 用于第三方 OAuth/SSO 登录：
@@ -565,6 +577,10 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 		if err := s.userRepo.Update(ctx, user); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to update username after oauth login: %v", err)
 		}
+	}
+	// MERCHANT-SYSTEM v3.0：OAuth 登录入口域名归属校验。
+	if err := ValidateUserDomainScope(ctx, user, s.MerchantEnabled()); err != nil {
+		return "", nil, err
 	}
 	token, err := s.GenerateToken(user)
 	if err != nil {
@@ -721,6 +737,11 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 		if err := s.userRepo.Update(ctx, user); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to update username after oauth login: %v", err)
 		}
+	}
+	// MERCHANT-SYSTEM v3.0：OAuth 登录入口域名归属校验（新注册的用户已由
+	// user_repo.Create 自动绑定 parent_merchant_id，此处只拦"已有账号跨域名登录"）。
+	if err := ValidateUserDomainScope(ctx, user, s.MerchantEnabled()); err != nil {
+		return nil, nil, err
 	}
 	tokenPair, err := s.GenerateTokenPair(ctx, user, "")
 	if err != nil {
@@ -1364,6 +1385,13 @@ func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyI
 		return nil, errors.New("refresh token cache not configured")
 	}
 
+	// MERCHANT-SYSTEM v3.0：所有签发 token pair 的最终收口校验域名归属。
+	// 上层（Login / OAuth / Refresh / respondWithTokenPair）已经各自校验过，
+	// 这里再做一次保证 OAuth pending flow / 未来新加的 token 入口不会漏。
+	if err := ValidateUserDomainScope(ctx, user, s.MerchantEnabled()); err != nil {
+		return nil, err
+	}
+
 	// 生成Access Token
 	accessToken, err := s.GenerateToken(user)
 	if err != nil {
@@ -1493,6 +1521,13 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		// TokenVersion不匹配，撤销整个Token家族
 		_ = s.refreshTokenCache.DeleteTokenFamily(ctx, data.FamilyID)
 		return nil, ErrTokenRevoked
+	}
+
+	// MERCHANT-SYSTEM v3.0：refresh 等同于一次"再签发"，必须做域名归属校验。
+	// 拒绝时撤销整个 token 家族（用户切换域名后必须重新走登录入口）。
+	if err := ValidateUserDomainScope(ctx, user, s.MerchantEnabled()); err != nil {
+		_ = s.refreshTokenCache.DeleteTokenFamily(ctx, data.FamilyID)
+		return nil, err
 	}
 
 	// Token轮转：立即使旧Token失效
