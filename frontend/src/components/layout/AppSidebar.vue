@@ -679,7 +679,6 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   // 商户菜单仅对商户 owner 显示（普通用户 / 子用户不显示）。
   if (authStore.isMerchantOwner) {
     items.push(
-      { path: '/merchant/dashboard', label: t('nav.merchantWorkbench'), icon: DashboardIcon, hideInSimpleMode: true },
       { path: '/merchant/ledger', label: t('nav.merchantStats'), icon: ChartIcon, hideInSimpleMode: true },
       { path: '/merchant/withdrawals', label: t('nav.merchantWithdrawals'), icon: CreditCardIcon, hideInSimpleMode: true },
       { path: '/merchant/sub-users', label: t('nav.merchantSubUsers'), icon: UsersIcon, hideInSimpleMode: true },

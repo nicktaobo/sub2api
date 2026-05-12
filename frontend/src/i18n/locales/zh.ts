@@ -357,7 +357,6 @@ export default {
     affiliateTransferRecords: '提取记录',
     merchantManagement: '分销管理',
     merchantWithdrawReview: '提现审核',
-    merchantWorkbench: '商户工作台',
     merchantSubUsers: '用户管理',
     merchantLedger: '资金流水',
     merchantGroupPricing: '分组定价',
@@ -7065,13 +7064,6 @@ export default {
     },
     owner: {
       notMerchant: '当前账号不是商户所有者。',
-      dashboard: {
-        title: '商户工作台',
-        description: '查看商户基础信息、余额与近期收益',
-        balance: '当前余额',
-        todayEarnings: '近 24 小时收益',
-        last24h: '基于本地账本统计',
-      },
       subUsers: {
         title: '用户管理',
         description: '查看绑定到本商户的子用户，给他们充值（从你的余额转出）。',

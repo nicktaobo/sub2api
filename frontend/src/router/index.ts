@@ -632,18 +632,7 @@ const routes: RouteRecordRaw[] = [
   // ==================== Merchant Owner Routes ====================
   {
     path: '/merchant',
-    redirect: '/merchant/dashboard'
-  },
-  {
-    path: '/merchant/dashboard',
-    name: 'MerchantDashboard',
-    component: () => import('@/views/merchant/MerchantDashboard.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Merchant Dashboard',
-      titleKey: 'merchant.owner.dashboard.title'
-    }
+    redirect: '/merchant/ledger'
   },
   {
     path: '/merchant/sub-users',

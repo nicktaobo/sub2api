@@ -357,7 +357,6 @@ export default {
     affiliateTransferRecords: 'Transfer Records',
     merchantManagement: 'Resellers',
     merchantWithdrawReview: 'Withdraw Review',
-    merchantWorkbench: 'Merchant Workbench',
     merchantSubUsers: 'Users',
     merchantLedger: 'Ledger',
     merchantGroupPricing: 'Group Pricing',
@@ -6881,13 +6880,6 @@ export default {
     },
     owner: {
       notMerchant: 'Your account is not a merchant owner.',
-      dashboard: {
-        title: 'Merchant Dashboard',
-        description: 'Overview of merchant info, balance, and recent earnings.',
-        balance: 'Current Balance',
-        todayEarnings: 'Earnings (24h)',
-        last24h: 'Computed from your local ledger view',
-      },
       subUsers: {
         title: 'Users',
         description: 'View sub-users bound to this merchant and pay them from your balance.',
