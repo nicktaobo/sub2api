@@ -17,10 +17,9 @@ import (
 //
 // 关键约束：
 //   - owner_user_id UNIQUE：一个 user 最多是一个商户的 owner
-//   - discount ∈ (0,1]：充值环节比例（DB CHECK 在 SQL migration 中加）
 //
-// 消费侧倍率：v2.0 起改为 per-group cost_rate / sell_rate（见 merchant_group_costs /
-// merchant_group_markups），不再使用商户级兜底字段。
+// 利润模型：v3.0 起仅由消费侧 per-group sell_rate / cost_rate 倍率差产生
+// （见 merchant_group_costs / merchant_group_markups）。充值环节不再有折扣或分成。
 type Merchant struct {
 	ent.Schema
 }
@@ -50,10 +49,6 @@ func (Merchant) Fields() []ent.Field {
 			MaxLen(20).
 			Default("active").
 			Comment("active / suspended"),
-		field.Float("discount").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(6,4)"}).
-			Default(1.0).
-			Comment("充值环节比例 (0,1]；owner 充池实付 amount × discount，sub_user 充值 owner 得 (1-discount)×amount"),
 		field.Float("owner_balance_baseline").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).

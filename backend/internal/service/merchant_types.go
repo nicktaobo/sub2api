@@ -3,7 +3,7 @@
 //
 // 设计原则（RFC §2）：
 //   - 单一资金来源：merchant.owner_user_id 引用的 user.balance 即商户池子
-//   - 比例只在事件发生时立即固化为金额快照（discount/markup 历史不可变）
+//   - 比例只在事件发生时立即固化为金额快照（markup 历史不可变）
 //   - 所有写入路径有幂等键（idempotency_key UNIQUE）
 
 package service
@@ -79,9 +79,8 @@ const (
 	MerchantLedgerDirectionDebit  = "debit"
 
 	// outbox/ledger source 枚举（RFC §4.2.2.3）
-	MerchantSourceUserMarkupShare   = "user_markup_share"
-	MerchantSourceUserRechargeShare = "user_recharge_share"
-	MerchantSourceSelfRecharge      = "self_recharge"
+	MerchantSourceUserMarkupShare = "user_markup_share"
+	MerchantSourceSelfRecharge    = "self_recharge"
 	MerchantSourcePayToUser         = "pay_to_user"
 	MerchantSourceRefundFromUser    = "refund_from_user" // 商户从子用户撤回余额，回到 owner.balance
 	MerchantSourceRedeemCreate      = "redeem_create"
@@ -97,7 +96,6 @@ const (
 	MerchantRefTypeOutboxBatch       = "outbox_batch"
 
 	// audit log field 枚举
-	MerchantAuditFieldDiscount     = "discount"
 	MerchantAuditFieldGroupMarkup  = "group_markup"
 	MerchantAuditFieldGroupCost    = "group_cost"
 	MerchantAuditFieldGroupSell    = "group_sell"
@@ -118,7 +116,6 @@ type Merchant struct {
 	OwnerUserID          int64      `json:"owner_user_id"`
 	Name                 string     `json:"name"`
 	Status               string     `json:"status"`
-	Discount             float64    `json:"discount"`
 	OwnerBalanceBaseline float64    `json:"owner_balance_baseline"`
 	LowBalanceThreshold  float64    `json:"low_balance_threshold"`
 	NotifyEmails         []string   `json:"notify_emails"`
@@ -261,14 +258,13 @@ type MerchantRepository interface {
 	List(ctx context.Context, status string, offset, limit int) ([]*Merchant, int, error)
 	Update(ctx context.Context, m *Merchant) error
 	UpdateStatus(ctx context.Context, id int64, status string) error
-	UpdateDiscount(ctx context.Context, id int64, discount float64) error
 	SoftDelete(ctx context.Context, id int64) error
 
 	// LookupMerchantIDForUser 按 user_id 反查 merchant_id（同时识别 sub_user 与 owner）。
 	// 返回 0 表示不属于任何商户（普通主站用户）。RFC §5.2.1 Step 2.0。
 	LookupMerchantIDForUser(ctx context.Context, userID int64) (int64, error)
 
-	// LoadPricing 一次性加载某商户的 discount + 所有 active group cost/sell rates（用于 pricing cache）。
+	// LoadPricing 一次性加载某商户所有 active group cost/sell rates（用于 pricing cache）。
 	LoadPricing(ctx context.Context, merchantID int64) (*CachedMerchantPricing, error)
 }
 
@@ -325,13 +321,10 @@ type MerchantGroupCostRepository interface {
 // v2.0：消费侧改为 cost_rate / sell_rate 绝对倍率模型——
 //   - GroupCosts: admin 配置的商户拿货价（base × cost_rate = 平台从 sub_user 余额扣除部分）
 //   - GroupSellRates: 商户配置的对外售价（base × sell_rate = sub_user 实际余额扣款）
-//
-// Discount 字段保留但仅用于充值分成场景（payment_merchant_share），与消费计费无关。
 type CachedMerchantPricing struct {
 	MerchantID     int64
 	OwnerUserID    int64
 	Status         string
-	Discount       float64
 	GroupCosts     map[int64]float64
 	GroupSellRates map[int64]float64
 }

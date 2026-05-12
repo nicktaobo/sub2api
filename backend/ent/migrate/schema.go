@@ -787,7 +787,6 @@ var (
 		{Name: "owner_user_id", Type: field.TypeInt64, Unique: true},
 		{Name: "name", Type: field.TypeString, Size: 100},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
-		{Name: "discount", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(6,4)"}},
 		{Name: "owner_balance_baseline", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "low_balance_threshold", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "notify_emails", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},

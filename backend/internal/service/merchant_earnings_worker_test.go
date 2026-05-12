@@ -10,32 +10,24 @@ func TestSplitOutboxBySource(t *testing.T) {
 	rows := []outboxRow{
 		{ID: 1, MerchantID: 100, Source: MerchantSourceUserMarkupShare, Amount: 0.5},
 		{ID: 2, MerchantID: 100, Source: MerchantSourceUserMarkupShare, Amount: 1.5},
-		{ID: 3, MerchantID: 200, Source: MerchantSourceUserRechargeShare, Amount: 10},
 		{ID: 4, MerchantID: 100, Source: MerchantSourceSelfRecharge, Amount: 100, RefID: 50},
 		{ID: 5, MerchantID: 100, Source: MerchantSourceSelfRecharge, Amount: 200, RefID: 51},
 	}
 
 	agg, perRow := splitOutboxBySource(rows)
-	if len(agg) != 2 {
-		t.Fatalf("expected 2 aggregated groups, got %d", len(agg))
+	if len(agg) != 1 {
+		t.Fatalf("expected 1 aggregated group, got %d", len(agg))
 	}
 	if len(perRow) != 2 {
 		t.Fatalf("expected 2 per-row entries (self_recharge), got %d", len(perRow))
 	}
 
-	for _, g := range agg {
-		switch g.Source {
-		case MerchantSourceUserMarkupShare:
-			if g.MerchantID != 100 || g.Sum != 2.0 || len(g.Rows) != 2 {
-				t.Errorf("markup_share group wrong: %+v", g)
-			}
-		case MerchantSourceUserRechargeShare:
-			if g.MerchantID != 200 || g.Sum != 10 || len(g.Rows) != 1 {
-				t.Errorf("recharge_share group wrong: %+v", g)
-			}
-		default:
-			t.Errorf("unexpected source in agg: %s", g.Source)
-		}
+	g := agg[0]
+	if g.Source != MerchantSourceUserMarkupShare {
+		t.Errorf("unexpected source in agg: %s", g.Source)
+	}
+	if g.MerchantID != 100 || g.Sum != 2.0 || len(g.Rows) != 2 {
+		t.Errorf("markup_share group wrong: %+v", g)
 	}
 	for _, r := range perRow {
 		if r.Source != MerchantSourceSelfRecharge {

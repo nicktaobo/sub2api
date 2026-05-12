@@ -98,20 +98,6 @@ func (_c *MerchantCreate) SetNillableStatus(v *string) *MerchantCreate {
 	return _c
 }
 
-// SetDiscount sets the "discount" field.
-func (_c *MerchantCreate) SetDiscount(v float64) *MerchantCreate {
-	_c.mutation.SetDiscount(v)
-	return _c
-}
-
-// SetNillableDiscount sets the "discount" field if the given value is not nil.
-func (_c *MerchantCreate) SetNillableDiscount(v *float64) *MerchantCreate {
-	if v != nil {
-		_c.SetDiscount(*v)
-	}
-	return _c
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_c *MerchantCreate) SetOwnerBalanceBaseline(v float64) *MerchantCreate {
 	_c.mutation.SetOwnerBalanceBaseline(v)
@@ -321,10 +307,6 @@ func (_c *MerchantCreate) defaults() error {
 		v := merchant.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
-	if _, ok := _c.mutation.Discount(); !ok {
-		v := merchant.DefaultDiscount
-		_c.mutation.SetDiscount(v)
-	}
 	if _, ok := _c.mutation.OwnerBalanceBaseline(); !ok {
 		v := merchant.DefaultOwnerBalanceBaseline
 		_c.mutation.SetOwnerBalanceBaseline(v)
@@ -366,9 +348,6 @@ func (_c *MerchantCreate) check() error {
 		if err := merchant.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Merchant.status": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.Discount(); !ok {
-		return &ValidationError{Name: "discount", err: errors.New(`ent: missing required field "Merchant.discount"`)}
 	}
 	if _, ok := _c.mutation.OwnerBalanceBaseline(); !ok {
 		return &ValidationError{Name: "owner_balance_baseline", err: errors.New(`ent: missing required field "Merchant.owner_balance_baseline"`)}
@@ -429,10 +408,6 @@ func (_c *MerchantCreate) createSpec() (*Merchant, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(merchant.FieldStatus, field.TypeString, value)
 		_node.Status = value
-	}
-	if value, ok := _c.mutation.Discount(); ok {
-		_spec.SetField(merchant.FieldDiscount, field.TypeFloat64, value)
-		_node.Discount = value
 	}
 	if value, ok := _c.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)
@@ -698,24 +673,6 @@ func (u *MerchantUpsert) UpdateStatus() *MerchantUpsert {
 	return u
 }
 
-// SetDiscount sets the "discount" field.
-func (u *MerchantUpsert) SetDiscount(v float64) *MerchantUpsert {
-	u.Set(merchant.FieldDiscount, v)
-	return u
-}
-
-// UpdateDiscount sets the "discount" field to the value that was provided on create.
-func (u *MerchantUpsert) UpdateDiscount() *MerchantUpsert {
-	u.SetExcluded(merchant.FieldDiscount)
-	return u
-}
-
-// AddDiscount adds v to the "discount" field.
-func (u *MerchantUpsert) AddDiscount(v float64) *MerchantUpsert {
-	u.Add(merchant.FieldDiscount, v)
-	return u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (u *MerchantUpsert) SetOwnerBalanceBaseline(v float64) *MerchantUpsert {
 	u.Set(merchant.FieldOwnerBalanceBaseline, v)
@@ -890,27 +847,6 @@ func (u *MerchantUpsertOne) SetStatus(v string) *MerchantUpsertOne {
 func (u *MerchantUpsertOne) UpdateStatus() *MerchantUpsertOne {
 	return u.Update(func(s *MerchantUpsert) {
 		s.UpdateStatus()
-	})
-}
-
-// SetDiscount sets the "discount" field.
-func (u *MerchantUpsertOne) SetDiscount(v float64) *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.SetDiscount(v)
-	})
-}
-
-// AddDiscount adds v to the "discount" field.
-func (u *MerchantUpsertOne) AddDiscount(v float64) *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.AddDiscount(v)
-	})
-}
-
-// UpdateDiscount sets the "discount" field to the value that was provided on create.
-func (u *MerchantUpsertOne) UpdateDiscount() *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.UpdateDiscount()
 	})
 }
 
@@ -1262,27 +1198,6 @@ func (u *MerchantUpsertBulk) SetStatus(v string) *MerchantUpsertBulk {
 func (u *MerchantUpsertBulk) UpdateStatus() *MerchantUpsertBulk {
 	return u.Update(func(s *MerchantUpsert) {
 		s.UpdateStatus()
-	})
-}
-
-// SetDiscount sets the "discount" field.
-func (u *MerchantUpsertBulk) SetDiscount(v float64) *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.SetDiscount(v)
-	})
-}
-
-// AddDiscount adds v to the "discount" field.
-func (u *MerchantUpsertBulk) AddDiscount(v float64) *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.AddDiscount(v)
-	})
-}
-
-// UpdateDiscount sets the "discount" field to the value that was provided on create.
-func (u *MerchantUpsertBulk) UpdateDiscount() *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.UpdateDiscount()
 	})
 }
 

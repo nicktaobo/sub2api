@@ -27,8 +27,6 @@ const (
 	FieldName = "name"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
-	// FieldDiscount holds the string denoting the discount field in the database.
-	FieldDiscount = "discount"
 	// FieldOwnerBalanceBaseline holds the string denoting the owner_balance_baseline field in the database.
 	FieldOwnerBalanceBaseline = "owner_balance_baseline"
 	// FieldLowBalanceThreshold holds the string denoting the low_balance_threshold field in the database.
@@ -120,7 +118,6 @@ var Columns = []string{
 	FieldOwnerUserID,
 	FieldName,
 	FieldStatus,
-	FieldDiscount,
 	FieldOwnerBalanceBaseline,
 	FieldLowBalanceThreshold,
 	FieldNotifyEmails,
@@ -156,8 +153,6 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
-	// DefaultDiscount holds the default value on creation for the "discount" field.
-	DefaultDiscount float64
 	// DefaultOwnerBalanceBaseline holds the default value on creation for the "owner_balance_baseline" field.
 	DefaultOwnerBalanceBaseline float64
 	// DefaultLowBalanceThreshold holds the default value on creation for the "low_balance_threshold" field.
@@ -202,11 +197,6 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
-}
-
-// ByDiscount orders the results by the discount field.
-func ByDiscount(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDiscount, opts...).ToFunc()
 }
 
 // ByOwnerBalanceBaseline orders the results by the owner_balance_baseline field.

@@ -112,27 +112,6 @@ func (_u *MerchantUpdate) SetNillableStatus(v *string) *MerchantUpdate {
 	return _u
 }
 
-// SetDiscount sets the "discount" field.
-func (_u *MerchantUpdate) SetDiscount(v float64) *MerchantUpdate {
-	_u.mutation.ResetDiscount()
-	_u.mutation.SetDiscount(v)
-	return _u
-}
-
-// SetNillableDiscount sets the "discount" field if the given value is not nil.
-func (_u *MerchantUpdate) SetNillableDiscount(v *float64) *MerchantUpdate {
-	if v != nil {
-		_u.SetDiscount(*v)
-	}
-	return _u
-}
-
-// AddDiscount adds value to the "discount" field.
-func (_u *MerchantUpdate) AddDiscount(v float64) *MerchantUpdate {
-	_u.mutation.AddDiscount(v)
-	return _u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_u *MerchantUpdate) SetOwnerBalanceBaseline(v float64) *MerchantUpdate {
 	_u.mutation.ResetOwnerBalanceBaseline()
@@ -569,12 +548,6 @@ func (_u *MerchantUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(merchant.FieldStatus, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Discount(); ok {
-		_spec.SetField(merchant.FieldDiscount, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDiscount(); ok {
-		_spec.AddField(merchant.FieldDiscount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)
@@ -1051,27 +1024,6 @@ func (_u *MerchantUpdateOne) SetNillableStatus(v *string) *MerchantUpdateOne {
 	return _u
 }
 
-// SetDiscount sets the "discount" field.
-func (_u *MerchantUpdateOne) SetDiscount(v float64) *MerchantUpdateOne {
-	_u.mutation.ResetDiscount()
-	_u.mutation.SetDiscount(v)
-	return _u
-}
-
-// SetNillableDiscount sets the "discount" field if the given value is not nil.
-func (_u *MerchantUpdateOne) SetNillableDiscount(v *float64) *MerchantUpdateOne {
-	if v != nil {
-		_u.SetDiscount(*v)
-	}
-	return _u
-}
-
-// AddDiscount adds value to the "discount" field.
-func (_u *MerchantUpdateOne) AddDiscount(v float64) *MerchantUpdateOne {
-	_u.mutation.AddDiscount(v)
-	return _u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_u *MerchantUpdateOne) SetOwnerBalanceBaseline(v float64) *MerchantUpdateOne {
 	_u.mutation.ResetOwnerBalanceBaseline()
@@ -1538,12 +1490,6 @@ func (_u *MerchantUpdateOne) sqlSave(ctx context.Context) (_node *Merchant, err 
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(merchant.FieldStatus, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Discount(); ok {
-		_spec.SetField(merchant.FieldDiscount, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDiscount(); ok {
-		_spec.AddField(merchant.FieldDiscount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)

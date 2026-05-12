@@ -24,7 +24,6 @@ export interface Merchant {
   owner_user_id: number
   name: string
   status: MerchantStatus
-  discount: number
   low_balance_threshold: number
   notify_emails: NotifyEmailEntry[] | string[] | null
   // admin list 富对象字段
@@ -139,7 +138,6 @@ export interface MerchantDomain {
 export interface CreateMerchantPayload {
   owner_user_id: number
   name: string
-  discount: number
   low_balance_threshold: number
   notify_emails: NotifyEmailEntry[] | string[]
   reason?: string
@@ -199,19 +197,6 @@ export async function adminMerchantCreate(payload: CreateMerchantPayload): Promi
 /** GET /admin/merchants/:id */
 export async function adminMerchantGet(id: number): Promise<Merchant> {
   const { data } = await apiClient.get<Merchant>(`/admin/merchants/${id}`)
-  return data
-}
-
-/** PATCH /admin/merchants/:id/discount */
-export async function adminMerchantSetDiscount(
-  id: number,
-  discount: number,
-  reason?: string,
-): Promise<Merchant> {
-  const { data } = await apiClient.patch<Merchant>(
-    `/admin/merchants/${id}/discount`,
-    { discount, reason },
-  )
   return data
 }
 
@@ -675,7 +660,6 @@ export const merchantAPI = {
   adminList: adminMerchantList,
   adminCreate: adminMerchantCreate,
   adminGet: adminMerchantGet,
-  adminSetDiscount: adminMerchantSetDiscount,
   adminSetStatus: adminMerchantSetStatus,
   adminRecharge: adminMerchantRecharge,
   adminRefund: adminMerchantRefund,

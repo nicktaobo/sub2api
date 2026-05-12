@@ -6763,7 +6763,6 @@ export default {
       owner: 'User',
       ownerBalance: 'Owner Balance',
       status: 'Status',
-      discount: 'Recharge Discount',
       markup: 'Markup',
       lowBalanceThreshold: 'Low Balance Threshold',
       notifyEmails: 'Notify Emails',
@@ -6800,7 +6799,6 @@ export default {
       ownerUserIdPlaceholder: 'Enter user ID',
       ownerUserIdHint: 'The user must exist and not already be the owner of another merchant.',
       namePlaceholder: 'e.g. Acme Inc.',
-      discountHint: 'Discount applied at recharge time. e.g. 0.9 = 10% off.',
       notifyEmailsHint: 'comma-separated',
       notifyEmailsPlaceholder: "ops{'@'}example.com, billing{'@'}example.com",
       actions: {
@@ -6859,9 +6857,6 @@ export default {
       metrics: 'Metrics',
       thresholdReadonlyHint: 'The low-balance threshold is maintained by the merchant in their self-service area.',
       notifyEmailsReadonlyHint: 'Notify emails are maintained by the merchant in their self-service area.',
-      warnings: {
-        discountLow: 'Discount is below 0.5; submission will go through review.',
-      },
       groupPricing: {
         title: 'Group Pricing',
         description: 'Per-group merchant cost (admin) and sell rate (merchant, admin can override). Both are absolute multipliers.',
@@ -7010,7 +7005,6 @@ export default {
         description: 'View your earnings breakdown',
         totalRecharge: 'Total Recharge',
         totalShare: 'Total Share',
-        shareRate: 'Share Rate',
         withdrawn: 'Withdrawn',
         pending: 'Pending',
         available: 'Available',

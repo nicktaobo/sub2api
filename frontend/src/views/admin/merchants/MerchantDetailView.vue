@@ -58,29 +58,6 @@
         <div v-if="activeTab === 'info'" class="space-y-6 p-6">
           <div v-if="!merchant" class="py-8 text-center text-gray-500">{{ t('common.loading') }}</div>
           <template v-else>
-            <!-- Discount -->
-            <div>
-              <label class="input-label">{{ t('merchant.fields.discount') }}</label>
-              <div class="flex gap-2">
-                <input
-                  v-model.number="form.discount"
-                  type="number"
-                  min="0"
-                  step="0.0001"
-                  class="input"
-                />
-                <button class="btn btn-primary" :disabled="saving.discount" @click="saveDiscount">
-                  {{ saving.discount ? t('common.saving') : t('common.save') }}
-                </button>
-              </div>
-              <div
-                v-if="form.discount < 0.5"
-                class="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300"
-              >
-                {{ t('merchant.detail.warnings.discountLow') }}
-              </div>
-            </div>
-
             <div class="grid gap-4 md:grid-cols-2">
               <div>
                 <label class="input-label">{{ t('merchant.fields.lowBalanceThreshold') }}</label>
@@ -378,16 +355,12 @@ const tabs = computed(() => [
 
 // Form state
 const form = reactive({
-  discount: 1,
   low_balance_threshold: 0,
   notify_emails_str: '',
 })
 
-const saving = reactive({ discount: false })
-
 function syncFormFromMerchant(): void {
   if (!merchant.value) return
-  form.discount = Number(merchant.value.discount ?? 1)
   form.low_balance_threshold = Number(merchant.value.low_balance_threshold ?? 0)
   const emails = merchant.value.notify_emails
   if (Array.isArray(emails)) {
@@ -406,19 +379,6 @@ async function loadMerchant(): Promise<void> {
     syncFormFromMerchant()
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
-  }
-}
-
-async function saveDiscount(): Promise<void> {
-  saving.discount = true
-  try {
-    merchant.value = await merchantAPI.adminSetDiscount(merchantId.value, form.discount)
-    syncFormFromMerchant()
-    appStore.showSuccess(t('common.saved'))
-  } catch (err) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
-  } finally {
-    saving.discount = false
   }
 }
 

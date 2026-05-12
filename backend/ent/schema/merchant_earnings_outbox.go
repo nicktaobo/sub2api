@@ -38,7 +38,7 @@ func (MerchantEarningsOutbox) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
 		field.String("source").
 			MaxLen(40).
-			Comment("user_markup_share / user_recharge_share / self_recharge"),
+			Comment("user_markup_share / self_recharge"),
 		field.String("ref_type").
 			MaxLen(40).
 			Comment("usage_billing_dedup / payment_order"),

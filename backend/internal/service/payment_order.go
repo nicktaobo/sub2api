@@ -58,17 +58,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	feeRate := cfg.RechargeFeeRate
 
-	// MERCHANT-SYSTEM v1.0 (RFC §5.2.4 v1.10 P1-D / v1.11 P2-3 / v1.12 P1-#2)
-	// owner 自充：discount 应用到 limitAmount，再算 pay_amount + daily limit
-	discountedLimit := limitAmount
-	if req.OrderType == payment.OrderTypeBalance && s.merchantCfg.Enabled && s.merchantRepo != nil {
-		if m, err := s.merchantRepo.GetByOwnerUserID(ctx, req.UserID); err == nil && m != nil && m.DeletedAt == nil {
-			if m.Discount > 0 && m.Discount < 1.0 {
-				discountedLimit = limitAmount * m.Discount
-			}
-		}
-	}
-	payAmountStr := payment.CalculatePayAmount(discountedLimit, feeRate)
+	payAmountStr := payment.CalculatePayAmount(limitAmount, feeRate)
 	payAmount, _ := strconv.ParseFloat(payAmountStr, 64)
 	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
 	if err != nil {
@@ -84,8 +74,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if oauthResp != nil {
 		return oauthResp, nil
 	}
-	// MERCHANT-SYSTEM v1.0：daily limit 用折扣后金额（与 pay_amount 计算口径一致）
-	order, err := s.createOrderInTx(ctx, req, user, plan, cfg, orderAmount, discountedLimit, feeRate, payAmount, sel)
+	order, err := s.createOrderInTx(ctx, req, user, plan, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
 	if err != nil {
 		return nil, err
 	}

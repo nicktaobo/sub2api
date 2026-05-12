@@ -85,11 +85,6 @@ func Status(v string) predicate.Merchant {
 	return predicate.Merchant(sql.FieldEQ(FieldStatus, v))
 }
 
-// Discount applies equality check predicate on the "discount" field. It's identical to DiscountEQ.
-func Discount(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldEQ(FieldDiscount, v))
-}
-
 // OwnerBalanceBaseline applies equality check predicate on the "owner_balance_baseline" field. It's identical to OwnerBalanceBaselineEQ.
 func OwnerBalanceBaseline(v float64) predicate.Merchant {
 	return predicate.Merchant(sql.FieldEQ(FieldOwnerBalanceBaseline, v))
@@ -398,46 +393,6 @@ func StatusEqualFold(v string) predicate.Merchant {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.Merchant {
 	return predicate.Merchant(sql.FieldContainsFold(FieldStatus, v))
-}
-
-// DiscountEQ applies the EQ predicate on the "discount" field.
-func DiscountEQ(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldEQ(FieldDiscount, v))
-}
-
-// DiscountNEQ applies the NEQ predicate on the "discount" field.
-func DiscountNEQ(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldNEQ(FieldDiscount, v))
-}
-
-// DiscountIn applies the In predicate on the "discount" field.
-func DiscountIn(vs ...float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldIn(FieldDiscount, vs...))
-}
-
-// DiscountNotIn applies the NotIn predicate on the "discount" field.
-func DiscountNotIn(vs ...float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldNotIn(FieldDiscount, vs...))
-}
-
-// DiscountGT applies the GT predicate on the "discount" field.
-func DiscountGT(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldGT(FieldDiscount, v))
-}
-
-// DiscountGTE applies the GTE predicate on the "discount" field.
-func DiscountGTE(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldGTE(FieldDiscount, v))
-}
-
-// DiscountLT applies the LT predicate on the "discount" field.
-func DiscountLT(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldLT(FieldDiscount, v))
-}
-
-// DiscountLTE applies the LTE predicate on the "discount" field.
-func DiscountLTE(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldLTE(FieldDiscount, v))
 }
 
 // OwnerBalanceBaselineEQ applies the EQ predicate on the "owner_balance_baseline" field.

@@ -22,7 +22,7 @@ type MerchantAuditLog struct {
 	MerchantID int64 `json:"merchant_id,omitempty"`
 	// 操作的 admin（NULL=系统）
 	AdminID *int64 `json:"admin_id,omitempty"`
-	// discount / user_markup / status / domain_*
+	// status / group_cost / group_sell / domain_* / merchant_create / pay_to_user / refund_from_user / admin_recharge / admin_refund / unbind_user
 	Field string `json:"field,omitempty"`
 	// OldValue holds the value of the "old_value" field.
 	OldValue *string `json:"old_value,omitempty"`

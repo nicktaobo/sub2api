@@ -39,24 +39,6 @@
           </div>
         </div>
 
-        <div>
-          <label class="input-label">{{ t('merchant.fields.discount') }}</label>
-          <input
-            v-model.number="form.discount"
-            type="number"
-            min="0"
-            step="0.0001"
-            class="input"
-          />
-          <p class="mt-1 text-xs text-gray-500">{{ t('merchant.admin.discountHint') }}</p>
-          <div
-            v-if="form.discount < 0.5"
-            class="mt-1 text-xs text-rose-600"
-          >
-            {{ t('merchant.detail.warnings.discountLow') }}
-          </div>
-        </div>
-
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">{{ t('merchant.fields.lowBalanceThreshold') }}</label>
@@ -121,14 +103,12 @@ const appStore = useAppStore()
 const form = reactive<{
   owner_user_id: number | null
   name: string
-  discount: number
   low_balance_threshold: number
   notify_emails_str: string
   reason: string
 }>({
   owner_user_id: null,
   name: '',
-  discount: 1,
   low_balance_threshold: 0,
   notify_emails_str: '',
   reason: '',
@@ -154,7 +134,6 @@ async function submit(): Promise<void> {
     const payload: CreateMerchantPayload = {
       owner_user_id: form.owner_user_id,
       name: form.name.trim(),
-      discount: form.discount,
       low_balance_threshold: form.low_balance_threshold,
       notify_emails: emails,
       reason: form.reason.trim() || undefined,

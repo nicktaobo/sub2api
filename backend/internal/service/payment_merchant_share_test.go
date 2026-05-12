@@ -21,9 +21,6 @@ func TestApplyMerchantHookForOrder_FlagOff(t *testing.T) {
 		merchantCfg: config.MerchantConfig{Enabled: false},
 	}
 	// 即使传 nil order/repo 也不会崩——因为 flag 关闭时直接 return
-	if err := ps.applyMerchantRechargeShareForOrder(context.Background(), nil); err != nil {
-		t.Fatalf("expected nil with flag off, got %v", err)
-	}
 	if err := ps.applyMerchantSelfRechargeForOrder(context.Background(), nil); err != nil {
 		t.Fatalf("expected nil with flag off, got %v", err)
 	}

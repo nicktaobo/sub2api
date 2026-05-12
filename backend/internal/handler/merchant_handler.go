@@ -60,7 +60,6 @@ func (h *MerchantHandler) GetInfo(c *gin.Context) {
 		"id":                     m.ID,
 		"name":                   m.Name,
 		"status":                 m.Status,
-		"discount":               m.Discount,
 		"owner_balance_baseline": m.OwnerBalanceBaseline,
 		"low_balance_threshold":  m.LowBalanceThreshold,
 		"created_at":             m.CreatedAt,

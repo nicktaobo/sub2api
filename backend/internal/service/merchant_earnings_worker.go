@@ -1,9 +1,9 @@
-// MERCHANT-SYSTEM v1.0
+// MERCHANT-SYSTEM v3.0
 // MerchantEarningsWorker：异步聚合 outbox → ledger（RFC §5.2.3）。
 //
 // 单事务内：claim → process → mark，多副本通过 FOR UPDATE SKIP LOCKED 安全。
 // source 行为分流（v1.10 P1-A）：
-//   - user_markup_share / user_recharge_share：聚合 + 加 owner 余额
+//   - user_markup_share：聚合 + 加 owner 余额（消费侧分润）
 //   - self_recharge：逐笔写 ledger，**不**加余额（已由 redeem 加）
 
 package service
@@ -144,7 +144,7 @@ func (w *MerchantEarningsWorker) processBatch(ctx context.Context) (err error) {
 
 	aggregatedGroups, perRowEntries := splitOutboxBySource(rows)
 
-	// 2a. 聚合组（user_markup_share / user_recharge_share）
+	// 2a. 聚合组（user_markup_share）
 	for _, g := range aggregatedGroups {
 		if err = processAggregatedGroup(ctx, tx, g); err != nil {
 			_ = tx.Rollback()

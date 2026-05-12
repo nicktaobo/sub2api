@@ -33,7 +33,7 @@ func (MerchantAuditLog) Fields() []ent.Field {
 			Comment("操作的 admin（NULL=系统）"),
 		field.String("field").
 			MaxLen(50).
-			Comment("discount / user_markup / status / domain_*"),
+			Comment("status / group_cost / group_sell / domain_* / merchant_create / pay_to_user / refund_from_user / admin_recharge / admin_refund / unbind_user"),
 		field.String("old_value").
 			SchemaType(map[string]string{dialect.Postgres: "text"}).
 			Optional().

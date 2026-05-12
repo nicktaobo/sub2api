@@ -1,9 +1,9 @@
-// MERCHANT-SYSTEM v1.0
-// MerchantReconcileJob 兜底任务：扫已落库 INTENT audit 但 outbox 漏写的订单，
-// 用快照补 outbox 并写 RECONCILED audit 防重扫（RFC §5.2.2 reconcile pseudocode）。
+// MERCHANT-SYSTEM v3.0
+// MerchantReconcileJob 兜底任务：扫已落库 MERCHANT_SELF_RECHARGE_INTENT audit 但
+// outbox 漏写的订单，用快照补 outbox 并写 RECONCILED audit 防重扫。
 //
 // 关键原则：reconcile **不重新调用** hook，从 INTENT audit detail 直接读取金额快照
-// 补 outbox（避免读取当前 discount 违反 P3 历史不可变）。
+// 补 outbox（避免事件后读取当前配置违反 P3 历史不可变）。
 
 package service
 
@@ -139,18 +139,15 @@ func (j *MerchantReconcileJob) scanPendingIntents(ctx context.Context) ([]pendin
 	const q = `
 		SELECT pal.id, pal.order_id, pal.action, pal.detail
 		FROM payment_audit_logs pal
-		WHERE pal.action IN ('MERCHANT_RECHARGE_SHARE_INTENT', 'MERCHANT_SELF_RECHARGE_INTENT')
+		WHERE pal.action = 'MERCHANT_SELF_RECHARGE_INTENT'
 		  AND NOT EXISTS (
 			SELECT 1 FROM merchant_earnings_outbox o
-			WHERE o.idempotency_key IN (
-			  'recharge_share:' || pal.order_id,
-			  'self_recharge:'  || pal.order_id
-			)
+			WHERE o.idempotency_key = 'self_recharge:' || pal.order_id
 		  )
 		  AND NOT EXISTS (
 			SELECT 1 FROM payment_audit_logs done
 			WHERE done.order_id = pal.order_id
-			  AND done.action IN ('MERCHANT_RECHARGE_SHARE_RECONCILED', 'MERCHANT_SELF_RECHARGE_RECONCILED')
+			  AND done.action = 'MERCHANT_SELF_RECHARGE_RECONCILED'
 		  )
 		ORDER BY pal.created_at ASC
 		LIMIT $1
@@ -185,8 +182,6 @@ func (j *MerchantReconcileJob) scanPendingIntents(ctx context.Context) ([]pendin
 
 type intentSnapshot struct {
 	MerchantID     int64   `json:"merchant_id"`
-	SubUserID      int64   `json:"sub_user_id,omitempty"`
-	ShareAmount    float64 `json:"share_amount,omitempty"`
 	OwnerUserID    int64   `json:"owner_user_id,omitempty"`
 	CreditedAmount float64 `json:"credited_amount,omitempty"`
 }
@@ -196,40 +191,21 @@ func (j *MerchantReconcileJob) reconcileOne(ctx context.Context, in pendingInten
 	if err := json.Unmarshal([]byte(in.Detail), &s); err != nil {
 		return fmt.Errorf("decode intent detail: %w", err)
 	}
-	var entry *MerchantOutboxEntry
-	var reconciledAction string
-	switch in.Action {
-	case "MERCHANT_RECHARGE_SHARE_INTENT":
-		if s.MerchantID == 0 || s.ShareAmount <= 0 {
-			return errors.New("invalid recharge_share INTENT snapshot")
-		}
-		sub := s.SubUserID
-		entry = &MerchantOutboxEntry{
-			MerchantID:         s.MerchantID,
-			CounterpartyUserID: &sub,
-			Amount:             s.ShareAmount,
-			Source:             MerchantSourceUserRechargeShare,
-			RefType:            MerchantRefTypePaymentOrder,
-			RefID:              in.OrderID,
-			IdempotencyKey:     fmt.Sprintf("recharge_share:%d", in.OrderID),
-		}
-		reconciledAction = "MERCHANT_RECHARGE_SHARE_RECONCILED"
-	case "MERCHANT_SELF_RECHARGE_INTENT":
-		if s.MerchantID == 0 || s.CreditedAmount <= 0 {
-			return errors.New("invalid self_recharge INTENT snapshot")
-		}
-		entry = &MerchantOutboxEntry{
-			MerchantID:     s.MerchantID,
-			Amount:         s.CreditedAmount,
-			Source:         MerchantSourceSelfRecharge,
-			RefType:        MerchantRefTypePaymentOrder,
-			RefID:          in.OrderID,
-			IdempotencyKey: fmt.Sprintf("self_recharge:%d", in.OrderID),
-		}
-		reconciledAction = "MERCHANT_SELF_RECHARGE_RECONCILED"
-	default:
+	if in.Action != "MERCHANT_SELF_RECHARGE_INTENT" {
 		return fmt.Errorf("unexpected intent action: %s", in.Action)
 	}
+	if s.MerchantID == 0 || s.CreditedAmount <= 0 {
+		return errors.New("invalid self_recharge INTENT snapshot")
+	}
+	entry := &MerchantOutboxEntry{
+		MerchantID:     s.MerchantID,
+		Amount:         s.CreditedAmount,
+		Source:         MerchantSourceSelfRecharge,
+		RefType:        MerchantRefTypePaymentOrder,
+		RefID:          in.OrderID,
+		IdempotencyKey: fmt.Sprintf("self_recharge:%d", in.OrderID),
+	}
+	reconciledAction := "MERCHANT_SELF_RECHARGE_RECONCILED"
 
 	outboxAlreadyExisted := false
 	if err := j.outboxRepo.InsertIfNotExists(ctx, entry); err != nil {

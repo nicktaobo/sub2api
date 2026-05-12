@@ -19809,8 +19809,6 @@ type MerchantMutation struct {
 	addowner_user_id          *int64
 	name                      *string
 	status                    *string
-	discount                  *float64
-	adddiscount               *float64
 	owner_balance_baseline    *float64
 	addowner_balance_baseline *float64
 	low_balance_threshold     *float64
@@ -20192,62 +20190,6 @@ func (m *MerchantMutation) OldStatus(ctx context.Context) (v string, err error) 
 // ResetStatus resets all changes to the "status" field.
 func (m *MerchantMutation) ResetStatus() {
 	m.status = nil
-}
-
-// SetDiscount sets the "discount" field.
-func (m *MerchantMutation) SetDiscount(f float64) {
-	m.discount = &f
-	m.adddiscount = nil
-}
-
-// Discount returns the value of the "discount" field in the mutation.
-func (m *MerchantMutation) Discount() (r float64, exists bool) {
-	v := m.discount
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDiscount returns the old "discount" field's value of the Merchant entity.
-// If the Merchant object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *MerchantMutation) OldDiscount(ctx context.Context) (v float64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDiscount is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDiscount requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDiscount: %w", err)
-	}
-	return oldValue.Discount, nil
-}
-
-// AddDiscount adds f to the "discount" field.
-func (m *MerchantMutation) AddDiscount(f float64) {
-	if m.adddiscount != nil {
-		*m.adddiscount += f
-	} else {
-		m.adddiscount = &f
-	}
-}
-
-// AddedDiscount returns the value that was added to the "discount" field in this mutation.
-func (m *MerchantMutation) AddedDiscount() (r float64, exists bool) {
-	v := m.adddiscount
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetDiscount resets all changes to the "discount" field.
-func (m *MerchantMutation) ResetDiscount() {
-	m.discount = nil
-	m.adddiscount = nil
 }
 
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
@@ -20879,7 +20821,7 @@ func (m *MerchantMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MerchantMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 9)
 	if m.created_at != nil {
 		fields = append(fields, merchant.FieldCreatedAt)
 	}
@@ -20897,9 +20839,6 @@ func (m *MerchantMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, merchant.FieldStatus)
-	}
-	if m.discount != nil {
-		fields = append(fields, merchant.FieldDiscount)
 	}
 	if m.owner_balance_baseline != nil {
 		fields = append(fields, merchant.FieldOwnerBalanceBaseline)
@@ -20930,8 +20869,6 @@ func (m *MerchantMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case merchant.FieldStatus:
 		return m.Status()
-	case merchant.FieldDiscount:
-		return m.Discount()
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.OwnerBalanceBaseline()
 	case merchant.FieldLowBalanceThreshold:
@@ -20959,8 +20896,6 @@ func (m *MerchantMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldName(ctx)
 	case merchant.FieldStatus:
 		return m.OldStatus(ctx)
-	case merchant.FieldDiscount:
-		return m.OldDiscount(ctx)
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.OldOwnerBalanceBaseline(ctx)
 	case merchant.FieldLowBalanceThreshold:
@@ -21018,13 +20953,6 @@ func (m *MerchantMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetStatus(v)
 		return nil
-	case merchant.FieldDiscount:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetDiscount(v)
-		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		v, ok := value.(float64)
 		if !ok {
@@ -21057,9 +20985,6 @@ func (m *MerchantMutation) AddedFields() []string {
 	if m.addowner_user_id != nil {
 		fields = append(fields, merchant.FieldOwnerUserID)
 	}
-	if m.adddiscount != nil {
-		fields = append(fields, merchant.FieldDiscount)
-	}
 	if m.addowner_balance_baseline != nil {
 		fields = append(fields, merchant.FieldOwnerBalanceBaseline)
 	}
@@ -21076,8 +21001,6 @@ func (m *MerchantMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case merchant.FieldOwnerUserID:
 		return m.AddedOwnerUserID()
-	case merchant.FieldDiscount:
-		return m.AddedDiscount()
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.AddedOwnerBalanceBaseline()
 	case merchant.FieldLowBalanceThreshold:
@@ -21097,13 +21020,6 @@ func (m *MerchantMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddOwnerUserID(v)
-		return nil
-	case merchant.FieldDiscount:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddDiscount(v)
 		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		v, ok := value.(float64)
@@ -21172,9 +21088,6 @@ func (m *MerchantMutation) ResetField(name string) error {
 		return nil
 	case merchant.FieldStatus:
 		m.ResetStatus()
-		return nil
-	case merchant.FieldDiscount:
-		m.ResetDiscount()
 		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		m.ResetOwnerBalanceBaseline()

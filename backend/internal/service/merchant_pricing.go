@@ -98,7 +98,7 @@ func (s *MerchantPricingService) InvalidateUser(userID int64) {
 	s.userMerchantCache.Remove(userID)
 }
 
-// InvalidateMerchant admin 改 discount/group_cost/group_sell/status 时主动失效。
+// InvalidateMerchant admin 改 group_cost/group_sell/status 时主动失效。
 // 只删 merchant 维度即可让所有 sub_user 立即生效（无需逐个清 user 维度缓存）。
 func (s *MerchantPricingService) InvalidateMerchant(merchantID int64) {
 	if s == nil || s.merchantPricingCache == nil {

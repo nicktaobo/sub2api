@@ -24,7 +24,7 @@ type MerchantEarningsOutbox struct {
 	CounterpartyUserID *int64 `json:"counterparty_user_id,omitempty"`
 	// Amount holds the value of the "amount" field.
 	Amount float64 `json:"amount,omitempty"`
-	// user_markup_share / user_recharge_share / self_recharge
+	// user_markup_share / self_recharge
 	Source string `json:"source,omitempty"`
 	// usage_billing_dedup / payment_order
 	RefType string `json:"ref_type,omitempty"`

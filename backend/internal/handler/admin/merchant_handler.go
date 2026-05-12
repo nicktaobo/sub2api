@@ -81,7 +81,6 @@ func (h *MerchantHandler) List(c *gin.Context) {
 type createMerchantReq struct {
 	OwnerUserID         int64    `json:"owner_user_id" binding:"required"`
 	Name                string   `json:"name" binding:"required"`
-	Discount            float64  `json:"discount"`
 	LowBalanceThreshold float64  `json:"low_balance_threshold"`
 	NotifyEmails        []string `json:"notify_emails"`
 	Reason              string   `json:"reason"`
@@ -93,13 +92,9 @@ func (h *MerchantHandler) Create(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if req.Discount == 0 {
-		req.Discount = 1.0
-	}
 	m, err := h.merchantSvc.CreateMerchant(c.Request.Context(), service.CreateMerchantInput{
 		OwnerUserID:         req.OwnerUserID,
 		Name:                req.Name,
-		Discount:            req.Discount,
 		LowBalanceThreshold: req.LowBalanceThreshold,
 		NotifyEmails:        req.NotifyEmails,
 		AdminID:             adminID(c),
@@ -127,31 +122,8 @@ func (h *MerchantHandler) Get(c *gin.Context) {
 }
 
 // ----------------------------------------------------------------------------
-// Discount / Markup / Status / Recharge / Refund
+// Status / Recharge / Refund
 // ----------------------------------------------------------------------------
-
-type setDiscountReq struct {
-	Discount float64 `json:"discount" binding:"required"`
-	Reason   string  `json:"reason"`
-}
-
-func (h *MerchantHandler) SetDiscount(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
-	}
-	var req setDiscountReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	if err := h.merchantSvc.SetDiscount(c.Request.Context(), id, req.Discount, adminID(c), req.Reason); err != nil {
-		writeError(c, err, http.StatusBadRequest)
-		return
-	}
-	response.Success(c, gin.H{"ok": true})
-}
 
 type setStatusReq struct {
 	Status string `json:"status" binding:"required"`

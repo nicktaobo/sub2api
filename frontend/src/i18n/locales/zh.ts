@@ -6947,7 +6947,6 @@ export default {
       owner: '用户',
       ownerBalance: '所有者余额',
       status: '状态',
-      discount: '充值折扣',
       markup: '消费倍率',
       lowBalanceThreshold: '低余额预警阈值',
       notifyEmails: '通知邮箱',
@@ -6984,7 +6983,6 @@ export default {
       ownerUserIdPlaceholder: '请输入用户 ID',
       ownerUserIdHint: '该用户必须存在，且不能已是另一商户的所有者。',
       namePlaceholder: '例如：示例商户',
-      discountHint: '商户充值时享受的折扣，例如 0.9 = 9 折。',
       notifyEmailsHint: '逗号分隔',
       notifyEmailsPlaceholder: "ops{'@'}example.com, billing{'@'}example.com",
       actions: {
@@ -7043,9 +7041,6 @@ export default {
       metrics: '关键指标',
       thresholdReadonlyHint: '低余额阈值由商户在自助页面维护',
       notifyEmailsReadonlyHint: '通知邮箱由商户在自助页面维护',
-      warnings: {
-        discountLow: '折扣低于 0.5，提交后将进入审核流程。',
-      },
       groupPricing: {
         title: '分组定价',
         description: '为每个分组设置商户的拿货价（admin 配）和对外售价（商户配/admin 代操作），均为绝对倍率。',
@@ -7194,7 +7189,6 @@ export default {
         description: '查看您的分成收益明细',
         totalRecharge: '累计充值',
         totalShare: '累计分成',
-        shareRate: '分成比例',
         withdrawn: '已提现',
         pending: '审核中',
         available: '可提现',

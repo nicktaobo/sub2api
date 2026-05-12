@@ -64,7 +64,7 @@ func (s *MerchantService) GetMerchantStats(ctx context.Context, merchantID int64
 		FROM merchant_ledger
 		WHERE merchant_id = $1
 		  AND direction = 'credit'
-		  AND source IN ('user_recharge_share', 'user_markup_share', 'self_recharge')
+		  AND source IN ('user_markup_share', 'self_recharge')
 	`, merchantID).Scan(&stats.TotalShare); err != nil {
 		return nil, err
 	}

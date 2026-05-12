@@ -1,9 +1,10 @@
-// MERCHANT-SYSTEM v1.0
-// PaymentService 的两个充值 hook：
-//   - applyMerchantRechargeShareForOrder：sub_user 充值，给 owner 分成（异步 outbox）
-//   - applyMerchantSelfRechargeForOrder：owner 自充池子（异步 outbox）
+// MERCHANT-SYSTEM v3.0
+// PaymentService 充值 hook：仅保留 owner 自充 outbox 写入。
 //
-// 关键设计（RFC §5.2.2 / §5.2.4）：
+// v3.0 起子用户充值不再给 owner 分成，sub_user 充值订单走完支付流程后直接 return nil。
+// owner 自充仍要写 outbox 让 worker 落 ledger（self_recharge），保对账等式。
+//
+// 关键设计（RFC §5.2.4）：
 //   - INTENT audit 写失败 → 阻塞 markCompleted（返回 *MerchantBlockingError{Stage:"intent_write"}）
 //   - outbox 写失败 → 非阻塞，订单仍 markCompleted，reconcile job 兜底
 //   - INTENT audit 用 writePaymentAuditLogStrict（强持久化，不是 best-effort）
@@ -21,88 +22,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 )
 
-// applyMerchantRechargeShareForOrder sub_user 充值，给 owner 分成（异步 outbox）（RFC §5.2.2）。
-//
-// 触发：order.user 是某商户的 sub_user 且 merchant.status=active 且 discount<1.0。
-// 短路：feature flag off / order 非 balance 类型 / amount<=0 / merchant 不存在/suspended/discount=1.0。
-//
-// 阻塞性：
-//   - INTENT 写失败 → 阻塞（包成 MerchantBlockingError）
-//   - outbox 写失败 → 非阻塞（普通 error，caller slog.Warn）
-func (s *PaymentService) applyMerchantRechargeShareForOrder(ctx context.Context, o *dbent.PaymentOrder) error {
-	if o == nil || o.OrderType != payment.OrderTypeBalance || o.Amount <= 0 {
-		return nil
-	}
-	// v1.13 P1-#1：PaymentService 上下文用 s.merchantCfg.Enabled
-	if !s.merchantCfg.Enabled {
-		return nil
-	}
-	if s.merchantRepo == nil || s.merchantOutboxRepo == nil {
-		return nil
-	}
-
-	user, err := s.userRepo.GetByID(ctx, o.UserID)
-	if err != nil {
-		return nil // 不阻塞：用户查不到也无法分成
-	}
-	if user.ParentMerchantID == nil {
-		return nil // 不是子用户
-	}
-
-	m, err := s.merchantRepo.GetByID(ctx, *user.ParentMerchantID)
-	if err != nil || m == nil {
-		return nil // merchant 不存在
-	}
-	if m.Status != MerchantStatusActive {
-		return nil // suspended → 不分成（RFC §5.2.2 边界表）
-	}
-	if m.Discount >= 1.0 {
-		return nil // discount=1 表示不分成（DB CHECK 保证 ≤1）
-	}
-
-	shareAmount := o.Amount * (1.0 - m.Discount)
-	if shareAmount <= 0 {
-		return nil
-	}
-
-	// 步骤 1：独立事务先提交 INTENT audit（即使后续 outbox insert 失败 INTENT 也存活）
-	// v1.10 P1-B：必须用 writePaymentAuditLogStrict（返回 error）
-	// v1.12 P1-#1：失败必须包成 MerchantBlockingError
-	if err := s.writePaymentAuditLogStrict(ctx, o.ID, "MERCHANT_RECHARGE_SHARE_INTENT", "system", map[string]any{
-		"merchant_id":  m.ID,
-		"sub_user_id":  o.UserID,
-		"share_amount": shareAmount,
-		"discount":     m.Discount,
-		"order_amount": o.Amount,
-	}); err != nil {
-		return &MerchantBlockingError{Stage: "intent_write", Err: err}
-	}
-
-	// 步骤 2：独立 INSERT outbox。靠 idempotency_key UNIQUE（v1.10 P1-C）
-	subID := o.UserID
-	err = s.merchantOutboxRepo.InsertIfNotExists(ctx, &MerchantOutboxEntry{
-		MerchantID:         m.ID,
-		CounterpartyUserID: &subID,
-		Amount:             shareAmount,
-		Source:             MerchantSourceUserRechargeShare,
-		RefType:            MerchantRefTypePaymentOrder,
-		RefID:              o.ID,
-		IdempotencyKey:     fmt.Sprintf("recharge_share:%d", o.ID),
-	})
-	if errors.Is(err, ErrMerchantOutboxAlreadyExists) {
-		return nil // 已经写过（重试），幂等成功
-	}
-	if err != nil {
-		return err // outbox 失败：INTENT 已落库，reconcile 兜底
-	}
-	return nil
-}
-
 // applyMerchantSelfRechargeForOrder owner 自充池子（异步 outbox）（RFC §5.2.4）。
 //
 // 触发：order.user 是某商户的 owner 且 amount>0。
 // 余额已由 redeem 加（worker 不重复加，详见 §5.2.3 P1-A）。
-// 阻塞性同 applyMerchantRechargeShareForOrder。
+//
+// 阻塞性：
+//   - INTENT 写失败 → 阻塞（包成 MerchantBlockingError）
+//   - outbox 写失败 → 非阻塞（普通 error，caller slog.Warn）
 func (s *PaymentService) applyMerchantSelfRechargeForOrder(ctx context.Context, o *dbent.PaymentOrder) error {
 	if o == nil || o.OrderType != payment.OrderTypeBalance || o.Amount <= 0 {
 		return nil
@@ -128,7 +55,6 @@ func (s *PaymentService) applyMerchantSelfRechargeForOrder(ctx context.Context, 
 		"owner_user_id":   m.OwnerUserID,
 		"credited_amount": o.Amount,
 		"pay_amount":      o.PayAmount,
-		"discount":        m.Discount,
 	}); err != nil {
 		return &MerchantBlockingError{Stage: "intent_write", Err: err}
 	}
@@ -150,7 +76,8 @@ func (s *PaymentService) applyMerchantSelfRechargeForOrder(ctx context.Context, 
 	return nil
 }
 
-// applyMerchantHookForOrder 通用入口：根据 order.user 角色派发到对应的 hook。
+// applyMerchantHookForOrder 通用入口：owner 自充走 self_recharge outbox；
+// sub_user 充值不再产生 owner 分成（v3.0），直接 return nil。
 //
 // 调用方应处理：
 //   - MerchantBlockingError → 阻塞 markCompleted（return 让 executeFulfillment markFailed）
@@ -167,7 +94,8 @@ func (s *PaymentService) applyMerchantHookForOrder(ctx context.Context, o *dbent
 		return nil
 	}
 	if user.ParentMerchantID != nil {
-		return s.applyMerchantRechargeShareForOrder(ctx, o)
+		// sub_user 充值：v3.0 不再分成
+		return nil
 	}
 	return s.applyMerchantSelfRechargeForOrder(ctx, o)
 }

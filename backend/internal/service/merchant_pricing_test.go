@@ -39,10 +39,9 @@ func (f *fakeMerchantRepo) GetByDomain(context.Context, string) (*Merchant, erro
 func (f *fakeMerchantRepo) List(context.Context, string, int, int) ([]*Merchant, int, error) {
 	return nil, 0, nil
 }
-func (f *fakeMerchantRepo) Update(context.Context, *Merchant) error              { return nil }
-func (f *fakeMerchantRepo) UpdateStatus(context.Context, int64, string) error    { return nil }
-func (f *fakeMerchantRepo) UpdateDiscount(context.Context, int64, float64) error { return nil }
-func (f *fakeMerchantRepo) SoftDelete(context.Context, int64) error              { return nil }
+func (f *fakeMerchantRepo) Update(context.Context, *Merchant) error           { return nil }
+func (f *fakeMerchantRepo) UpdateStatus(context.Context, int64, string) error { return nil }
+func (f *fakeMerchantRepo) SoftDelete(context.Context, int64) error           { return nil }
 
 func (f *fakeMerchantRepo) LookupMerchantIDForUser(_ context.Context, userID int64) (int64, error) {
 	f.lookupCalls++

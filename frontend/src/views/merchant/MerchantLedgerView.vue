@@ -27,9 +27,6 @@
             <div class="card p-4">
               <div class="text-xs text-gray-500">{{ t('merchant.owner.stats.totalShare') }}</div>
               <div class="mt-1 text-2xl font-bold text-emerald-600">¥{{ fmt(stats?.total_share) }}</div>
-              <div class="mt-1 text-xs text-gray-400">
-                {{ t('merchant.owner.stats.shareRate') }}: {{ shareRate }}
-              </div>
             </div>
             <div class="card p-4">
               <div class="text-xs text-gray-500">{{ t('merchant.owner.stats.withdrawn') }}</div>
@@ -120,13 +117,6 @@ const pageSize = ref(20)
 
 // 顶部统计卡片：总充值 / 总分成 / 已提现 / 待提现 / 可用余额。
 const stats = ref<MerchantStats | null>(null)
-const info = ref<{ discount: number } | null>(null)
-
-const shareRate = computed(() => {
-  if (!info.value) return '-'
-  const r = (1 - info.value.discount) * 100
-  return r.toFixed(0) + '%'
-})
 
 function fmt(n?: number): string {
   return Number(n ?? 0).toFixed(2)
@@ -147,17 +137,14 @@ async function load(): Promise<void> {
   loading.value = true
   try {
     const offset = (page.value - 1) * pageSize.value
-    // 统计、商户信息（用于计算分成比例）和流水分页并发拉取；
-    // 统计/info 失败不阻塞表格渲染，降级为卡片显示 0。
-    const [ledger, s, m] = await Promise.all([
+    // 统计和流水分页并发拉取；统计失败不阻塞表格，降级为卡片显示 0。
+    const [ledger, s] = await Promise.all([
       merchantAPI.listLedger(offset, pageSize.value),
       merchantAPI.stats().catch(() => null),
-      merchantAPI.info().catch(() => null),
     ])
     items.value = ledger.items || []
     total.value = ledger.total || 0
     stats.value = s
-    info.value = m
   } catch (err) {
     appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
   } finally {

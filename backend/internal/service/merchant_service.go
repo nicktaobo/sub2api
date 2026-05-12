@@ -2,7 +2,7 @@
 // MerchantService 商户主体的 CRUD + 资金链路同步路径写入。
 //
 // 设计核心：
-//   - 所有改动 discount/markup/status 写 merchant_audit_log + 主动 invalidate pricing cache
+//   - 所有改动 markup/status 写 merchant_audit_log + 主动 invalidate pricing cache
 //   - PayToUser/AdminRecharge/AdminRefund/RedeemCreate/RedeemRefund：单事务内
 //     扣/加 owner.balance + 写 merchant_ledger（同步路径）
 //   - 不直接持有 PaymentService（避免循环依赖）
@@ -179,7 +179,6 @@ func (s *MerchantService) ListWithDetails(ctx context.Context, status, search st
 type CreateMerchantInput struct {
 	OwnerUserID         int64
 	Name                string
-	Discount            float64 // ∈ (0, 1]
 	LowBalanceThreshold float64
 	NotifyEmails        []string
 	AdminID             int64
@@ -189,9 +188,6 @@ type CreateMerchantInput struct {
 func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantInput) (*Merchant, error) {
 	if !s.enabled() {
 		return nil, ErrMerchantInvalidParam
-	}
-	if err := validateDiscount(in.Discount); err != nil {
-		return nil, err
 	}
 	if strings.TrimSpace(in.Name) == "" {
 		return nil, infraerrors.BadRequest("MERCHANT_NAME_REQUIRED", "merchant name is required")
@@ -218,7 +214,6 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 		OwnerUserID:          in.OwnerUserID,
 		Name:                 strings.TrimSpace(in.Name),
 		Status:               MerchantStatusActive,
-		Discount:             in.Discount,
 		OwnerBalanceBaseline: owner.Balance, // 开通时快照
 		LowBalanceThreshold:  in.LowBalanceThreshold,
 		NotifyEmails:         in.NotifyEmails,
@@ -230,8 +225,7 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 	// 写一条 audit
 	adminID := nullableAdminID(in.AdminID)
 	reason := in.Reason
-	newVal := fmt.Sprintf("merchant_id=%d owner_user_id=%d discount=%g",
-		m.ID, m.OwnerUserID, m.Discount)
+	newVal := fmt.Sprintf("merchant_id=%d owner_user_id=%d", m.ID, m.OwnerUserID)
 	if err := s.auditLogRepo.Insert(txCtx, &MerchantAuditLogEntry{
 		MerchantID: m.ID,
 		AdminID:    adminID,
@@ -254,46 +248,8 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 }
 
 // ----------------------------------------------------------------------------
-// 配置变更：discount / status / group cost / group sell
+// 配置变更：status / group cost / group sell
 // ----------------------------------------------------------------------------
-
-// SetDiscount admin 修改 discount。
-func (s *MerchantService) SetDiscount(ctx context.Context, merchantID int64, newDiscount float64, adminID int64, reason string) error {
-	if !s.enabled() {
-		return ErrMerchantInvalidParam
-	}
-	if err := validateDiscount(newDiscount); err != nil {
-		return err
-	}
-	old, err := s.repo.GetByID(ctx, merchantID)
-	if err != nil {
-		return err
-	}
-	if old.Discount == newDiscount {
-		return nil
-	}
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	txCtx := dbent.NewTxContext(ctx, tx)
-
-	if err := s.repo.UpdateDiscount(txCtx, merchantID, newDiscount); err != nil {
-		return err
-	}
-	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldDiscount,
-		fmt.Sprintf("%g", old.Discount), fmt.Sprintf("%g", newDiscount), reason); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if s.pricingService != nil {
-		s.pricingService.InvalidateMerchant(merchantID)
-	}
-	return nil
-}
 
 // UpdateStatus admin 切换 active/suspended。
 func (s *MerchantService) UpdateStatus(ctx context.Context, merchantID int64, newStatus string, adminID int64, reason string) error {
@@ -1219,14 +1175,6 @@ func (s *MerchantService) ListLedger(ctx context.Context, merchantID int64, offs
 // ----------------------------------------------------------------------------
 // 验证
 // ----------------------------------------------------------------------------
-
-func validateDiscount(discount float64) error {
-	if discount <= 0 || discount > 1 {
-		return infraerrors.BadRequest("MERCHANT_DISCOUNT_OUT_OF_RANGE",
-			"discount must be in (0, 1]")
-	}
-	return nil
-}
 
 func nullableAdminID(adminID int64) *int64 {
 	if adminID <= 0 {

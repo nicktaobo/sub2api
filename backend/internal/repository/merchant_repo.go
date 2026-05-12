@@ -31,7 +31,6 @@ func (r *merchantRepository) Create(ctx context.Context, m *service.Merchant) er
 		SetOwnerUserID(m.OwnerUserID).
 		SetName(m.Name).
 		SetStatus(orDefault(m.Status, service.MerchantStatusActive)).
-		SetDiscount(m.Discount).
 		SetOwnerBalanceBaseline(m.OwnerBalanceBaseline).
 		SetLowBalanceThreshold(m.LowBalanceThreshold).
 		SetNotifyEmails(m.NotifyEmails).
@@ -69,7 +68,7 @@ func (r *merchantRepository) GetByDomain(ctx context.Context, domain string) (*s
 		return nil, errors.New("merchant repository sql db is nil")
 	}
 	const q = `
-		SELECT m.id, m.owner_user_id, m.name, m.status, m.discount,
+		SELECT m.id, m.owner_user_id, m.name, m.status,
 		       m.owner_balance_baseline, m.low_balance_threshold, m.notify_emails,
 		       m.created_at, m.updated_at, m.deleted_at
 		FROM merchants m
@@ -81,12 +80,12 @@ func (r *merchantRepository) GetByDomain(ctx context.Context, domain string) (*s
 		LIMIT 1
 	`
 	var (
-		mm           service.Merchant
-		notifyJSON   []byte
-		deletedAt    sql.NullTime
+		mm         service.Merchant
+		notifyJSON []byte
+		deletedAt  sql.NullTime
 	)
 	err := r.db.QueryRowContext(ctx, q, strings.TrimSpace(domain)).Scan(
-		&mm.ID, &mm.OwnerUserID, &mm.Name, &mm.Status, &mm.Discount,
+		&mm.ID, &mm.OwnerUserID, &mm.Name, &mm.Status,
 		&mm.OwnerBalanceBaseline, &mm.LowBalanceThreshold, &notifyJSON,
 		&mm.CreatedAt, &mm.UpdatedAt, &deletedAt,
 	)
@@ -139,7 +138,6 @@ func (r *merchantRepository) Update(ctx context.Context, m *service.Merchant) er
 	_, err := client.Merchant.UpdateOneID(m.ID).
 		SetName(m.Name).
 		SetStatus(m.Status).
-		SetDiscount(m.Discount).
 		SetLowBalanceThreshold(m.LowBalanceThreshold).
 		SetNotifyEmails(m.NotifyEmails).
 		Save(ctx)
@@ -149,12 +147,6 @@ func (r *merchantRepository) Update(ctx context.Context, m *service.Merchant) er
 func (r *merchantRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
 	client := clientFromContext(ctx, r.client)
 	_, err := client.Merchant.UpdateOneID(id).SetStatus(status).Save(ctx)
-	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
-}
-
-func (r *merchantRepository) UpdateDiscount(ctx context.Context, id int64, discount float64) error {
-	client := clientFromContext(ctx, r.client)
-	_, err := client.Merchant.UpdateOneID(id).SetDiscount(discount).Save(ctx)
 	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
 }
 
@@ -276,7 +268,6 @@ func (r *merchantRepository) LoadPricing(ctx context.Context, merchantID int64) 
 		MerchantID:     m.ID,
 		OwnerUserID:    m.OwnerUserID,
 		Status:         m.Status,
-		Discount:       m.Discount,
 		GroupCosts:     costMap,
 		GroupSellRates: sellMap,
 	}, nil
@@ -293,7 +284,6 @@ func merchantEntityToService(m *dbent.Merchant) *service.Merchant {
 		OwnerUserID:          m.OwnerUserID,
 		Name:                 m.Name,
 		Status:               m.Status,
-		Discount:             m.Discount,
 		OwnerBalanceBaseline: m.OwnerBalanceBaseline,
 		LowBalanceThreshold:  m.LowBalanceThreshold,
 		NotifyEmails:         append([]string{}, m.NotifyEmails...),

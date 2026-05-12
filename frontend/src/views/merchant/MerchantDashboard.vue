@@ -19,7 +19,7 @@
       </div>
 
       <template v-else>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="card p-5">
             <div class="text-xs uppercase tracking-wide text-gray-500">
               {{ t('merchant.owner.dashboard.balance') }}
@@ -37,14 +37,6 @@
             </div>
             <div class="mt-1 text-xs text-gray-400">
               {{ t('merchant.owner.dashboard.last24h') }}
-            </div>
-          </div>
-          <div class="card p-5">
-            <div class="text-xs uppercase tracking-wide text-gray-500">
-              {{ t('merchant.fields.discount') }}
-            </div>
-            <div class="mt-2 font-mono text-2xl font-semibold">
-              {{ Number(info.discount ?? 1).toFixed(4) }}
             </div>
           </div>
         </div>

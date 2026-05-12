@@ -163,7 +163,7 @@ func (s *PaymentService) writeAuditLog(ctx context.Context, oid int64, action, o
 // writePaymentAuditLogStrict 是 writeAuditLog 的强持久化版本——失败时**显式返回 error**。
 //
 // 使用场景：
-//   - MERCHANT_RECHARGE_SHARE_INTENT / MERCHANT_SELF_RECHARGE_INTENT：reconcile 唯一现场，必须强持久化
+//   - MERCHANT_SELF_RECHARGE_INTENT：reconcile 唯一现场，必须强持久化
 //   - MERCHANT_*_RECONCILED：防止重扫
 //
 // 不要替换 writeAuditLog——普通审计仍 best-effort。
