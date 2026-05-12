@@ -133,27 +133,6 @@ func (_u *MerchantUpdate) AddDiscount(v float64) *MerchantUpdate {
 	return _u
 }
 
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (_u *MerchantUpdate) SetUserMarkupDefault(v float64) *MerchantUpdate {
-	_u.mutation.ResetUserMarkupDefault()
-	_u.mutation.SetUserMarkupDefault(v)
-	return _u
-}
-
-// SetNillableUserMarkupDefault sets the "user_markup_default" field if the given value is not nil.
-func (_u *MerchantUpdate) SetNillableUserMarkupDefault(v *float64) *MerchantUpdate {
-	if v != nil {
-		_u.SetUserMarkupDefault(*v)
-	}
-	return _u
-}
-
-// AddUserMarkupDefault adds value to the "user_markup_default" field.
-func (_u *MerchantUpdate) AddUserMarkupDefault(v float64) *MerchantUpdate {
-	_u.mutation.AddUserMarkupDefault(v)
-	return _u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_u *MerchantUpdate) SetOwnerBalanceBaseline(v float64) *MerchantUpdate {
 	_u.mutation.ResetOwnerBalanceBaseline()
@@ -596,12 +575,6 @@ func (_u *MerchantUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedDiscount(); ok {
 		_spec.AddField(merchant.FieldDiscount, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.UserMarkupDefault(); ok {
-		_spec.SetField(merchant.FieldUserMarkupDefault, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedUserMarkupDefault(); ok {
-		_spec.AddField(merchant.FieldUserMarkupDefault, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)
@@ -1099,27 +1072,6 @@ func (_u *MerchantUpdateOne) AddDiscount(v float64) *MerchantUpdateOne {
 	return _u
 }
 
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (_u *MerchantUpdateOne) SetUserMarkupDefault(v float64) *MerchantUpdateOne {
-	_u.mutation.ResetUserMarkupDefault()
-	_u.mutation.SetUserMarkupDefault(v)
-	return _u
-}
-
-// SetNillableUserMarkupDefault sets the "user_markup_default" field if the given value is not nil.
-func (_u *MerchantUpdateOne) SetNillableUserMarkupDefault(v *float64) *MerchantUpdateOne {
-	if v != nil {
-		_u.SetUserMarkupDefault(*v)
-	}
-	return _u
-}
-
-// AddUserMarkupDefault adds value to the "user_markup_default" field.
-func (_u *MerchantUpdateOne) AddUserMarkupDefault(v float64) *MerchantUpdateOne {
-	_u.mutation.AddUserMarkupDefault(v)
-	return _u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_u *MerchantUpdateOne) SetOwnerBalanceBaseline(v float64) *MerchantUpdateOne {
 	_u.mutation.ResetOwnerBalanceBaseline()
@@ -1592,12 +1544,6 @@ func (_u *MerchantUpdateOne) sqlSave(ctx context.Context) (_node *Merchant, err 
 	}
 	if value, ok := _u.mutation.AddedDiscount(); ok {
 		_spec.AddField(merchant.FieldDiscount, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.UserMarkupDefault(); ok {
-		_spec.SetField(merchant.FieldUserMarkupDefault, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedUserMarkupDefault(); ok {
-		_spec.AddField(merchant.FieldUserMarkupDefault, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)

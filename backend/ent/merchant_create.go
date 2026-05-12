@@ -112,20 +112,6 @@ func (_c *MerchantCreate) SetNillableDiscount(v *float64) *MerchantCreate {
 	return _c
 }
 
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (_c *MerchantCreate) SetUserMarkupDefault(v float64) *MerchantCreate {
-	_c.mutation.SetUserMarkupDefault(v)
-	return _c
-}
-
-// SetNillableUserMarkupDefault sets the "user_markup_default" field if the given value is not nil.
-func (_c *MerchantCreate) SetNillableUserMarkupDefault(v *float64) *MerchantCreate {
-	if v != nil {
-		_c.SetUserMarkupDefault(*v)
-	}
-	return _c
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (_c *MerchantCreate) SetOwnerBalanceBaseline(v float64) *MerchantCreate {
 	_c.mutation.SetOwnerBalanceBaseline(v)
@@ -339,10 +325,6 @@ func (_c *MerchantCreate) defaults() error {
 		v := merchant.DefaultDiscount
 		_c.mutation.SetDiscount(v)
 	}
-	if _, ok := _c.mutation.UserMarkupDefault(); !ok {
-		v := merchant.DefaultUserMarkupDefault
-		_c.mutation.SetUserMarkupDefault(v)
-	}
 	if _, ok := _c.mutation.OwnerBalanceBaseline(); !ok {
 		v := merchant.DefaultOwnerBalanceBaseline
 		_c.mutation.SetOwnerBalanceBaseline(v)
@@ -387,9 +369,6 @@ func (_c *MerchantCreate) check() error {
 	}
 	if _, ok := _c.mutation.Discount(); !ok {
 		return &ValidationError{Name: "discount", err: errors.New(`ent: missing required field "Merchant.discount"`)}
-	}
-	if _, ok := _c.mutation.UserMarkupDefault(); !ok {
-		return &ValidationError{Name: "user_markup_default", err: errors.New(`ent: missing required field "Merchant.user_markup_default"`)}
 	}
 	if _, ok := _c.mutation.OwnerBalanceBaseline(); !ok {
 		return &ValidationError{Name: "owner_balance_baseline", err: errors.New(`ent: missing required field "Merchant.owner_balance_baseline"`)}
@@ -454,10 +433,6 @@ func (_c *MerchantCreate) createSpec() (*Merchant, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Discount(); ok {
 		_spec.SetField(merchant.FieldDiscount, field.TypeFloat64, value)
 		_node.Discount = value
-	}
-	if value, ok := _c.mutation.UserMarkupDefault(); ok {
-		_spec.SetField(merchant.FieldUserMarkupDefault, field.TypeFloat64, value)
-		_node.UserMarkupDefault = value
 	}
 	if value, ok := _c.mutation.OwnerBalanceBaseline(); ok {
 		_spec.SetField(merchant.FieldOwnerBalanceBaseline, field.TypeFloat64, value)
@@ -741,24 +716,6 @@ func (u *MerchantUpsert) AddDiscount(v float64) *MerchantUpsert {
 	return u
 }
 
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (u *MerchantUpsert) SetUserMarkupDefault(v float64) *MerchantUpsert {
-	u.Set(merchant.FieldUserMarkupDefault, v)
-	return u
-}
-
-// UpdateUserMarkupDefault sets the "user_markup_default" field to the value that was provided on create.
-func (u *MerchantUpsert) UpdateUserMarkupDefault() *MerchantUpsert {
-	u.SetExcluded(merchant.FieldUserMarkupDefault)
-	return u
-}
-
-// AddUserMarkupDefault adds v to the "user_markup_default" field.
-func (u *MerchantUpsert) AddUserMarkupDefault(v float64) *MerchantUpsert {
-	u.Add(merchant.FieldUserMarkupDefault, v)
-	return u
-}
-
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
 func (u *MerchantUpsert) SetOwnerBalanceBaseline(v float64) *MerchantUpsert {
 	u.Set(merchant.FieldOwnerBalanceBaseline, v)
@@ -954,27 +911,6 @@ func (u *MerchantUpsertOne) AddDiscount(v float64) *MerchantUpsertOne {
 func (u *MerchantUpsertOne) UpdateDiscount() *MerchantUpsertOne {
 	return u.Update(func(s *MerchantUpsert) {
 		s.UpdateDiscount()
-	})
-}
-
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (u *MerchantUpsertOne) SetUserMarkupDefault(v float64) *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.SetUserMarkupDefault(v)
-	})
-}
-
-// AddUserMarkupDefault adds v to the "user_markup_default" field.
-func (u *MerchantUpsertOne) AddUserMarkupDefault(v float64) *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.AddUserMarkupDefault(v)
-	})
-}
-
-// UpdateUserMarkupDefault sets the "user_markup_default" field to the value that was provided on create.
-func (u *MerchantUpsertOne) UpdateUserMarkupDefault() *MerchantUpsertOne {
-	return u.Update(func(s *MerchantUpsert) {
-		s.UpdateUserMarkupDefault()
 	})
 }
 
@@ -1347,27 +1283,6 @@ func (u *MerchantUpsertBulk) AddDiscount(v float64) *MerchantUpsertBulk {
 func (u *MerchantUpsertBulk) UpdateDiscount() *MerchantUpsertBulk {
 	return u.Update(func(s *MerchantUpsert) {
 		s.UpdateDiscount()
-	})
-}
-
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (u *MerchantUpsertBulk) SetUserMarkupDefault(v float64) *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.SetUserMarkupDefault(v)
-	})
-}
-
-// AddUserMarkupDefault adds v to the "user_markup_default" field.
-func (u *MerchantUpsertBulk) AddUserMarkupDefault(v float64) *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.AddUserMarkupDefault(v)
-	})
-}
-
-// UpdateUserMarkupDefault sets the "user_markup_default" field to the value that was provided on create.
-func (u *MerchantUpsertBulk) UpdateUserMarkupDefault() *MerchantUpsertBulk {
-	return u.Update(func(s *MerchantUpsert) {
-		s.UpdateUserMarkupDefault()
 	})
 }
 

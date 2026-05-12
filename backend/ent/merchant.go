@@ -32,8 +32,6 @@ type Merchant struct {
 	Status string `json:"status,omitempty"`
 	// 充值环节比例 (0,1]；owner 充池实付 amount × discount，sub_user 充值 owner 得 (1-discount)×amount
 	Discount float64 `json:"discount,omitempty"`
-	// 消费环节倍率商户级兜底 ≥ 1；分组未配置 markup 时使用
-	UserMarkupDefault float64 `json:"user_markup_default,omitempty"`
 	// 开通商户时的 owner.balance 快照，对账等式基线
 	OwnerBalanceBaseline float64 `json:"owner_balance_baseline,omitempty"`
 	// LowBalanceThreshold holds the value of the "low_balance_threshold" field.
@@ -148,7 +146,7 @@ func (*Merchant) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case merchant.FieldNotifyEmails:
 			values[i] = new([]byte)
-		case merchant.FieldDiscount, merchant.FieldUserMarkupDefault, merchant.FieldOwnerBalanceBaseline, merchant.FieldLowBalanceThreshold:
+		case merchant.FieldDiscount, merchant.FieldOwnerBalanceBaseline, merchant.FieldLowBalanceThreshold:
 			values[i] = new(sql.NullFloat64)
 		case merchant.FieldID, merchant.FieldOwnerUserID:
 			values[i] = new(sql.NullInt64)
@@ -219,12 +217,6 @@ func (_m *Merchant) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field discount", values[i])
 			} else if value.Valid {
 				_m.Discount = value.Float64
-			}
-		case merchant.FieldUserMarkupDefault:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field user_markup_default", values[i])
-			} else if value.Valid {
-				_m.UserMarkupDefault = value.Float64
 			}
 		case merchant.FieldOwnerBalanceBaseline:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -344,9 +336,6 @@ func (_m *Merchant) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("discount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Discount))
-	builder.WriteString(", ")
-	builder.WriteString("user_markup_default=")
-	builder.WriteString(fmt.Sprintf("%v", _m.UserMarkupDefault))
 	builder.WriteString(", ")
 	builder.WriteString("owner_balance_baseline=")
 	builder.WriteString(fmt.Sprintf("%v", _m.OwnerBalanceBaseline))

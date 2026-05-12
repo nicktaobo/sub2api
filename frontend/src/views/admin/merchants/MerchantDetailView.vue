@@ -59,29 +59,26 @@
           <div v-if="!merchant" class="py-8 text-center text-gray-500">{{ t('common.loading') }}</div>
           <template v-else>
             <!-- Discount -->
-            <div class="grid gap-4 md:grid-cols-2">
-              <div>
-                <label class="input-label">{{ t('merchant.fields.discount') }}</label>
-                <div class="flex gap-2">
-                  <input
-                    v-model.number="form.discount"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    class="input"
-                  />
-                  <button class="btn btn-primary" :disabled="saving.discount" @click="saveDiscount">
-                    {{ saving.discount ? t('common.saving') : t('common.save') }}
-                  </button>
-                </div>
-                <div
-                  v-if="form.discount < 0.5"
-                  class="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300"
-                >
-                  {{ t('merchant.detail.warnings.discountLow') }}
-                </div>
+            <div>
+              <label class="input-label">{{ t('merchant.fields.discount') }}</label>
+              <div class="flex gap-2">
+                <input
+                  v-model.number="form.discount"
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  class="input"
+                />
+                <button class="btn btn-primary" :disabled="saving.discount" @click="saveDiscount">
+                  {{ saving.discount ? t('common.saving') : t('common.save') }}
+                </button>
               </div>
-              <!-- v2.0: 默认 markup 已废弃，消费侧改用 per-group cost_rate / sell_rate（见 Pricing tab） -->
+              <div
+                v-if="form.discount < 0.5"
+                class="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300"
+              >
+                {{ t('merchant.detail.warnings.discountLow') }}
+              </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -382,7 +379,6 @@ const tabs = computed(() => [
 // Form state
 const form = reactive({
   discount: 1,
-  user_markup_default: 1,
   low_balance_threshold: 0,
   notify_emails_str: '',
 })
@@ -392,7 +388,6 @@ const saving = reactive({ discount: false })
 function syncFormFromMerchant(): void {
   if (!merchant.value) return
   form.discount = Number(merchant.value.discount ?? 1)
-  form.user_markup_default = Number(merchant.value.user_markup_default ?? 1)
   form.low_balance_threshold = Number(merchant.value.low_balance_threshold ?? 0)
   const emails = merchant.value.notify_emails
   if (Array.isArray(emails)) {

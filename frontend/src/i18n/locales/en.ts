@@ -6764,7 +6764,6 @@ export default {
       ownerBalance: 'Owner Balance',
       status: 'Status',
       discount: 'Recharge Discount',
-      markupDefault: 'Default User Markup',
       markup: 'Markup',
       lowBalanceThreshold: 'Low Balance Threshold',
       notifyEmails: 'Notify Emails',
@@ -6802,7 +6801,6 @@ export default {
       ownerUserIdHint: 'The user must exist and not already be the owner of another merchant.',
       namePlaceholder: 'e.g. Acme Inc.',
       discountHint: 'Discount applied at recharge time. e.g. 0.9 = 10% off.',
-      markupHint: 'Default markup applied to sub-user spending. >=1; >2 triggers review.',
       notifyEmailsHint: 'comma-separated',
       notifyEmailsPlaceholder: "ops{'@'}example.com, billing{'@'}example.com",
       actions: {
@@ -6863,7 +6861,6 @@ export default {
       notifyEmailsReadonlyHint: 'Notify emails are maintained by the merchant in their self-service area.',
       warnings: {
         discountLow: 'Discount is below 0.5; submission will go through review.',
-        markupHigh: 'Markup is above 2.0; sub-user spending will more than double — please confirm pricing transparency.',
       },
       groupPricing: {
         title: 'Group Pricing',

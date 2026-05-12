@@ -83,6 +83,7 @@ const (
 	MerchantSourceUserRechargeShare = "user_recharge_share"
 	MerchantSourceSelfRecharge      = "self_recharge"
 	MerchantSourcePayToUser         = "pay_to_user"
+	MerchantSourceRefundFromUser    = "refund_from_user" // 商户从子用户撤回余额，回到 owner.balance
 	MerchantSourceRedeemCreate      = "redeem_create"
 	MerchantSourceRedeemRefund      = "redeem_refund"
 	MerchantSourceAdminRecharge     = "admin_recharge"
@@ -97,7 +98,6 @@ const (
 
 	// audit log field 枚举
 	MerchantAuditFieldDiscount     = "discount"
-	MerchantAuditFieldMarkupDef    = "user_markup_default"
 	MerchantAuditFieldGroupMarkup  = "group_markup"
 	MerchantAuditFieldGroupCost    = "group_cost"
 	MerchantAuditFieldGroupSell    = "group_sell"
@@ -119,7 +119,6 @@ type Merchant struct {
 	Name                 string     `json:"name"`
 	Status               string     `json:"status"`
 	Discount             float64    `json:"discount"`
-	UserMarkupDefault    float64    `json:"user_markup_default"`
 	OwnerBalanceBaseline float64    `json:"owner_balance_baseline"`
 	LowBalanceThreshold  float64    `json:"low_balance_threshold"`
 	NotifyEmails         []string   `json:"notify_emails"`
@@ -263,14 +262,13 @@ type MerchantRepository interface {
 	Update(ctx context.Context, m *Merchant) error
 	UpdateStatus(ctx context.Context, id int64, status string) error
 	UpdateDiscount(ctx context.Context, id int64, discount float64) error
-	UpdateMarkupDefault(ctx context.Context, id int64, markup float64) error
 	SoftDelete(ctx context.Context, id int64) error
 
 	// LookupMerchantIDForUser 按 user_id 反查 merchant_id（同时识别 sub_user 与 owner）。
 	// 返回 0 表示不属于任何商户（普通主站用户）。RFC §5.2.1 Step 2.0。
 	LookupMerchantIDForUser(ctx context.Context, userID int64) (int64, error)
 
-	// LoadPricing 一次性加载某商户的 discount/markup_default + 所有 active group markups（用于 pricing cache）。
+	// LoadPricing 一次性加载某商户的 discount + 所有 active group cost/sell rates（用于 pricing cache）。
 	LoadPricing(ctx context.Context, merchantID int64) (*CachedMerchantPricing, error)
 }
 

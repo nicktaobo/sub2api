@@ -25,7 +25,6 @@ export interface Merchant {
   name: string
   status: MerchantStatus
   discount: number
-  user_markup_default: number
   low_balance_threshold: number
   notify_emails: NotifyEmailEntry[] | string[] | null
   // admin list 富对象字段
@@ -141,7 +140,6 @@ export interface CreateMerchantPayload {
   owner_user_id: number
   name: string
   discount: number
-  user_markup_default: number
   low_balance_threshold: number
   notify_emails: NotifyEmailEntry[] | string[]
   reason?: string
@@ -213,19 +211,6 @@ export async function adminMerchantSetDiscount(
   const { data } = await apiClient.patch<Merchant>(
     `/admin/merchants/${id}/discount`,
     { discount, reason },
-  )
-  return data
-}
-
-/** PATCH /admin/merchants/:id/markup_default */
-export async function adminMerchantSetMarkupDefault(
-  id: number,
-  markup: number,
-  reason?: string,
-): Promise<Merchant> {
-  const { data } = await apiClient.patch<Merchant>(
-    `/admin/merchants/${id}/markup_default`,
-    { user_markup_default: markup, markup, reason },
   )
   return data
 }
@@ -682,7 +667,6 @@ export const merchantAPI = {
   adminCreate: adminMerchantCreate,
   adminGet: adminMerchantGet,
   adminSetDiscount: adminMerchantSetDiscount,
-  adminSetMarkupDefault: adminMerchantSetMarkupDefault,
   adminSetStatus: adminMerchantSetStatus,
   adminRecharge: adminMerchantRecharge,
   adminRefund: adminMerchantRefund,

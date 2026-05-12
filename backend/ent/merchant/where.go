@@ -90,11 +90,6 @@ func Discount(v float64) predicate.Merchant {
 	return predicate.Merchant(sql.FieldEQ(FieldDiscount, v))
 }
 
-// UserMarkupDefault applies equality check predicate on the "user_markup_default" field. It's identical to UserMarkupDefaultEQ.
-func UserMarkupDefault(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldEQ(FieldUserMarkupDefault, v))
-}
-
 // OwnerBalanceBaseline applies equality check predicate on the "owner_balance_baseline" field. It's identical to OwnerBalanceBaselineEQ.
 func OwnerBalanceBaseline(v float64) predicate.Merchant {
 	return predicate.Merchant(sql.FieldEQ(FieldOwnerBalanceBaseline, v))
@@ -443,46 +438,6 @@ func DiscountLT(v float64) predicate.Merchant {
 // DiscountLTE applies the LTE predicate on the "discount" field.
 func DiscountLTE(v float64) predicate.Merchant {
 	return predicate.Merchant(sql.FieldLTE(FieldDiscount, v))
-}
-
-// UserMarkupDefaultEQ applies the EQ predicate on the "user_markup_default" field.
-func UserMarkupDefaultEQ(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldEQ(FieldUserMarkupDefault, v))
-}
-
-// UserMarkupDefaultNEQ applies the NEQ predicate on the "user_markup_default" field.
-func UserMarkupDefaultNEQ(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldNEQ(FieldUserMarkupDefault, v))
-}
-
-// UserMarkupDefaultIn applies the In predicate on the "user_markup_default" field.
-func UserMarkupDefaultIn(vs ...float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldIn(FieldUserMarkupDefault, vs...))
-}
-
-// UserMarkupDefaultNotIn applies the NotIn predicate on the "user_markup_default" field.
-func UserMarkupDefaultNotIn(vs ...float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldNotIn(FieldUserMarkupDefault, vs...))
-}
-
-// UserMarkupDefaultGT applies the GT predicate on the "user_markup_default" field.
-func UserMarkupDefaultGT(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldGT(FieldUserMarkupDefault, v))
-}
-
-// UserMarkupDefaultGTE applies the GTE predicate on the "user_markup_default" field.
-func UserMarkupDefaultGTE(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldGTE(FieldUserMarkupDefault, v))
-}
-
-// UserMarkupDefaultLT applies the LT predicate on the "user_markup_default" field.
-func UserMarkupDefaultLT(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldLT(FieldUserMarkupDefault, v))
-}
-
-// UserMarkupDefaultLTE applies the LTE predicate on the "user_markup_default" field.
-func UserMarkupDefaultLTE(v float64) predicate.Merchant {
-	return predicate.Merchant(sql.FieldLTE(FieldUserMarkupDefault, v))
 }
 
 // OwnerBalanceBaselineEQ applies the EQ predicate on the "owner_balance_baseline" field.

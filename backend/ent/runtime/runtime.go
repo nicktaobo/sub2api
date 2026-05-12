@@ -978,20 +978,16 @@ func init() {
 	merchantDescDiscount := merchantFields[3].Descriptor()
 	// merchant.DefaultDiscount holds the default value on creation for the discount field.
 	merchant.DefaultDiscount = merchantDescDiscount.Default.(float64)
-	// merchantDescUserMarkupDefault is the schema descriptor for user_markup_default field.
-	merchantDescUserMarkupDefault := merchantFields[4].Descriptor()
-	// merchant.DefaultUserMarkupDefault holds the default value on creation for the user_markup_default field.
-	merchant.DefaultUserMarkupDefault = merchantDescUserMarkupDefault.Default.(float64)
 	// merchantDescOwnerBalanceBaseline is the schema descriptor for owner_balance_baseline field.
-	merchantDescOwnerBalanceBaseline := merchantFields[5].Descriptor()
+	merchantDescOwnerBalanceBaseline := merchantFields[4].Descriptor()
 	// merchant.DefaultOwnerBalanceBaseline holds the default value on creation for the owner_balance_baseline field.
 	merchant.DefaultOwnerBalanceBaseline = merchantDescOwnerBalanceBaseline.Default.(float64)
 	// merchantDescLowBalanceThreshold is the schema descriptor for low_balance_threshold field.
-	merchantDescLowBalanceThreshold := merchantFields[6].Descriptor()
+	merchantDescLowBalanceThreshold := merchantFields[5].Descriptor()
 	// merchant.DefaultLowBalanceThreshold holds the default value on creation for the low_balance_threshold field.
 	merchant.DefaultLowBalanceThreshold = merchantDescLowBalanceThreshold.Default.(float64)
 	// merchantDescNotifyEmails is the schema descriptor for notify_emails field.
-	merchantDescNotifyEmails := merchantFields[7].Descriptor()
+	merchantDescNotifyEmails := merchantFields[6].Descriptor()
 	// merchant.DefaultNotifyEmails holds the default value on creation for the notify_emails field.
 	merchant.DefaultNotifyEmails = merchantDescNotifyEmails.Default.([]string)
 	merchantauditlogFields := schema.MerchantAuditLog{}.Fields()

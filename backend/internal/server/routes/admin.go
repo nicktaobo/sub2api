@@ -114,7 +114,6 @@ func registerMerchantAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		merchants.POST("", mh.Create)
 		merchants.GET("/:id", mh.Get)
 		merchants.PATCH("/:id/discount", mh.SetDiscount)
-		merchants.PATCH("/:id/markup_default", mh.SetMarkupDefault)
 		merchants.PATCH("/:id/status", mh.SetStatus)
 		merchants.POST("/:id/recharge", mh.Recharge)
 		merchants.POST("/:id/refund", mh.Refund)

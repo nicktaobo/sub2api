@@ -47,14 +47,6 @@
               {{ Number(info.discount ?? 1).toFixed(4) }}
             </div>
           </div>
-          <div class="card p-5">
-            <div class="text-xs uppercase tracking-wide text-gray-500">
-              {{ t('merchant.fields.markupDefault') }}
-            </div>
-            <div class="mt-2 font-mono text-2xl font-semibold">
-              {{ Number(info.user_markup_default ?? 1).toFixed(4) }}
-            </div>
-          </div>
         </div>
 
         <div class="card space-y-3 p-6">

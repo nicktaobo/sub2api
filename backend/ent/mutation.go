@@ -19811,8 +19811,6 @@ type MerchantMutation struct {
 	status                    *string
 	discount                  *float64
 	adddiscount               *float64
-	user_markup_default       *float64
-	adduser_markup_default    *float64
 	owner_balance_baseline    *float64
 	addowner_balance_baseline *float64
 	low_balance_threshold     *float64
@@ -20250,62 +20248,6 @@ func (m *MerchantMutation) AddedDiscount() (r float64, exists bool) {
 func (m *MerchantMutation) ResetDiscount() {
 	m.discount = nil
 	m.adddiscount = nil
-}
-
-// SetUserMarkupDefault sets the "user_markup_default" field.
-func (m *MerchantMutation) SetUserMarkupDefault(f float64) {
-	m.user_markup_default = &f
-	m.adduser_markup_default = nil
-}
-
-// UserMarkupDefault returns the value of the "user_markup_default" field in the mutation.
-func (m *MerchantMutation) UserMarkupDefault() (r float64, exists bool) {
-	v := m.user_markup_default
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldUserMarkupDefault returns the old "user_markup_default" field's value of the Merchant entity.
-// If the Merchant object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *MerchantMutation) OldUserMarkupDefault(ctx context.Context) (v float64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldUserMarkupDefault is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldUserMarkupDefault requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldUserMarkupDefault: %w", err)
-	}
-	return oldValue.UserMarkupDefault, nil
-}
-
-// AddUserMarkupDefault adds f to the "user_markup_default" field.
-func (m *MerchantMutation) AddUserMarkupDefault(f float64) {
-	if m.adduser_markup_default != nil {
-		*m.adduser_markup_default += f
-	} else {
-		m.adduser_markup_default = &f
-	}
-}
-
-// AddedUserMarkupDefault returns the value that was added to the "user_markup_default" field in this mutation.
-func (m *MerchantMutation) AddedUserMarkupDefault() (r float64, exists bool) {
-	v := m.adduser_markup_default
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetUserMarkupDefault resets all changes to the "user_markup_default" field.
-func (m *MerchantMutation) ResetUserMarkupDefault() {
-	m.user_markup_default = nil
-	m.adduser_markup_default = nil
 }
 
 // SetOwnerBalanceBaseline sets the "owner_balance_baseline" field.
@@ -20937,7 +20879,7 @@ func (m *MerchantMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MerchantMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 10)
 	if m.created_at != nil {
 		fields = append(fields, merchant.FieldCreatedAt)
 	}
@@ -20958,9 +20900,6 @@ func (m *MerchantMutation) Fields() []string {
 	}
 	if m.discount != nil {
 		fields = append(fields, merchant.FieldDiscount)
-	}
-	if m.user_markup_default != nil {
-		fields = append(fields, merchant.FieldUserMarkupDefault)
 	}
 	if m.owner_balance_baseline != nil {
 		fields = append(fields, merchant.FieldOwnerBalanceBaseline)
@@ -20993,8 +20932,6 @@ func (m *MerchantMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case merchant.FieldDiscount:
 		return m.Discount()
-	case merchant.FieldUserMarkupDefault:
-		return m.UserMarkupDefault()
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.OwnerBalanceBaseline()
 	case merchant.FieldLowBalanceThreshold:
@@ -21024,8 +20961,6 @@ func (m *MerchantMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldStatus(ctx)
 	case merchant.FieldDiscount:
 		return m.OldDiscount(ctx)
-	case merchant.FieldUserMarkupDefault:
-		return m.OldUserMarkupDefault(ctx)
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.OldOwnerBalanceBaseline(ctx)
 	case merchant.FieldLowBalanceThreshold:
@@ -21090,13 +21025,6 @@ func (m *MerchantMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetDiscount(v)
 		return nil
-	case merchant.FieldUserMarkupDefault:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetUserMarkupDefault(v)
-		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		v, ok := value.(float64)
 		if !ok {
@@ -21132,9 +21060,6 @@ func (m *MerchantMutation) AddedFields() []string {
 	if m.adddiscount != nil {
 		fields = append(fields, merchant.FieldDiscount)
 	}
-	if m.adduser_markup_default != nil {
-		fields = append(fields, merchant.FieldUserMarkupDefault)
-	}
 	if m.addowner_balance_baseline != nil {
 		fields = append(fields, merchant.FieldOwnerBalanceBaseline)
 	}
@@ -21153,8 +21078,6 @@ func (m *MerchantMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedOwnerUserID()
 	case merchant.FieldDiscount:
 		return m.AddedDiscount()
-	case merchant.FieldUserMarkupDefault:
-		return m.AddedUserMarkupDefault()
 	case merchant.FieldOwnerBalanceBaseline:
 		return m.AddedOwnerBalanceBaseline()
 	case merchant.FieldLowBalanceThreshold:
@@ -21181,13 +21104,6 @@ func (m *MerchantMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddDiscount(v)
-		return nil
-	case merchant.FieldUserMarkupDefault:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddUserMarkupDefault(v)
 		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		v, ok := value.(float64)
@@ -21259,9 +21175,6 @@ func (m *MerchantMutation) ResetField(name string) error {
 		return nil
 	case merchant.FieldDiscount:
 		m.ResetDiscount()
-		return nil
-	case merchant.FieldUserMarkupDefault:
-		m.ResetUserMarkupDefault()
 		return nil
 	case merchant.FieldOwnerBalanceBaseline:
 		m.ResetOwnerBalanceBaseline()

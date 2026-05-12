@@ -18,7 +18,9 @@ import (
 // 关键约束：
 //   - owner_user_id UNIQUE：一个 user 最多是一个商户的 owner
 //   - discount ∈ (0,1]：充值环节比例（DB CHECK 在 SQL migration 中加）
-//   - user_markup_default ≥ 1：消费环节兜底倍率（DB CHECK 在 SQL migration 中加）
+//
+// 消费侧倍率：v2.0 起改为 per-group cost_rate / sell_rate（见 merchant_group_costs /
+// merchant_group_markups），不再使用商户级兜底字段。
 type Merchant struct {
 	ent.Schema
 }
@@ -52,10 +54,6 @@ func (Merchant) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(6,4)"}).
 			Default(1.0).
 			Comment("充值环节比例 (0,1]；owner 充池实付 amount × discount，sub_user 充值 owner 得 (1-discount)×amount"),
-		field.Float("user_markup_default").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(6,4)"}).
-			Default(1.0).
-			Comment("消费环节倍率商户级兜底 ≥ 1；分组未配置 markup 时使用"),
 		field.Float("owner_balance_baseline").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).

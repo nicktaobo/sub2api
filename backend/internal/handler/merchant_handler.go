@@ -61,7 +61,6 @@ func (h *MerchantHandler) GetInfo(c *gin.Context) {
 		"name":                   m.Name,
 		"status":                 m.Status,
 		"discount":               m.Discount,
-		"user_markup_default":    m.UserMarkupDefault,
 		"owner_balance_baseline": m.OwnerBalanceBaseline,
 		"low_balance_threshold":  m.LowBalanceThreshold,
 		"created_at":             m.CreatedAt,
@@ -102,6 +101,27 @@ func (h *MerchantHandler) PayToUser(c *gin.Context) {
 		return
 	}
 	if err := h.merchantSvc.PayToUser(c.Request.Context(), m.ID, req.SubUserID, req.Amount, 0, req.Reason); err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+// RefundFromUser owner 从子用户撤回余额（sub_user.balance → owner.balance）。
+// 子用户余额不足返回 ErrInsufficientBalance；adminID 传 0 表示商户自助操作。
+func (h *MerchantHandler) RefundFromUser(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	var req payToUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := h.merchantSvc.RefundFromUser(c.Request.Context(), m.ID, req.SubUserID, req.Amount, 0, req.Reason); err != nil {
 		if !response.ErrorFrom(c, err) {
 			response.Error(c, http.StatusBadRequest, err.Error())
 		}

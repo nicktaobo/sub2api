@@ -180,7 +180,6 @@ type CreateMerchantInput struct {
 	OwnerUserID         int64
 	Name                string
 	Discount            float64 // ∈ (0, 1]
-	UserMarkupDefault   float64 // ≥ 1
 	LowBalanceThreshold float64
 	NotifyEmails        []string
 	AdminID             int64
@@ -192,9 +191,6 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 		return nil, ErrMerchantInvalidParam
 	}
 	if err := validateDiscount(in.Discount); err != nil {
-		return nil, err
-	}
-	if err := validateMarkup(in.UserMarkupDefault); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(in.Name) == "" {
@@ -223,7 +219,6 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 		Name:                 strings.TrimSpace(in.Name),
 		Status:               MerchantStatusActive,
 		Discount:             in.Discount,
-		UserMarkupDefault:    in.UserMarkupDefault,
 		OwnerBalanceBaseline: owner.Balance, // 开通时快照
 		LowBalanceThreshold:  in.LowBalanceThreshold,
 		NotifyEmails:         in.NotifyEmails,
@@ -235,8 +230,8 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 	// 写一条 audit
 	adminID := nullableAdminID(in.AdminID)
 	reason := in.Reason
-	newVal := fmt.Sprintf("merchant_id=%d owner_user_id=%d discount=%g markup_default=%g",
-		m.ID, m.OwnerUserID, m.Discount, m.UserMarkupDefault)
+	newVal := fmt.Sprintf("merchant_id=%d owner_user_id=%d discount=%g",
+		m.ID, m.OwnerUserID, m.Discount)
 	if err := s.auditLogRepo.Insert(txCtx, &MerchantAuditLogEntry{
 		MerchantID: m.ID,
 		AdminID:    adminID,
@@ -259,7 +254,7 @@ func (s *MerchantService) CreateMerchant(ctx context.Context, in CreateMerchantI
 }
 
 // ----------------------------------------------------------------------------
-// 配置变更：discount / markup_default / status / group markup
+// 配置变更：discount / status / group cost / group sell
 // ----------------------------------------------------------------------------
 
 // SetDiscount admin 修改 discount。
@@ -289,44 +284,6 @@ func (s *MerchantService) SetDiscount(ctx context.Context, merchantID int64, new
 	}
 	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldDiscount,
 		fmt.Sprintf("%g", old.Discount), fmt.Sprintf("%g", newDiscount), reason); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if s.pricingService != nil {
-		s.pricingService.InvalidateMerchant(merchantID)
-	}
-	return nil
-}
-
-// SetMarkupDefault admin 修改商户级 markup 兜底。
-func (s *MerchantService) SetMarkupDefault(ctx context.Context, merchantID int64, newMarkup float64, adminID int64, reason string) error {
-	if !s.enabled() {
-		return ErrMerchantInvalidParam
-	}
-	if err := validateMarkup(newMarkup); err != nil {
-		return err
-	}
-	old, err := s.repo.GetByID(ctx, merchantID)
-	if err != nil {
-		return err
-	}
-	if old.UserMarkupDefault == newMarkup {
-		return nil
-	}
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	txCtx := dbent.NewTxContext(ctx, tx)
-
-	if err := s.repo.UpdateMarkupDefault(txCtx, merchantID, newMarkup); err != nil {
-		return err
-	}
-	if err := s.writeAudit(txCtx, merchantID, adminID, MerchantAuditFieldMarkupDef,
-		fmt.Sprintf("%g", old.UserMarkupDefault), fmt.Sprintf("%g", newMarkup), reason); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -695,6 +652,75 @@ func (s *MerchantService) PayToUser(ctx context.Context, merchantID, subUserID i
 	// 审计
 	auditNew := fmt.Sprintf("sub_user_id=%d amount=%g", subUserID, amount)
 	if err := s.writeAudit(txCtx, merchantID, adminID, "pay_to_user", "", auditNew, reason); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// ----------------------------------------------------------------------------
+// RefundFromUser：商户从子用户撤回余额（sub_user.balance → owner.balance）
+// ----------------------------------------------------------------------------
+//
+// PayToUser 的镜像操作。owner 后台用：商户给子用户充错了 / 想回收余额 都走这里。
+// 子用户余额不足时 ErrInsufficientBalance；不允许把子用户余额扣成负数。
+func (s *MerchantService) RefundFromUser(ctx context.Context, merchantID, subUserID int64, amount float64, adminID int64, reason string) error {
+	if !s.enabled() {
+		return ErrMerchantInvalidParam
+	}
+	if amount <= 0 {
+		return ErrMerchantInvalidParam
+	}
+	m, err := s.repo.GetByID(ctx, merchantID)
+	if err != nil {
+		return err
+	}
+	if m.Status != MerchantStatusActive {
+		return ErrMerchantSuspended
+	}
+	subUser, err := s.userRepo.GetByID(ctx, subUserID)
+	if err != nil {
+		return err
+	}
+	if subUser.ParentMerchantID == nil || *subUser.ParentMerchantID != merchantID {
+		return infraerrors.BadRequest("MERCHANT_USER_NOT_SUB", "user is not a sub-user of this merchant")
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	// 扣 sub_user.balance —— strict，禁止扣成负数
+	if err := s.userRepo.DeductBalanceStrict(txCtx, subUserID, amount); err != nil {
+		return err
+	}
+	// 加 owner.balance
+	if err := s.userRepo.UpdateBalance(txCtx, m.OwnerUserID, amount); err != nil {
+		return err
+	}
+	bal, err := s.readOwnerBalanceInTx(txCtx, m.OwnerUserID)
+	if err != nil {
+		return err
+	}
+	idem := fmt.Sprintf("refund_from_user:%d:%d:%d", merchantID, subUserID, time.Now().UnixNano())
+	cuID := subUserID
+	if err := s.ledgerRepo.Insert(txCtx, &MerchantLedgerEntry{
+		MerchantID:         merchantID,
+		OwnerUserID:        m.OwnerUserID,
+		CounterpartyUserID: &cuID,
+		Direction:          MerchantLedgerDirectionCredit, // 钱回到商户，credit
+		Amount:             amount,
+		BalanceAfter:       &bal,
+		Source:             MerchantSourceRefundFromUser,
+		IdempotencyKey:     &idem,
+	}); err != nil {
+		return err
+	}
+	auditNew := fmt.Sprintf("sub_user_id=%d amount=%g", subUserID, amount)
+	if err := s.writeAudit(txCtx, merchantID, adminID, "refund_from_user", "", auditNew, reason); err != nil {
 		return err
 	}
 
@@ -1198,14 +1224,6 @@ func validateDiscount(discount float64) error {
 	if discount <= 0 || discount > 1 {
 		return infraerrors.BadRequest("MERCHANT_DISCOUNT_OUT_OF_RANGE",
 			"discount must be in (0, 1]")
-	}
-	return nil
-}
-
-func validateMarkup(markup float64) error {
-	if markup < 1 {
-		return infraerrors.BadRequest("MERCHANT_MARKUP_OUT_OF_RANGE",
-			"markup must be ≥ 1 (use 1.0 to disable markup)")
 	}
 	return nil
 }

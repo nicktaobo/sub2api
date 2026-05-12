@@ -29,8 +29,6 @@ const (
 	FieldStatus = "status"
 	// FieldDiscount holds the string denoting the discount field in the database.
 	FieldDiscount = "discount"
-	// FieldUserMarkupDefault holds the string denoting the user_markup_default field in the database.
-	FieldUserMarkupDefault = "user_markup_default"
 	// FieldOwnerBalanceBaseline holds the string denoting the owner_balance_baseline field in the database.
 	FieldOwnerBalanceBaseline = "owner_balance_baseline"
 	// FieldLowBalanceThreshold holds the string denoting the low_balance_threshold field in the database.
@@ -123,7 +121,6 @@ var Columns = []string{
 	FieldName,
 	FieldStatus,
 	FieldDiscount,
-	FieldUserMarkupDefault,
 	FieldOwnerBalanceBaseline,
 	FieldLowBalanceThreshold,
 	FieldNotifyEmails,
@@ -161,8 +158,6 @@ var (
 	StatusValidator func(string) error
 	// DefaultDiscount holds the default value on creation for the "discount" field.
 	DefaultDiscount float64
-	// DefaultUserMarkupDefault holds the default value on creation for the "user_markup_default" field.
-	DefaultUserMarkupDefault float64
 	// DefaultOwnerBalanceBaseline holds the default value on creation for the "owner_balance_baseline" field.
 	DefaultOwnerBalanceBaseline float64
 	// DefaultLowBalanceThreshold holds the default value on creation for the "low_balance_threshold" field.
@@ -212,11 +207,6 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByDiscount orders the results by the discount field.
 func ByDiscount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDiscount, opts...).ToFunc()
-}
-
-// ByUserMarkupDefault orders the results by the user_markup_default field.
-func ByUserMarkupDefault(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldUserMarkupDefault, opts...).ToFunc()
 }
 
 // ByOwnerBalanceBaseline orders the results by the owner_balance_baseline field.

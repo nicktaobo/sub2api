@@ -82,7 +82,6 @@ type createMerchantReq struct {
 	OwnerUserID         int64    `json:"owner_user_id" binding:"required"`
 	Name                string   `json:"name" binding:"required"`
 	Discount            float64  `json:"discount"`
-	UserMarkupDefault   float64  `json:"user_markup_default"`
 	LowBalanceThreshold float64  `json:"low_balance_threshold"`
 	NotifyEmails        []string `json:"notify_emails"`
 	Reason              string   `json:"reason"`
@@ -97,14 +96,10 @@ func (h *MerchantHandler) Create(c *gin.Context) {
 	if req.Discount == 0 {
 		req.Discount = 1.0
 	}
-	if req.UserMarkupDefault == 0 {
-		req.UserMarkupDefault = 1.0
-	}
 	m, err := h.merchantSvc.CreateMerchant(c.Request.Context(), service.CreateMerchantInput{
 		OwnerUserID:         req.OwnerUserID,
 		Name:                req.Name,
 		Discount:            req.Discount,
-		UserMarkupDefault:   req.UserMarkupDefault,
 		LowBalanceThreshold: req.LowBalanceThreshold,
 		NotifyEmails:        req.NotifyEmails,
 		AdminID:             adminID(c),
@@ -152,29 +147,6 @@ func (h *MerchantHandler) SetDiscount(c *gin.Context) {
 		return
 	}
 	if err := h.merchantSvc.SetDiscount(c.Request.Context(), id, req.Discount, adminID(c), req.Reason); err != nil {
-		writeError(c, err, http.StatusBadRequest)
-		return
-	}
-	response.Success(c, gin.H{"ok": true})
-}
-
-type setMarkupReq struct {
-	Markup float64 `json:"markup" binding:"required"`
-	Reason string  `json:"reason"`
-}
-
-func (h *MerchantHandler) SetMarkupDefault(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid id")
-		return
-	}
-	var req setMarkupReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	if err := h.merchantSvc.SetMarkupDefault(c.Request.Context(), id, req.Markup, adminID(c), req.Reason); err != nil {
 		writeError(c, err, http.StatusBadRequest)
 		return
 	}

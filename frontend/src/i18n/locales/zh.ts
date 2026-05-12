@@ -6948,7 +6948,6 @@ export default {
       ownerBalance: '所有者余额',
       status: '状态',
       discount: '充值折扣',
-      markupDefault: '默认消费倍率',
       markup: '消费倍率',
       lowBalanceThreshold: '低余额预警阈值',
       notifyEmails: '通知邮箱',
@@ -6986,7 +6985,6 @@ export default {
       ownerUserIdHint: '该用户必须存在，且不能已是另一商户的所有者。',
       namePlaceholder: '例如：示例商户',
       discountHint: '商户充值时享受的折扣，例如 0.9 = 9 折。',
-      markupHint: '子用户消费时默认应用的倍率，>=1，>2 时进入审核。',
       notifyEmailsHint: '逗号分隔',
       notifyEmailsPlaceholder: "ops{'@'}example.com, billing{'@'}example.com",
       actions: {
@@ -7047,7 +7045,6 @@ export default {
       notifyEmailsReadonlyHint: '通知邮箱由商户在自助页面维护',
       warnings: {
         discountLow: '折扣低于 0.5，提交后将进入审核流程。',
-        markupHigh: '倍率高于 2.0，子用户消费扣款将翻倍以上，请确认定价透明。',
       },
       groupPricing: {
         title: '分组定价',

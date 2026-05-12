@@ -32,7 +32,6 @@ func (r *merchantRepository) Create(ctx context.Context, m *service.Merchant) er
 		SetName(m.Name).
 		SetStatus(orDefault(m.Status, service.MerchantStatusActive)).
 		SetDiscount(m.Discount).
-		SetUserMarkupDefault(m.UserMarkupDefault).
 		SetOwnerBalanceBaseline(m.OwnerBalanceBaseline).
 		SetLowBalanceThreshold(m.LowBalanceThreshold).
 		SetNotifyEmails(m.NotifyEmails).
@@ -70,7 +69,7 @@ func (r *merchantRepository) GetByDomain(ctx context.Context, domain string) (*s
 		return nil, errors.New("merchant repository sql db is nil")
 	}
 	const q = `
-		SELECT m.id, m.owner_user_id, m.name, m.status, m.discount, m.user_markup_default,
+		SELECT m.id, m.owner_user_id, m.name, m.status, m.discount,
 		       m.owner_balance_baseline, m.low_balance_threshold, m.notify_emails,
 		       m.created_at, m.updated_at, m.deleted_at
 		FROM merchants m
@@ -87,7 +86,7 @@ func (r *merchantRepository) GetByDomain(ctx context.Context, domain string) (*s
 		deletedAt    sql.NullTime
 	)
 	err := r.db.QueryRowContext(ctx, q, strings.TrimSpace(domain)).Scan(
-		&mm.ID, &mm.OwnerUserID, &mm.Name, &mm.Status, &mm.Discount, &mm.UserMarkupDefault,
+		&mm.ID, &mm.OwnerUserID, &mm.Name, &mm.Status, &mm.Discount,
 		&mm.OwnerBalanceBaseline, &mm.LowBalanceThreshold, &notifyJSON,
 		&mm.CreatedAt, &mm.UpdatedAt, &deletedAt,
 	)
@@ -141,7 +140,6 @@ func (r *merchantRepository) Update(ctx context.Context, m *service.Merchant) er
 		SetName(m.Name).
 		SetStatus(m.Status).
 		SetDiscount(m.Discount).
-		SetUserMarkupDefault(m.UserMarkupDefault).
 		SetLowBalanceThreshold(m.LowBalanceThreshold).
 		SetNotifyEmails(m.NotifyEmails).
 		Save(ctx)
@@ -157,12 +155,6 @@ func (r *merchantRepository) UpdateStatus(ctx context.Context, id int64, status 
 func (r *merchantRepository) UpdateDiscount(ctx context.Context, id int64, discount float64) error {
 	client := clientFromContext(ctx, r.client)
 	_, err := client.Merchant.UpdateOneID(id).SetDiscount(discount).Save(ctx)
-	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
-}
-
-func (r *merchantRepository) UpdateMarkupDefault(ctx context.Context, id int64, markup float64) error {
-	client := clientFromContext(ctx, r.client)
-	_, err := client.Merchant.UpdateOneID(id).SetUserMarkupDefault(markup).Save(ctx)
 	return translatePersistenceError(err, service.ErrMerchantNotFound, nil)
 }
 
@@ -205,7 +197,7 @@ func (r *merchantRepository) LookupMerchantIDForUser(ctx context.Context, userID
 	return mid, nil
 }
 
-// LoadPricing 一次性加载 merchant + 所有 active group_markups（已过滤 deleted_at）。
+// LoadPricing 一次性加载 merchant + 所有 active group cost/sell rates（已过滤 deleted_at）。
 // RFC §4.1.5 / §5.2.1 Step 2.1 / Finding 7。
 func (r *merchantRepository) LoadPricing(ctx context.Context, merchantID int64) (*service.CachedMerchantPricing, error) {
 	client := clientFromContext(ctx, r.client)
@@ -302,7 +294,6 @@ func merchantEntityToService(m *dbent.Merchant) *service.Merchant {
 		Name:                 m.Name,
 		Status:               m.Status,
 		Discount:             m.Discount,
-		UserMarkupDefault:    m.UserMarkupDefault,
 		OwnerBalanceBaseline: m.OwnerBalanceBaseline,
 		LowBalanceThreshold:  m.LowBalanceThreshold,
 		NotifyEmails:         append([]string{}, m.NotifyEmails...),

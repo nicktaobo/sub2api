@@ -72,9 +72,6 @@
           <template #cell-discount="{ value }">
             <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}</span>
           </template>
-          <template #cell-user_markup_default="{ value }">
-            <span class="font-mono text-sm">{{ Number(value || 1).toFixed(4) }}</span>
-          </template>
           <template #cell-balance_baseline="{ value }">
             <span class="font-mono text-sm">${{ Number(value || 0).toFixed(2) }}</span>
           </template>
@@ -221,7 +218,6 @@ const columns = computed<Column[]>(() => [
   { key: 'owner_balance', label: t('merchant.fields.ownerBalance') },
   { key: 'status', label: t('merchant.fields.status') },
   { key: 'discount', label: t('merchant.fields.discount') },
-  { key: 'user_markup_default', label: t('merchant.fields.markupDefault') },
   { key: 'created_at', label: t('merchant.fields.createdAt') },
   { key: 'actions', label: t('common.actions') },
 ])
