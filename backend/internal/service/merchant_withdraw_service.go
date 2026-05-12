@@ -126,6 +126,25 @@ func (s *MerchantService) CreateWithdrawRequest(ctx context.Context, in CreateWi
 		return nil, infraerrors.BadRequest("MERCHANT_WITHDRAW_EXCEEDS_AVAILABLE",
 			fmt.Sprintf("amount %.2f exceeds available balance %.2f", in.Amount, stats.AvailableBalance))
 	}
+
+	// 同时校验 owner.balance —— available_balance 是"累计分成 - 已提现 - 审核中"，
+	// 不反映商户当前可动用的真实余额（商户可能把分成都给子用户充值掉了）。
+	// 这里再卡一刀：申请提现金额必须 ≤ owner 用户当前余额。
+	// 申请阶段不扣余额，所以这只是 UX 兜底（避免挂着永远批不下来的请求）；
+	// 真正的扣款原子校验在 AdminApproveWithdrawal 走 DeductBalanceStrict。
+	m, err := s.repo.GetByID(ctx, in.MerchantID)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := s.userRepo.GetByID(ctx, m.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	if in.Amount > owner.Balance {
+		return nil, infraerrors.BadRequest("MERCHANT_WITHDRAW_EXCEEDS_BALANCE",
+			fmt.Sprintf("amount %.2f exceeds current balance %.2f", in.Amount, owner.Balance))
+	}
+
 	w, err := s.entClient.MerchantWithdrawRequest.Create().
 		SetMerchantID(in.MerchantID).
 		SetAmount(in.Amount).
