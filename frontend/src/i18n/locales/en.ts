@@ -977,6 +977,8 @@ export default {
     selectPrompt: 'Pick an endpoint on the left to view its model pricing',
     modelsUnit: 'models',
     rateLabel: 'Rate',
+    discountFormat: '{value} / 10',
+    officialDiscountLabel: 'Same as official',
     fxNote: 'FX: 1 USD ≈ {rate} CNY',
     officialPrice: 'Official Price',
     sitePrice: 'Site Price',

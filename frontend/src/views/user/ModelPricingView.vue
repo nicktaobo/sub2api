@@ -81,8 +81,8 @@
                     </span>
                   </div>
                 </div>
-                <span class="rate-badge" :class="rateBadgeTone(g.rate_multiplier)">
-                  {{ t('modelPricing.rateLabel') }}: {{ formatRate(g.rate_multiplier) }}
+                <span class="rate-badge" :class="discountBadgeTone(g.rate_multiplier)">
+                  {{ formatDiscount(g.rate_multiplier) }}
                 </span>
               </div>
             </button>
@@ -98,8 +98,8 @@
                 {{ selectedGroup.name }}
               </h2>
               <span class="platform-chip">{{ selectedGroup.platform }}</span>
-              <span class="rate-badge" :class="rateBadgeTone(selectedGroup.rate_multiplier)">
-                {{ t('modelPricing.rateLabel') }}: {{ formatRate(selectedGroup.rate_multiplier) }}
+              <span class="rate-badge" :class="discountBadgeTone(selectedGroup.rate_multiplier)">
+                {{ formatDiscount(selectedGroup.rate_multiplier) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
                 <button
@@ -212,17 +212,28 @@ const selectedGroup = computed(() =>
   filteredGroups.value.find((g) => g.id === selectedGroupId.value) ?? null,
 )
 
-function formatRate(rate: number): string {
+/**
+ * formatDiscount 把"主站倍率"翻译成"折扣"展示：
+ *   discount = (rate / fx_rate) × 10，单位为中文"折"
+ * 例：rate=1.8, fx=6.8 → 1.8/6.8 × 10 ≈ 2.65折
+ *
+ * 一些边界：
+ *   - 等于 10 折（rate × fx 相等）→ 显示"官方价"
+ *   - 大于 10 折（充值美元等效后还比官方贵）→ 显示"X.X折"但用警告色
+ */
+function formatDiscount(rate: number): string {
   const r = Number(rate || 1)
-  if (Math.abs(r - 1) < 1e-6) return '1x'
-  if (r >= 10) return `${r.toFixed(0)}x`
-  return `${parseFloat(r.toFixed(3))}x`
+  const fx = fxRate.value || 1
+  const d = (r / fx) * 10
+  if (Math.abs(d - 10) < 1e-3) return t('modelPricing.officialDiscountLabel')
+  return t('modelPricing.discountFormat', { value: parseFloat(d.toFixed(2)) })
 }
 
-function rateBadgeTone(rate: number): string {
-  if (rate < 1) return 'rate-badge-good'
-  if (rate > 1) return 'rate-badge-warn'
-  return 'rate-badge-neutral'
+function discountBadgeTone(rate: number): string {
+  const d = (Number(rate || 1) / (fxRate.value || 1)) * 10
+  if (d < 5) return 'rate-badge-good' // 半价以内
+  if (d <= 10) return 'rate-badge-neutral' // 5-10 折，平价区间
+  return 'rate-badge-warn' // 超过 10 折，比官方还贵
 }
 
 const priceCellTone = computed(() =>
