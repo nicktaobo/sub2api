@@ -76,6 +76,18 @@ export async function getAvailable(options?: { signal?: AbortSignal }): Promise<
   return data
 }
 
-export const userChannelsAPI = { getAvailable }
+/**
+ * 「模型定价」展示页专用——跟 getAvailable 返回相同结构 + 同样过滤规则，
+ * 但**独立于 available_channels_enabled 开关**：只要用户有可见 group，
+ * 即使 admin 关闭了「可用渠道」页，也能看到定价。
+ */
+export async function getPricingEndpoints(options?: { signal?: AbortSignal }): Promise<UserAvailableChannel[]> {
+  const { data } = await apiClient.get<UserAvailableChannel[]>('/pricing/endpoints', {
+    signal: options?.signal
+  })
+  return data
+}
+
+export const userChannelsAPI = { getAvailable, getPricingEndpoints }
 
 export default userChannelsAPI

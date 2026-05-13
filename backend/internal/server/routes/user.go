@@ -76,6 +76,12 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
+		// 模型定价展示（独立于 available_channels_enabled，跟用户可见 group 绑定）
+		pricing := authenticated.Group("/pricing")
+		{
+			pricing.GET("/endpoints", h.AvailableChannel.PricingList)
+		}
+
 		// 使用记录
 		usage := authenticated.Group("/usage")
 		{

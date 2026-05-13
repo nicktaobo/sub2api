@@ -305,7 +305,7 @@ async function reload() {
   loading.value = true
   try {
     const [list, fx] = await Promise.all([
-      userChannelsAPI.getAvailable(),
+      userChannelsAPI.getPricingEndpoints(),
       systemAPI.getFXRate().catch(() => null),
     ])
     channels.value = list

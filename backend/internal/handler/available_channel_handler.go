@@ -124,26 +124,13 @@ type userAvailableChannel struct {
 	Platforms   []userChannelPlatformSection `json:"platforms"`
 }
 
-// List 列出当前用户可见的「可用渠道」。
-// GET /api/v1/channels/available
-func (h *AvailableChannelHandler) List(c *gin.Context) {
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
-	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
-	if !h.featureEnabled(c) {
-		response.Success(c, []userAvailableChannel{})
-		return
-	}
-
-	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+// buildVisibleChannels 共享构建逻辑：拉用户可见 groups → 过滤 channels 的 groups
+// → 过滤 supported_models（防跨平台泄漏）→ enrich 官方价。
+// 不做 feature flag 检查、不做 owner 视角的 sell_rate 替换（调用方按需做）。
+func (h *AvailableChannelHandler) buildVisibleChannels(c *gin.Context, userID int64) ([]userAvailableChannel, error) {
+	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), userID)
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return nil, err
 	}
 	allowedGroupIDs := make(map[int64]struct{}, len(userGroups))
 	for i := range userGroups {
@@ -152,8 +139,7 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 
 	channels, err := h.channelService.ListAvailable(c.Request.Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return nil, err
 	}
 
 	out := make([]userAvailableChannel, 0, len(channels))
@@ -177,8 +163,52 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	}
 
 	h.enrichOfficialPricing(out)
+	return out, nil
+}
+
+// List 列出当前用户可见的「可用渠道」。
+// GET /api/v1/channels/available
+func (h *AvailableChannelHandler) List(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
+	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
+	if !h.featureEnabled(c) {
+		response.Success(c, []userAvailableChannel{})
+		return
+	}
+
+	out, err := h.buildVisibleChannels(c, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	h.applyMerchantSellRate(c, subject.UserID, out)
 
+	response.Success(c, out)
+}
+
+// PricingList 给「模型定价」展示页用的接口——跟 List 同样的数据 + 同样的过滤
+// 规则，但**不受 available_channels_enabled 开关限制**：只要用户有可见 group，
+// 就能看到对应的模型价格。理由：模型价格是给终端用户看的，跟"哪些上游渠道
+// 可用"是两层独立的事，admin 关掉「可用渠道」时不应连价格列表一起关。
+// GET /api/v1/pricing/endpoints
+func (h *AvailableChannelHandler) PricingList(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	out, err := h.buildVisibleChannels(c, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	h.applyMerchantSellRate(c, subject.UserID, out)
 	response.Success(c, out)
 }
 
