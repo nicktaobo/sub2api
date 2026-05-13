@@ -697,6 +697,32 @@ var (
 			},
 		},
 	}
+	// GroupModelsColumns holds the columns for the "group_models" table.
+	GroupModelsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "model", Type: field.TypeString, Size: 200},
+	}
+	// GroupModelsTable holds the schema information for the "group_models" table.
+	GroupModelsTable = &schema.Table{
+		Name:       "group_models",
+		Columns:    GroupModelsColumns,
+		PrimaryKey: []*schema.Column{GroupModelsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "groupmodel_group_id_model",
+				Unique:  true,
+				Columns: []*schema.Column{GroupModelsColumns[3], GroupModelsColumns[4]},
+			},
+			{
+				Name:    "groupmodel_group_id",
+				Unique:  false,
+				Columns: []*schema.Column{GroupModelsColumns[3]},
+			},
+		},
+	}
 	// IdempotencyRecordsColumns holds the columns for the "idempotency_records" table.
 	IdempotencyRecordsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2009,6 +2035,7 @@ var (
 		ChannelMonitorRequestTemplatesTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
+		GroupModelsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
 		MerchantsTable,
@@ -2092,6 +2119,9 @@ func init() {
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",
+	}
+	GroupModelsTable.Annotation = &entsql.Annotation{
+		Table: "group_models",
 	}
 	IdempotencyRecordsTable.Annotation = &entsql.Annotation{
 		Table: "idempotency_records",

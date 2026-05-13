@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,7 @@ type GroupHandler struct {
 	adminService         service.AdminService
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
+	groupModelRepo       service.GroupModelRepository
 }
 
 type optionalLimitField struct {
@@ -72,12 +74,54 @@ func (f optionalLimitField) ToServiceInput() *float64 {
 }
 
 // NewGroupHandler creates a new admin group handler
-func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
+func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, groupModelRepo service.GroupModelRepository) *GroupHandler {
 	return &GroupHandler{
 		adminService:         adminService,
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
+		groupModelRepo:       groupModelRepo,
 	}
+}
+
+// ListModels GET /api/v1/admin/groups/:id/models — 返回该 group 的展示用模型列表
+func (h *GroupHandler) ListModels(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	models, err := h.groupModelRepo.ListByGroup(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if models == nil {
+		models = []string{}
+	}
+	response.Success(c, gin.H{"models": models})
+}
+
+type setGroupModelsReq struct {
+	Models []string `json:"models"`
+}
+
+// SetModels PUT /api/v1/admin/groups/:id/models — 全量替换该 group 的展示模型列表
+func (h *GroupHandler) SetModels(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid id")
+		return
+	}
+	var req setGroupModelsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := h.groupModelRepo.SetForGroup(c.Request.Context(), id, req.Models); err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"ok": true, "count": len(req.Models)})
 }
 
 // CreateGroupRequest represents create group request

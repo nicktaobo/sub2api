@@ -26,6 +26,7 @@ type AvailableChannelHandler struct {
 	settingService  *service.SettingService
 	billingService  *service.BillingService
 	merchantPricing *service.MerchantPricingService
+	groupModelRepo  service.GroupModelRepository
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -35,6 +36,7 @@ func NewAvailableChannelHandler(
 	settingService *service.SettingService,
 	billingService *service.BillingService,
 	merchantPricing *service.MerchantPricingService,
+	groupModelRepo service.GroupModelRepository,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService:  channelService,
@@ -42,6 +44,7 @@ func NewAvailableChannelHandler(
 		settingService:  settingService,
 		billingService:  billingService,
 		merchantPricing: merchantPricing,
+		groupModelRepo:  groupModelRepo,
 	}
 }
 
@@ -214,14 +217,11 @@ type userPricingGroup struct {
 }
 
 // PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group，
-// 模型集合 = 所有 active channel 中关联此 group 的 supported_models（按 platform
-// 匹配）并集。完全不暴露 channel 概念给前端。
+// 模型集合 = admin 在「分组管理」给该 group 配的"展示用"模型清单（group_models
+// 表），跟 channel.supported_models 完全解耦：admin 改这里**不会影响计费**。
 //
-// 不受 available_channels_enabled 开关限制：模型价格的可见性跟"我能用哪些
-// group"绑定，跟"是否展示可用渠道列表"独立。
-//
-// 商户 sub_user 视角下，rate_multiplier 替换为商户配置的 sell_rate（与计费
-// 路径一致），让前端展示价跟实际扣款对齐。
+// 不受 available_channels_enabled 开关限制。商户 sub_user 视角下，rate_multiplier
+// 替换为商户配置的 sell_rate（与计费路径一致）。
 //
 // GET /api/v1/pricing/groups
 func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
@@ -241,43 +241,15 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 		return
 	}
 
-	allowed := make(map[int64]*service.Group, len(userGroups))
-	for i := range userGroups {
-		g := userGroups[i]
-		allowed[g.ID] = &g
-	}
-
-	channels, err := h.channelService.ListAvailable(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	// 扫所有 active channel，按 group_id 收集 (platform-matched) model 名集合（去重）。
-	modelsByGroup := make(map[int64]map[string]struct{}, len(allowed))
-	for _, ch := range channels {
-		if ch.Status != service.StatusActive {
-			continue
-		}
-		for _, gref := range ch.Groups {
-			g, ok := allowed[gref.ID]
-			if !ok {
-				continue
-			}
-			set := modelsByGroup[g.ID]
-			if set == nil {
-				set = make(map[string]struct{}, 8)
-				modelsByGroup[g.ID] = set
-			}
-			for _, m := range ch.SupportedModels {
-				if m.Platform == g.Platform {
-					set[m.Name] = struct{}{}
-				}
-			}
+	// 一次拉全所有 group → models 映射（admin 配置，跟 channel 解耦）
+	modelsByGroup := map[int64][]string{}
+	if h.groupModelRepo != nil {
+		if m, err := h.groupModelRepo.ListAll(c.Request.Context()); err == nil {
+			modelsByGroup = m
 		}
 	}
 
-	// 官方价 lookup 缓存（同个模型可能多次出现）
+	// 官方价 lookup 缓存
 	priceCache := make(map[string]*service.ModelPricing, 32)
 	lookupOfficial := func(model string) *service.ModelPricing {
 		if p, ok := priceCache[model]; ok {
@@ -315,22 +287,15 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			IsExclusive:    g.IsExclusive,
 			Models:         []userPricingModel{},
 		}
-		if set := modelsByGroup[g.ID]; len(set) > 0 {
-			names := make([]string, 0, len(set))
-			for n := range set {
-				names = append(names, n)
+		for _, name := range modelsByGroup[g.ID] {
+			m := userPricingModel{Name: name}
+			if p := lookupOfficial(name); p != nil {
+				m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+				m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+				m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+				m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
 			}
-			sort.Strings(names)
-			for _, name := range names {
-				m := userPricingModel{Name: name}
-				if p := lookupOfficial(name); p != nil {
-					m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
-					m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
-					m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
-					m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
-				}
-				item.Models = append(item.Models, m)
-			}
+			item.Models = append(item.Models, m)
 		}
 		out = append(out, item)
 	}

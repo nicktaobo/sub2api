@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupmodel"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/merchant"
@@ -92,6 +93,8 @@ type Client struct {
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// GroupModel is the client for interacting with the GroupModel builders.
+	GroupModel *GroupModelClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
@@ -174,6 +177,7 @@ func (c *Client) init() {
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.GroupModel = NewGroupModelClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
 	c.Merchant = NewMerchantClient(c.config)
@@ -308,6 +312,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		GroupModel:                    NewGroupModelClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		Merchant:                      NewMerchantClient(cfg),
@@ -369,6 +374,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
+		GroupModel:                    NewGroupModelClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
 		Merchant:                      NewMerchantClient(cfg),
@@ -430,7 +436,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
+		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group, c.GroupModel,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
 		c.MerchantGroupCost, c.MerchantGroupMarkup, c.MerchantLedger,
@@ -452,7 +458,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
+		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group, c.GroupModel,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.Merchant,
 		c.MerchantAuditLog, c.MerchantDomain, c.MerchantEarningsOutbox,
 		c.MerchantGroupCost, c.MerchantGroupMarkup, c.MerchantLedger,
@@ -496,6 +502,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
 		return c.Group.mutate(ctx, m)
+	case *GroupModelMutation:
+		return c.GroupModel.mutate(ctx, m)
 	case *IdempotencyRecordMutation:
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *IdentityAdoptionDecisionMutation:
@@ -2722,6 +2730,139 @@ func (c *GroupClient) mutate(ctx context.Context, m *GroupMutation) (Value, erro
 		return (&GroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Group mutation op: %q", m.Op())
+	}
+}
+
+// GroupModelClient is a client for the GroupModel schema.
+type GroupModelClient struct {
+	config
+}
+
+// NewGroupModelClient returns a client for the GroupModel from the given config.
+func NewGroupModelClient(c config) *GroupModelClient {
+	return &GroupModelClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `groupmodel.Hooks(f(g(h())))`.
+func (c *GroupModelClient) Use(hooks ...Hook) {
+	c.hooks.GroupModel = append(c.hooks.GroupModel, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `groupmodel.Intercept(f(g(h())))`.
+func (c *GroupModelClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GroupModel = append(c.inters.GroupModel, interceptors...)
+}
+
+// Create returns a builder for creating a GroupModel entity.
+func (c *GroupModelClient) Create() *GroupModelCreate {
+	mutation := newGroupModelMutation(c.config, OpCreate)
+	return &GroupModelCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GroupModel entities.
+func (c *GroupModelClient) CreateBulk(builders ...*GroupModelCreate) *GroupModelCreateBulk {
+	return &GroupModelCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GroupModelClient) MapCreateBulk(slice any, setFunc func(*GroupModelCreate, int)) *GroupModelCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GroupModelCreateBulk{err: fmt.Errorf("calling to GroupModelClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GroupModelCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GroupModelCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GroupModel.
+func (c *GroupModelClient) Update() *GroupModelUpdate {
+	mutation := newGroupModelMutation(c.config, OpUpdate)
+	return &GroupModelUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GroupModelClient) UpdateOne(_m *GroupModel) *GroupModelUpdateOne {
+	mutation := newGroupModelMutation(c.config, OpUpdateOne, withGroupModel(_m))
+	return &GroupModelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GroupModelClient) UpdateOneID(id int64) *GroupModelUpdateOne {
+	mutation := newGroupModelMutation(c.config, OpUpdateOne, withGroupModelID(id))
+	return &GroupModelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GroupModel.
+func (c *GroupModelClient) Delete() *GroupModelDelete {
+	mutation := newGroupModelMutation(c.config, OpDelete)
+	return &GroupModelDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GroupModelClient) DeleteOne(_m *GroupModel) *GroupModelDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GroupModelClient) DeleteOneID(id int64) *GroupModelDeleteOne {
+	builder := c.Delete().Where(groupmodel.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GroupModelDeleteOne{builder}
+}
+
+// Query returns a query builder for GroupModel.
+func (c *GroupModelClient) Query() *GroupModelQuery {
+	return &GroupModelQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGroupModel},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GroupModel entity by its id.
+func (c *GroupModelClient) Get(ctx context.Context, id int64) (*GroupModel, error) {
+	return c.Query().Where(groupmodel.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GroupModelClient) GetX(ctx context.Context, id int64) *GroupModel {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GroupModelClient) Hooks() []Hook {
+	return c.hooks.GroupModel
+}
+
+// Interceptors returns the client interceptors.
+func (c *GroupModelClient) Interceptors() []Interceptor {
+	return c.inters.GroupModel
+}
+
+func (c *GroupModelClient) mutate(ctx context.Context, m *GroupModelMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GroupModelCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GroupModelUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GroupModelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GroupModelDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GroupModel mutation op: %q", m.Op())
 	}
 }
 
@@ -7415,25 +7556,25 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
-		MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost, MerchantGroupMarkup,
-		MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserSubscription []ent.Hook
+		Group, GroupModel, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
+		MerchantAuditLog, MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost,
+		MerchantGroupMarkup, MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog,
+		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
+		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, Merchant, MerchantAuditLog,
-		MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost, MerchantGroupMarkup,
-		MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserSubscription []ent.Interceptor
+		Group, GroupModel, IdempotencyRecord, IdentityAdoptionDecision, Merchant,
+		MerchantAuditLog, MerchantDomain, MerchantEarningsOutbox, MerchantGroupCost,
+		MerchantGroupMarkup, MerchantLedger, MerchantWithdrawRequest, PaymentAuditLog,
+		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
+		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Interceptor
 	}
 )
 

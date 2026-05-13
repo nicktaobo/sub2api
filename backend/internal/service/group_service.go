@@ -37,6 +37,14 @@ type GroupRepository interface {
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 }
 
+// GroupModelRepository 「模型列表」展示页用的 admin-managed 配置仓储。
+// 跟计费无关；ent schema 见 GroupModel。
+type GroupModelRepository interface {
+	ListByGroup(ctx context.Context, groupID int64) ([]string, error)
+	SetForGroup(ctx context.Context, groupID int64, models []string) error
+	ListAll(ctx context.Context) (map[int64][]string, error)
+}
+
 // GroupSortOrderUpdate 分组排序更新
 type GroupSortOrderUpdate struct {
 	ID        int64 `json:"id"`
