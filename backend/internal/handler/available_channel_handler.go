@@ -192,23 +192,149 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	response.Success(c, out)
 }
 
-// PricingList 给「模型定价」展示页用的接口——跟 List 同样的数据 + 同样的过滤
-// 规则，但**不受 available_channels_enabled 开关限制**：只要用户有可见 group，
-// 就能看到对应的模型价格。理由：模型价格是给终端用户看的，跟"哪些上游渠道
-// 可用"是两层独立的事，admin 关掉「可用渠道」时不应连价格列表一起关。
-// GET /api/v1/pricing/endpoints
-func (h *AvailableChannelHandler) PricingList(c *gin.Context) {
+// userPricingModel 端点（group）下的单条模型；价格字段是 LiteLLM 官方价
+// （per token, USD），前端按 group.rate_multiplier / fx_rate 算出本站价。
+type userPricingModel struct {
+	Name                    string   `json:"name"`
+	OfficialInputPrice      *float64 `json:"official_input_price,omitempty"`
+	OfficialOutputPrice     *float64 `json:"official_output_price,omitempty"`
+	OfficialCacheWritePrice *float64 `json:"official_cache_write_price,omitempty"`
+	OfficialCacheReadPrice  *float64 `json:"official_cache_read_price,omitempty"`
+}
+
+// userPricingGroup 「模型定价」展示页的端点 = 一个 group。
+// 每个端点的"折扣"由 rate_multiplier 自己决定，跟具体上游 channel 无关。
+type userPricingGroup struct {
+	ID             int64              `json:"id"`
+	Name           string             `json:"name"`
+	Platform       string             `json:"platform"`
+	RateMultiplier float64            `json:"rate_multiplier"`
+	IsExclusive    bool               `json:"is_exclusive"`
+	Models         []userPricingModel `json:"models"`
+}
+
+// PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group，
+// 模型集合 = 所有 active channel 中关联此 group 的 supported_models（按 platform
+// 匹配）并集。完全不暴露 channel 概念给前端。
+//
+// 不受 available_channels_enabled 开关限制：模型价格的可见性跟"我能用哪些
+// group"绑定，跟"是否展示可用渠道列表"独立。
+//
+// 商户 sub_user 视角下，rate_multiplier 替换为商户配置的 sell_rate（与计费
+// 路径一致），让前端展示价跟实际扣款对齐。
+//
+// GET /api/v1/pricing/groups
+func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
-	out, err := h.buildVisibleChannels(c, subject.UserID)
+
+	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	h.applyMerchantSellRate(c, subject.UserID, out)
+	if len(userGroups) == 0 {
+		response.Success(c, []userPricingGroup{})
+		return
+	}
+
+	allowed := make(map[int64]*service.Group, len(userGroups))
+	for i := range userGroups {
+		g := userGroups[i]
+		allowed[g.ID] = &g
+	}
+
+	channels, err := h.channelService.ListAvailable(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 扫所有 active channel，按 group_id 收集 (platform-matched) model 名集合（去重）。
+	modelsByGroup := make(map[int64]map[string]struct{}, len(allowed))
+	for _, ch := range channels {
+		if ch.Status != service.StatusActive {
+			continue
+		}
+		for _, gref := range ch.Groups {
+			g, ok := allowed[gref.ID]
+			if !ok {
+				continue
+			}
+			set := modelsByGroup[g.ID]
+			if set == nil {
+				set = make(map[string]struct{}, 8)
+				modelsByGroup[g.ID] = set
+			}
+			for _, m := range ch.SupportedModels {
+				if m.Platform == g.Platform {
+					set[m.Name] = struct{}{}
+				}
+			}
+		}
+	}
+
+	// 官方价 lookup 缓存（同个模型可能多次出现）
+	priceCache := make(map[string]*service.ModelPricing, 32)
+	lookupOfficial := func(model string) *service.ModelPricing {
+		if p, ok := priceCache[model]; ok {
+			return p
+		}
+		if h.billingService == nil {
+			priceCache[model] = nil
+			return nil
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			priceCache[model] = nil
+			return nil
+		}
+		priceCache[model] = p
+		return p
+	}
+
+	out := make([]userPricingGroup, 0, len(userGroups))
+	for i := range userGroups {
+		g := userGroups[i]
+		// 商户 sub_user 视角下的 rate 替换
+		rate := g.RateMultiplier
+		if h.merchantPricing != nil {
+			if sell, ok := h.merchantPricing.LookupSellRateForUser(c.Request.Context(), subject.UserID, g.ID); ok {
+				rate = sell
+			}
+		}
+
+		item := userPricingGroup{
+			ID:             g.ID,
+			Name:           g.Name,
+			Platform:       g.Platform,
+			RateMultiplier: rate,
+			IsExclusive:    g.IsExclusive,
+			Models:         []userPricingModel{},
+		}
+		if set := modelsByGroup[g.ID]; len(set) > 0 {
+			names := make([]string, 0, len(set))
+			for n := range set {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				m := userPricingModel{Name: name}
+				if p := lookupOfficial(name); p != nil {
+					m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+					m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+					m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+					m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+				}
+				item.Models = append(item.Models, m)
+			}
+		}
+		out = append(out, item)
+	}
+
 	response.Success(c, out)
 }
 

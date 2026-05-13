@@ -980,6 +980,7 @@ export default {
     fxNote: 'FX: 1 USD ≈ {rate} CNY',
     officialPrice: 'Official Price',
     sitePrice: 'Site Price',
+    exclusive: 'Exclusive',
     columns: {
       model: 'Model',
       input: 'Input',

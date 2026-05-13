@@ -77,17 +77,36 @@ export async function getAvailable(options?: { signal?: AbortSignal }): Promise<
 }
 
 /**
- * 「模型定价」展示页专用——跟 getAvailable 返回相同结构 + 同样过滤规则，
- * 但**独立于 available_channels_enabled 开关**：只要用户有可见 group，
- * 即使 admin 关闭了「可用渠道」页，也能看到定价。
+ * 「模型定价」展示页的"端点" = 一个 group。
+ * 每个 group 自己的 rate_multiplier 决定折扣；models 是所有 active channel
+ * 中关联此 group 的 supported_models 并集（按 platform 匹配）。完全不暴露
+ * channel 概念。
  */
-export async function getPricingEndpoints(options?: { signal?: AbortSignal }): Promise<UserAvailableChannel[]> {
-  const { data } = await apiClient.get<UserAvailableChannel[]>('/pricing/endpoints', {
-    signal: options?.signal
+export interface UserPricingModel {
+  name: string
+  official_input_price?: number | null
+  official_output_price?: number | null
+  official_cache_write_price?: number | null
+  official_cache_read_price?: number | null
+}
+
+export interface UserPricingGroup {
+  id: number
+  name: string
+  platform: string
+  rate_multiplier: number
+  is_exclusive: boolean
+  models: UserPricingModel[]
+}
+
+/** GET /pricing/groups — 列出用户可见的定价端点（按 group 维度）。 */
+export async function getPricingGroups(options?: { signal?: AbortSignal }): Promise<UserPricingGroup[]> {
+  const { data } = await apiClient.get<UserPricingGroup[]>('/pricing/groups', {
+    signal: options?.signal,
   })
   return data
 }
 
-export const userChannelsAPI = { getAvailable, getPricingEndpoints }
+export const userChannelsAPI = { getAvailable, getPricingGroups }
 
 export default userChannelsAPI

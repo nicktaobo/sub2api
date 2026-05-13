@@ -984,6 +984,7 @@ export default {
     fxNote: '当前汇率 1 USD ≈ {rate} CNY',
     officialPrice: '官方价格',
     sitePrice: '本站价格',
+    exclusive: '专属',
     columns: {
       model: '模型',
       input: '输入价格',

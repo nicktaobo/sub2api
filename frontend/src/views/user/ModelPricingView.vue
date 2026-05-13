@@ -35,23 +35,23 @@
 
       <!-- 双栏正文 -->
       <div class="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <!-- 左：端点列表 -->
+        <!-- 左：端点（group）列表 -->
         <div class="card flex flex-col overflow-hidden">
           <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-4 dark:border-dark-700/50">
             <Icon name="server" size="md" class="text-primary-500" />
             <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
               {{ t('modelPricing.endpoints') }}
             </h2>
-            <span class="ml-auto text-xs text-gray-400">{{ filteredChannels.length }}</span>
+            <span class="ml-auto text-xs text-gray-400">{{ filteredGroups.length }}</span>
           </div>
 
           <div class="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-            <template v-if="loading && !channels.length">
+            <template v-if="loading && !groups.length">
               <div v-for="i in 4" :key="i" class="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-dark-700/50"></div>
             </template>
 
             <div
-              v-else-if="!filteredChannels.length"
+              v-else-if="!filteredGroups.length"
               class="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center text-gray-400 dark:text-gray-500"
             >
               <Icon name="inbox" size="xl" />
@@ -59,35 +59,31 @@
             </div>
 
             <button
-              v-for="ch in filteredChannels"
-              :key="ch.name"
+              v-for="g in filteredGroups"
+              :key="g.id"
               type="button"
               class="endpoint-card group"
-              :class="{ 'endpoint-card-active': ch.name === selectedChannelName }"
-              @click="selectedChannelName = ch.name"
+              :class="{ 'endpoint-card-active': g.id === selectedGroupId }"
+              @click="selectedGroupId = g.id"
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    {{ ch.name }}
+                    {{ g.name }}
                   </div>
-                  <div v-if="ch.description" class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
-                    {{ ch.description }}
+                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                    <span class="platform-chip">{{ g.platform }}</span>
+                    <span
+                      v-if="g.is_exclusive"
+                      class="platform-chip platform-chip-exclusive"
+                    >
+                      {{ t('modelPricing.exclusive') }}
+                    </span>
                   </div>
                 </div>
-                <span class="rate-badge" :class="rateBadgeTone(channelBestRate(ch))">
-                  {{ t('modelPricing.rateLabel') }}: {{ formatRate(channelBestRate(ch)) }}
+                <span class="rate-badge" :class="rateBadgeTone(g.rate_multiplier)">
+                  {{ t('modelPricing.rateLabel') }}: {{ formatRate(g.rate_multiplier) }}
                 </span>
-              </div>
-              <div class="mt-2 flex flex-wrap gap-1">
-                <span
-                  v-for="p in ch.platforms.slice(0, 4)"
-                  :key="p.platform"
-                  class="platform-chip"
-                >
-                  {{ p.platform }}
-                </span>
-                <span v-if="ch.platforms.length > 4" class="platform-chip">+{{ ch.platforms.length - 4 }}</span>
               </div>
             </button>
           </div>
@@ -95,14 +91,15 @@
 
         <!-- 右：详情 -->
         <div class="card flex min-h-0 flex-col overflow-hidden">
-          <template v-if="selectedChannel">
+          <template v-if="selectedGroup">
             <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700/50">
               <Icon name="cube" size="md" class="text-primary-500" />
               <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-                {{ selectedChannel.name }}
+                {{ selectedGroup.name }}
               </h2>
-              <span class="rate-badge" :class="rateBadgeTone(selectedRate)">
-                {{ t('modelPricing.rateLabel') }}: {{ formatRate(selectedRate) }}
+              <span class="platform-chip">{{ selectedGroup.platform }}</span>
+              <span class="rate-badge" :class="rateBadgeTone(selectedGroup.rate_multiplier)">
+                {{ t('modelPricing.rateLabel') }}: {{ formatRate(selectedGroup.rate_multiplier) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
                 <button
@@ -125,59 +122,45 @@
             </div>
 
             <div class="flex-1 overflow-auto">
-              <div
-                v-for="section in selectedChannel.platforms"
-                :key="section.platform"
-                class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-              >
-                <div class="flex items-center gap-2 bg-gray-50/60 px-5 py-2 text-xs font-medium text-gray-500 dark:bg-dark-800/40 dark:text-gray-400">
-                  <Icon name="cube" size="sm" />
-                  <span>{{ section.platform }}</span>
-                  <span class="text-gray-300 dark:text-gray-600">·</span>
-                  <span>{{ section.supported_models.length }} {{ t('modelPricing.modelsUnit') }}</span>
-                </div>
-
-                <div v-if="!section.supported_models.length" class="px-5 py-6 text-center text-sm text-gray-400">
-                  {{ t('modelPricing.noModels') }}
-                </div>
-
-                <table v-else class="w-full text-sm">
-                  <thead>
-                    <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                      <th class="px-5 py-3">{{ t('modelPricing.columns.model') }}</th>
-                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.input') }}</th>
-                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.output') }}</th>
-                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheWrite') }}</th>
-                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheRead') }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="model in section.supported_models"
-                      :key="model.platform + '/' + model.name"
-                      class="border-t border-gray-50 transition hover:bg-primary-50/30 dark:border-dark-800 dark:hover:bg-primary-900/10"
-                    >
-                      <td class="px-5 py-3">
-                        <div class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {{ model.name }}
-                        </div>
-                      </td>
-                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                        {{ formatPrice(model.pricing?.official_input_price) }}
-                      </td>
-                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                        {{ formatPrice(model.pricing?.official_output_price) }}
-                      </td>
-                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                        {{ formatPrice(model.pricing?.official_cache_write_price) }}
-                      </td>
-                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                        {{ formatPrice(model.pricing?.official_cache_read_price) }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-if="!selectedGroup.models.length" class="px-5 py-12 text-center text-sm text-gray-400">
+                {{ t('modelPricing.noModels') }}
               </div>
+              <table v-else class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <th class="px-5 py-3">{{ t('modelPricing.columns.model') }}</th>
+                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.input') }}</th>
+                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.output') }}</th>
+                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheWrite') }}</th>
+                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheRead') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="model in selectedGroup.models"
+                    :key="model.name"
+                    class="border-t border-gray-50 transition hover:bg-primary-50/30 dark:border-dark-800 dark:hover:bg-primary-900/10"
+                  >
+                    <td class="px-5 py-3">
+                      <div class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {{ model.name }}
+                      </div>
+                    </td>
+                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                      {{ formatPrice(model.official_input_price) }}
+                    </td>
+                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                      {{ formatPrice(model.official_output_price) }}
+                    </td>
+                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                      {{ formatPrice(model.official_cache_write_price) }}
+                    </td>
+                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                      {{ formatPrice(model.official_cache_read_price) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </template>
 
@@ -199,7 +182,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
-import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
+import userChannelsAPI, { type UserPricingGroup } from '@/api/channels'
 import systemAPI from '@/api/system'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -208,52 +191,25 @@ import { DEFAULT_CNY_PER_USD } from '@/utils/pricing'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const channels = ref<UserAvailableChannel[]>([])
+const groups = ref<UserPricingGroup[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
 const priceMode = ref<'official' | 'site'>('site')
-const selectedChannelName = ref<string>('')
+const selectedGroupId = ref<number | null>(null)
 const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
 
-const filteredChannels = computed(() => {
+const filteredGroups = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return channels.value
-  return channels.value
-    .map((ch) => {
-      const nameHit = ch.name.toLowerCase().includes(q)
-      const descHit = (ch.description || '').toLowerCase().includes(q)
-      if (nameHit || descHit) return ch
-      const matched = ch.platforms.filter(
-        (p) =>
-          p.platform.toLowerCase().includes(q) ||
-          p.supported_models.some((m) => m.name.toLowerCase().includes(q)),
-      )
-      if (!matched.length) return null
-      return { ...ch, platforms: matched }
-    })
-    .filter((ch): ch is UserAvailableChannel => ch !== null)
+  if (!q) return groups.value
+  return groups.value.filter((g) => {
+    if (g.name.toLowerCase().includes(q)) return true
+    if (g.platform.toLowerCase().includes(q)) return true
+    return g.models.some((m) => m.name.toLowerCase().includes(q))
+  })
 })
 
-const selectedChannel = computed(() =>
-  filteredChannels.value.find((c) => c.name === selectedChannelName.value) ?? null,
-)
-
-// 同一渠道下可能有多个分组，每个分组有自己的倍率；展示用"用户最优价"——
-// 取所有可见分组里最小的倍率，因为倍率越小用户付得越少。
-function channelBestRate(ch: UserAvailableChannel): number {
-  let best = Infinity
-  for (const p of ch.platforms) {
-    for (const g of p.groups) {
-      if (typeof g.rate_multiplier === 'number' && g.rate_multiplier < best) {
-        best = g.rate_multiplier
-      }
-    }
-  }
-  return Number.isFinite(best) ? best : 1
-}
-
-const selectedRate = computed(() =>
-  selectedChannel.value ? channelBestRate(selectedChannel.value) : 1,
+const selectedGroup = computed(() =>
+  filteredGroups.value.find((g) => g.id === selectedGroupId.value) ?? null,
 )
 
 function formatRate(rate: number): string {
@@ -280,9 +236,6 @@ const priceCellTone = computed(() =>
  *   - 入参 v 是 per-token 美元价（如 0.000003）
  *   - "official" 模式：直接 × 1M = 官方对外 $/M token
  *   - "site"     模式：(group.rate / fx) × v × 1M = 等效美元 $/M token
- *
- * 站点用户充值 ¥1 = $1 名义额度，但市场汇率是 ¥{fx} = $1，所以名义 $X
- * 对应的真实美元等效是 $X / fx。因此本站价 = group.rate × 官方价 / fx。
  */
 function formatPrice(perTokenUSD: number | null | undefined): string {
   if (perTokenUSD == null) return '-'
@@ -290,7 +243,8 @@ function formatPrice(perTokenUSD: number | null | undefined): string {
   if (priceMode.value === 'official') {
     return `$${trimNum(officialPerM)}/M`
   }
-  const sitePerM = (selectedRate.value / fxRate.value) * officialPerM
+  const rate = selectedGroup.value?.rate_multiplier ?? 1
+  const sitePerM = (rate / fxRate.value) * officialPerM
   return `$${trimNum(sitePerM)}/M`
 }
 
@@ -305,10 +259,10 @@ async function reload() {
   loading.value = true
   try {
     const [list, fx] = await Promise.all([
-      userChannelsAPI.getPricingEndpoints(),
+      userChannelsAPI.getPricingGroups(),
       systemAPI.getFXRate().catch(() => null),
     ])
-    channels.value = list
+    groups.value = list
     if (fx && fx.cny_per_usd > 0) fxRate.value = fx.cny_per_usd
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
@@ -317,13 +271,13 @@ async function reload() {
   }
 }
 
-watch(filteredChannels, (list) => {
+watch(filteredGroups, (list) => {
   if (!list.length) {
-    selectedChannelName.value = ''
+    selectedGroupId.value = null
     return
   }
-  if (!list.some((c) => c.name === selectedChannelName.value)) {
-    selectedChannelName.value = list[0].name
+  if (!list.some((g) => g.id === selectedGroupId.value)) {
+    selectedGroupId.value = list[0].id
   }
 }, { immediate: true })
 
@@ -362,5 +316,9 @@ onMounted(reload)
 .platform-chip {
   @apply inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px]
          font-medium text-gray-600 dark:bg-dark-700/50 dark:text-gray-300;
+}
+
+.platform-chip-exclusive {
+  @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300;
 }
 </style>

@@ -77,9 +77,10 @@ func RegisterUserRoutes(
 		}
 
 		// 模型定价展示（独立于 available_channels_enabled，跟用户可见 group 绑定）
+		// 端点 = group，模型集合 = 该 group 在所有 channel 里出现过的 supported_models 并集
 		pricing := authenticated.Group("/pricing")
 		{
-			pricing.GET("/endpoints", h.AvailableChannel.PricingList)
+			pricing.GET("/groups", h.AvailableChannel.PricingGroupList)
 		}
 
 		// 使用记录
