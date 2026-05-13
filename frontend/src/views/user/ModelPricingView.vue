@@ -81,7 +81,7 @@
                     </span>
                   </div>
                 </div>
-                <span class="rate-badge" :class="discountBadgeTone(g.rate_multiplier)">
+                <span class="rate-badge rate-badge-good">
                   {{ formatDiscount(g.rate_multiplier) }}
                 </span>
               </div>
@@ -98,7 +98,7 @@
                 {{ selectedGroup.name }}
               </h2>
               <span class="platform-chip">{{ selectedGroup.platform }}</span>
-              <span class="rate-badge" :class="discountBadgeTone(selectedGroup.rate_multiplier)">
+              <span class="rate-badge rate-badge-good">
                 {{ formatDiscount(selectedGroup.rate_multiplier) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
@@ -229,12 +229,6 @@ function formatDiscount(rate: number): string {
   return t('modelPricing.discountFormat', { value: parseFloat(d.toFixed(2)) })
 }
 
-function discountBadgeTone(rate: number): string {
-  const d = (Number(rate || 1) / (fxRate.value || 1)) * 10
-  if (d < 5) return 'rate-badge-good' // 半价以内
-  if (d <= 10) return 'rate-badge-neutral' // 5-10 折，平价区间
-  return 'rate-badge-warn' // 超过 10 折，比官方还贵
-}
 
 const priceCellTone = computed(() =>
   priceMode.value === 'site'
@@ -314,14 +308,6 @@ onMounted(reload)
 
 .rate-badge-good {
   @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300;
-}
-
-.rate-badge-warn {
-  @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300;
-}
-
-.rate-badge-neutral {
-  @apply bg-gray-100 text-gray-600 dark:bg-dark-700/60 dark:text-gray-300;
 }
 
 .platform-chip {
