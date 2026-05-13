@@ -18,7 +18,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
-	"github.com/Wei-Shaw/sub2api/ent/groupmodel"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/merchant"
@@ -870,39 +869,6 @@ func init() {
 	groupDescRpmLimit := groupFields[30].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
-	groupmodelMixin := schema.GroupModel{}.Mixin()
-	groupmodelMixinFields0 := groupmodelMixin[0].Fields()
-	_ = groupmodelMixinFields0
-	groupmodelFields := schema.GroupModel{}.Fields()
-	_ = groupmodelFields
-	// groupmodelDescCreatedAt is the schema descriptor for created_at field.
-	groupmodelDescCreatedAt := groupmodelMixinFields0[0].Descriptor()
-	// groupmodel.DefaultCreatedAt holds the default value on creation for the created_at field.
-	groupmodel.DefaultCreatedAt = groupmodelDescCreatedAt.Default.(func() time.Time)
-	// groupmodelDescUpdatedAt is the schema descriptor for updated_at field.
-	groupmodelDescUpdatedAt := groupmodelMixinFields0[1].Descriptor()
-	// groupmodel.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	groupmodel.DefaultUpdatedAt = groupmodelDescUpdatedAt.Default.(func() time.Time)
-	// groupmodel.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	groupmodel.UpdateDefaultUpdatedAt = groupmodelDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// groupmodelDescModel is the schema descriptor for model field.
-	groupmodelDescModel := groupmodelFields[1].Descriptor()
-	// groupmodel.ModelValidator is a validator for the "model" field. It is called by the builders before save.
-	groupmodel.ModelValidator = func() func(string) error {
-		validators := groupmodelDescModel.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(model string) error {
-			for _, fn := range fns {
-				if err := fn(model); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0

@@ -318,13 +318,6 @@
                 }}</span>
               </button>
               <button
-                @click="handleGroupModels(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-teal-600 dark:hover:bg-dark-700 dark:hover:text-teal-400"
-              >
-                <Icon name="cube" size="sm" />
-                <span class="text-xs">{{ t("admin.groups.models") }}</span>
-              </button>
-              <button
                 @click="handleDelete(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
@@ -2838,46 +2831,6 @@
       @success="loadGroups"
     />
 
-    <!-- Group Models Modal (展示用模型清单，跟计费无关) -->
-    <BaseDialog
-      :show="showGroupModelsModal"
-      :title="t('admin.groups.modelsModal.title', { name: modelsGroup?.name || '' })"
-      width="normal"
-      @close="showGroupModelsModal = false"
-    >
-      <form id="group-models-form" class="space-y-4" @submit.prevent="submitGroupModels">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-          {{ t('admin.groups.modelsModal.description') }}
-        </p>
-        <div>
-          <label class="input-label">{{ t('admin.groups.modelsModal.label') }}</label>
-          <textarea
-            v-model="groupModelsText"
-            rows="12"
-            class="input font-mono text-sm"
-            :placeholder="t('admin.groups.modelsModal.placeholder')"
-          ></textarea>
-          <p class="mt-1 text-xs text-gray-500">
-            {{ t('admin.groups.modelsModal.hint') }}
-          </p>
-        </div>
-      </form>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="showGroupModelsModal = false">
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            type="submit"
-            form="group-models-form"
-            :disabled="groupModelsSubmitting"
-            class="btn btn-primary"
-          >
-            {{ groupModelsSubmitting ? t('common.saving') : t('common.save') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
   </AppLayout>
 </template>
 
@@ -2902,7 +2855,6 @@ import Icon from "@/components/icons/Icon.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
-import { extractApiErrorMessage } from "@/utils/apiError";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
@@ -3957,45 +3909,6 @@ const handleRPMOverrides = (group: AdminGroup) => {
   showRPMOverridesModal.value = true;
 };
 
-// 「模型列表」展示用配置（跟计费无关，仅供用户侧"模型列表"页展示）
-const showGroupModelsModal = ref(false);
-const modelsGroup = ref<AdminGroup | null>(null);
-const groupModelsText = ref("");
-const groupModelsSubmitting = ref(false);
-
-const handleGroupModels = async (group: AdminGroup) => {
-  modelsGroup.value = group;
-  groupModelsText.value = "";
-  showGroupModelsModal.value = true;
-  try {
-    const models = await adminAPI.groups.listGroupModels(group.id);
-    groupModelsText.value = models.join("\n");
-  } catch (err: unknown) {
-    appStore.showError(
-      extractApiErrorMessage(err, t("common.error", "Error"))
-    );
-  }
-};
-
-const submitGroupModels = async () => {
-  if (!modelsGroup.value) return;
-  groupModelsSubmitting.value = true;
-  try {
-    const lines = groupModelsText.value
-      .split(/[\n,]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    await adminAPI.groups.setGroupModels(modelsGroup.value.id, lines);
-    appStore.showSuccess(t("common.saved", "Saved"));
-    showGroupModelsModal.value = false;
-  } catch (err: unknown) {
-    appStore.showError(
-      extractApiErrorMessage(err, t("common.error", "Error"))
-    );
-  } finally {
-    groupModelsSubmitting.value = false;
-  }
-};
 
 const handleDelete = (group: AdminGroup) => {
   deletingGroup.value = group;

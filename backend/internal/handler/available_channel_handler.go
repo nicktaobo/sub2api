@@ -26,7 +26,6 @@ type AvailableChannelHandler struct {
 	settingService  *service.SettingService
 	billingService  *service.BillingService
 	merchantPricing *service.MerchantPricingService
-	groupModelRepo  service.GroupModelRepository
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -36,7 +35,6 @@ func NewAvailableChannelHandler(
 	settingService *service.SettingService,
 	billingService *service.BillingService,
 	merchantPricing *service.MerchantPricingService,
-	groupModelRepo service.GroupModelRepository,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService:  channelService,
@@ -44,7 +42,6 @@ func NewAvailableChannelHandler(
 		settingService:  settingService,
 		billingService:  billingService,
 		merchantPricing: merchantPricing,
-		groupModelRepo:  groupModelRepo,
 	}
 }
 
@@ -216,9 +213,14 @@ type userPricingGroup struct {
 	Models         []userPricingModel `json:"models"`
 }
 
-// PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group，
-// 模型集合 = admin 在「分组管理」给该 group 配的"展示用"模型清单（group_models
-// 表），跟 channel.supported_models 完全解耦：admin 改这里**不会影响计费**。
+// PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group。
+//
+// 模型集合算法（admin 完全不用配，自动算）：
+//  1. 扫所有 active channel：channel.GroupIDs 包含此 group 且 platform 匹配
+//  2. 跳过 SupportedModels 为空的 channel（视为"透传/不限制"，不参与交集）
+//  3. 非空 channel 之间取**交集**（保证模型在所有候选 channel 都能调通）
+//  4. 全部 channel 都透传 / 无 channel 关联 → 用 LiteLLM 全表按 group.platform
+//     过滤的 chat 模型作为兜底（透传场景下用户可调任何上游模型）
 //
 // 不受 available_channels_enabled 开关限制。商户 sub_user 视角下，rate_multiplier
 // 替换为商户配置的 sell_rate（与计费路径一致）。
@@ -231,7 +233,8 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 		return
 	}
 
-	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+	ctx := c.Request.Context()
+	userGroups, err := h.apiKeyService.GetAvailableGroups(ctx, subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -241,12 +244,10 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 		return
 	}
 
-	// 一次拉全所有 group → models 映射（admin 配置，跟 channel 解耦）
-	modelsByGroup := map[int64][]string{}
-	if h.groupModelRepo != nil {
-		if m, err := h.groupModelRepo.ListAll(c.Request.Context()); err == nil {
-			modelsByGroup = m
-		}
+	channels, err := h.channelService.ListAvailable(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
 
 	// 官方价 lookup 缓存
@@ -268,16 +269,35 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 		return p
 	}
 
+	// LiteLLM 兜底：每个 platform 一次拉全表缓存。
+	litellmByPlatform := map[string][]string{}
+	getLiteLLMModels := func(platform string) []string {
+		if v, ok := litellmByPlatform[platform]; ok {
+			return v
+		}
+		var out []string
+		if h.billingService != nil {
+			for _, e := range h.billingService.ListAllModelPricings(platform) {
+				out = append(out, e.Model)
+			}
+		}
+		litellmByPlatform[platform] = out
+		return out
+	}
+
 	out := make([]userPricingGroup, 0, len(userGroups))
 	for i := range userGroups {
 		g := userGroups[i]
 		// 商户 sub_user 视角下的 rate 替换
 		rate := g.RateMultiplier
 		if h.merchantPricing != nil {
-			if sell, ok := h.merchantPricing.LookupSellRateForUser(c.Request.Context(), subject.UserID, g.ID); ok {
+			if sell, ok := h.merchantPricing.LookupSellRateForUser(ctx, subject.UserID, g.ID); ok {
 				rate = sell
 			}
 		}
+
+		// 计算模型集合
+		modelNames := resolveGroupModels(channels, g.ID, g.Platform, getLiteLLMModels)
 
 		item := userPricingGroup{
 			ID:             g.ID,
@@ -287,7 +307,7 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			IsExclusive:    g.IsExclusive,
 			Models:         []userPricingModel{},
 		}
-		for _, name := range modelsByGroup[g.ID] {
+		for _, name := range modelNames {
 			m := userPricingModel{Name: name}
 			if p := lookupOfficial(name); p != nil {
 				m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
@@ -301,6 +321,76 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 	}
 
 	response.Success(c, out)
+}
+
+// resolveGroupModels 按"交集 + LiteLLM 兜底"算法解析某 group 的模型列表。
+// 见 PricingGroupList 注释。
+func resolveGroupModels(
+	channels []service.AvailableChannel,
+	groupID int64,
+	platform string,
+	getLiteLLMModels func(platform string) []string,
+) []string {
+	var intersect map[string]struct{} // nil 表示还没遇到非空 channel
+	hasMatchingChannel := false
+
+	for _, ch := range channels {
+		if ch.Status != service.StatusActive {
+			continue
+		}
+		// 该 channel 是否关联此 group
+		matched := false
+		for _, gref := range ch.Groups {
+			if gref.ID == groupID {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		hasMatchingChannel = true
+
+		// 收集该 channel 的 platform-matched 模型
+		cur := map[string]struct{}{}
+		for _, m := range ch.SupportedModels {
+			if m.Platform == platform {
+				cur[m.Name] = struct{}{}
+			}
+		}
+		if len(cur) == 0 {
+			// 该 channel 透传（不限制模型），不参与交集
+			continue
+		}
+		if intersect == nil {
+			intersect = cur
+			continue
+		}
+		// 取交集：保留同时存在于 intersect 和 cur 的 model
+		next := map[string]struct{}{}
+		for k := range intersect {
+			if _, ok := cur[k]; ok {
+				next[k] = struct{}{}
+			}
+		}
+		intersect = next
+	}
+
+	// 没匹配 channel → 该 group 无人服务，返回空
+	if !hasMatchingChannel {
+		return nil
+	}
+	// 全部 channel 都透传 → 用 LiteLLM 按 platform 兜底
+	if intersect == nil {
+		return append([]string(nil), getLiteLLMModels(platform)...)
+	}
+	// 有具体模型交集 → 排序后返回
+	out := make([]string, 0, len(intersect))
+	for k := range intersect {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // applyMerchantSellRate 商户 sub_user 视角下，把每个 group 的 RateMultiplier

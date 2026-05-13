@@ -169,24 +169,6 @@ export interface GroupRateMultiplierEntry {
 }
 
 /**
- * GET /admin/groups/:id/models — 列出该 group 的"展示用"模型清单
- * （admin 配置，跟计费无关；用于"模型列表"展示页）。
- */
-export async function listGroupModels(id: number): Promise<string[]> {
-  const { data } = await apiClient.get<{ models: string[] }>(
-    `/admin/groups/${id}/models`
-  )
-  return data?.models || []
-}
-
-/**
- * PUT /admin/groups/:id/models — 全量替换该 group 的展示用模型清单。
- */
-export async function setGroupModels(id: number, models: string[]): Promise<void> {
-  await apiClient.put(`/admin/groups/${id}/models`, { models })
-}
-
-/**
  * Get rate multipliers for users in a group
  * @param id - Group ID
  * @returns List of user rate multiplier entries
@@ -331,8 +313,6 @@ export const groupsAPI = {
   getStats,
   getGroupApiKeys,
   getGroupRateMultipliers,
-  listGroupModels,
-  setGroupModels,
   clearGroupRateMultipliers,
   batchSetGroupRateMultipliers,
   getGroupRPMOverrides,
