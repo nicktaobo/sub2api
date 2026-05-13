@@ -25,6 +25,7 @@
               :class="platformFilter === '' ? 'platform-filter-active' : ''"
               @click="platformFilter = ''"
             >
+              <Icon name="grid" size="xs" class="mr-1" />
               {{ t('modelPricing.filterAll') }}
               <span class="ml-1 text-[10px] opacity-70">{{ groups.length }}</span>
             </button>
@@ -36,6 +37,7 @@
               :class="platformFilter === p.name ? 'platform-filter-active' : ''"
               @click="platformFilter = p.name"
             >
+              <PlatformIcon :platform="(p.name as GroupPlatform)" size="xs" class="mr-1" />
               {{ p.name }}
               <span class="ml-1 text-[10px] opacity-70">{{ p.count }}</span>
             </button>
@@ -91,24 +93,35 @@
               :class="{ 'endpoint-card-active': g.id === selectedGroupId }"
               @click="selectedGroupId = g.id"
             >
-              <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-3">
+                <div class="endpoint-icon-wrap">
+                  <PlatformIcon :platform="(g.platform as GroupPlatform)" size="md" />
+                </div>
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    {{ g.name }}
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {{ g.name }}
+                    </div>
+                    <span class="rate-badge rate-badge-good">
+                      <Icon name="bolt" size="xs" class="mr-0.5" />
+                      {{ formatRate(g.rate_multiplier) }}
+                    </span>
                   </div>
-                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span class="platform-chip">{{ g.platform }}</span>
                     <span
                       v-if="g.is_exclusive"
                       class="platform-chip platform-chip-exclusive"
                     >
+                      <Icon name="key" size="xs" class="mr-0.5" />
                       {{ t('modelPricing.exclusive') }}
+                    </span>
+                    <span class="platform-chip platform-chip-count">
+                      <Icon name="cube" size="xs" class="mr-0.5" />
+                      {{ g.models.length }} {{ t('modelPricing.modelsUnit') }}
                     </span>
                   </div>
                 </div>
-                <span class="rate-badge rate-badge-good">
-                  {{ formatRate(g.rate_multiplier) }}
-                </span>
               </div>
             </button>
           </div>
@@ -118,12 +131,15 @@
         <div class="card flex min-h-0 flex-col overflow-hidden">
           <template v-if="selectedGroup">
             <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700/50">
-              <Icon name="cube" size="md" class="text-primary-500" />
+              <div class="endpoint-icon-wrap endpoint-icon-wrap-lg">
+                <PlatformIcon :platform="(selectedGroup.platform as GroupPlatform)" size="md" />
+              </div>
               <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
                 {{ selectedGroup.name }}
               </h2>
               <span class="platform-chip">{{ selectedGroup.platform }}</span>
               <span class="rate-badge rate-badge-good">
+                <Icon name="bolt" size="xs" class="mr-0.5" />
                 {{ formatRate(selectedGroup.rate_multiplier) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
@@ -153,11 +169,36 @@
               <table v-else class="w-full text-sm">
                 <thead>
                   <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                    <th class="px-5 py-3">{{ t('modelPricing.columns.model') }}</th>
-                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.input') }}</th>
-                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.output') }}</th>
-                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheWrite') }}</th>
-                    <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheRead') }}</th>
+                    <th class="px-5 py-3">
+                      <span class="inline-flex items-center gap-1">
+                        <Icon name="cube" size="xs" />
+                        {{ t('modelPricing.columns.model') }}
+                      </span>
+                    </th>
+                    <th class="px-3 py-3 text-right">
+                      <span class="inline-flex items-center justify-end gap-1">
+                        <Icon name="arrowDown" size="xs" />
+                        {{ t('modelPricing.columns.input') }}
+                      </span>
+                    </th>
+                    <th class="px-3 py-3 text-right">
+                      <span class="inline-flex items-center justify-end gap-1">
+                        <Icon name="arrowUp" size="xs" />
+                        {{ t('modelPricing.columns.output') }}
+                      </span>
+                    </th>
+                    <th class="px-3 py-3 text-right">
+                      <span class="inline-flex items-center justify-end gap-1">
+                        <Icon name="database" size="xs" />
+                        {{ t('modelPricing.columns.cacheWrite') }}
+                      </span>
+                    </th>
+                    <th class="px-3 py-3 text-right">
+                      <span class="inline-flex items-center justify-end gap-1">
+                        <Icon name="eye" size="xs" />
+                        {{ t('modelPricing.columns.cacheRead') }}
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -207,6 +248,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import type { GroupPlatform } from '@/types'
 import userChannelsAPI, { type UserPricingGroup } from '@/api/channels'
 import systemAPI from '@/api/system'
 import { useAppStore } from '@/stores/app'
@@ -324,15 +367,31 @@ onMounted(reload)
 
 <style scoped>
 .endpoint-card {
-  @apply w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left
-         transition hover:border-primary-200 hover:bg-primary-50/40 hover:shadow-sm
+  @apply relative w-full rounded-xl border border-gray-100 bg-white px-4 py-3.5 text-left
+         transition-all duration-200
+         hover:border-primary-200 hover:bg-primary-50/30 hover:shadow-md hover:-translate-y-0.5
          dark:border-dark-700/50 dark:bg-dark-800/40 dark:hover:border-primary-500/40
          dark:hover:bg-primary-900/10;
 }
 
 .endpoint-card-active {
-  @apply border-primary-300 bg-gradient-to-br from-primary-50 to-white shadow-sm
+  @apply border-primary-300 bg-gradient-to-br from-primary-50 to-white shadow-md
          dark:border-primary-500/60 dark:from-primary-900/20 dark:to-dark-800/40;
+}
+
+.endpoint-card-active::before {
+  content: '';
+  @apply absolute left-0 top-3 bottom-3 w-1 rounded-r bg-primary-500;
+}
+
+.endpoint-icon-wrap {
+  @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg
+         bg-gradient-to-br from-primary-100 to-primary-50 text-primary-600
+         dark:from-primary-900/30 dark:to-primary-800/20 dark:text-primary-300;
+}
+
+.endpoint-icon-wrap-lg {
+  @apply h-10 w-10;
 }
 
 .rate-badge {
@@ -365,5 +424,9 @@ onMounted(reload)
 
 .platform-chip-exclusive {
   @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300;
+}
+
+.platform-chip-count {
+  @apply bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300;
 }
 </style>
