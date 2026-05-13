@@ -3,18 +3,43 @@
     <div class="flex h-full flex-col gap-6">
       <!-- 顶部过滤条 -->
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div class="relative w-full sm:w-80">
-          <Icon
-            name="search"
-            size="md"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-          />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="t('modelPricing.searchPlaceholder')"
-            class="input pl-10"
-          />
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="relative w-full sm:w-72">
+            <Icon
+              name="search"
+              size="md"
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            />
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="t('modelPricing.searchPlaceholder')"
+              class="input pl-10"
+            />
+          </div>
+          <!-- platform 过滤 chip -->
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              class="platform-filter"
+              :class="platformFilter === '' ? 'platform-filter-active' : ''"
+              @click="platformFilter = ''"
+            >
+              {{ t('modelPricing.filterAll') }}
+              <span class="ml-1 text-[10px] opacity-70">{{ groups.length }}</span>
+            </button>
+            <button
+              v-for="p in platformOptions"
+              :key="p.name"
+              type="button"
+              class="platform-filter"
+              :class="platformFilter === p.name ? 'platform-filter-active' : ''"
+              @click="platformFilter = p.name"
+            >
+              {{ p.name }}
+              <span class="ml-1 text-[10px] opacity-70">{{ p.count }}</span>
+            </button>
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -82,7 +107,7 @@
                   </div>
                 </div>
                 <span class="rate-badge rate-badge-good">
-                  {{ formatDiscount(g.rate_multiplier) }}
+                  {{ formatRate(g.rate_multiplier) }}
                 </span>
               </div>
             </button>
@@ -99,7 +124,7 @@
               </h2>
               <span class="platform-chip">{{ selectedGroup.platform }}</span>
               <span class="rate-badge rate-badge-good">
-                {{ formatDiscount(selectedGroup.rate_multiplier) }}
+                {{ formatRate(selectedGroup.rate_multiplier) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
                 <button
@@ -194,14 +219,28 @@ const appStore = useAppStore()
 const groups = ref<UserPricingGroup[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
+const platformFilter = ref<string>('')
 const priceMode = ref<'official' | 'site'>('site')
 const selectedGroupId = ref<number | null>(null)
 const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
 
+// platform 维度的过滤选项：按出现频率聚合，含每个 platform 下的 group 数量。
+const platformOptions = computed(() => {
+  const counts = new Map<string, number>()
+  for (const g of groups.value) {
+    counts.set(g.platform, (counts.get(g.platform) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+})
+
 const filteredGroups = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return groups.value
+  const pf = platformFilter.value
   return groups.value.filter((g) => {
+    if (pf && g.platform !== pf) return false
+    if (!q) return true
     if (g.name.toLowerCase().includes(q)) return true
     if (g.platform.toLowerCase().includes(q)) return true
     return g.models.some((m) => m.name.toLowerCase().includes(q))
@@ -213,20 +252,14 @@ const selectedGroup = computed(() =>
 )
 
 /**
- * formatDiscount 把"主站倍率"翻译成"折扣"展示：
- *   discount = (rate / fx_rate) × 10，单位为中文"折"
- * 例：rate=1.8, fx=6.8 → 1.8/6.8 × 10 ≈ 2.65折
- *
- * 一些边界：
- *   - 等于 10 折（rate × fx 相等）→ 显示"官方价"
- *   - 大于 10 折（充值美元等效后还比官方贵）→ 显示"X.X折"但用警告色
+ * formatRate 展示分组的"计费倍率"，例如 1.8x、0.4x、25x。
+ * 保留 2 位小数后去掉无意义零（1.50 → 1.5）。
  */
-function formatDiscount(rate: number): string {
+function formatRate(rate: number): string {
   const r = Number(rate || 1)
-  const fx = fxRate.value || 1
-  const d = (r / fx) * 10
-  if (Math.abs(d - 10) < 1e-3) return t('modelPricing.officialDiscountLabel')
-  return t('modelPricing.discountFormat', { value: parseFloat(d.toFixed(2)) })
+  if (Math.abs(r - 1) < 1e-6) return '1x'
+  if (r >= 10) return `${r.toFixed(0)}x`
+  return `${parseFloat(r.toFixed(3))}x`
 }
 
 
@@ -313,6 +346,21 @@ onMounted(reload)
 .platform-chip {
   @apply inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px]
          font-medium text-gray-600 dark:bg-dark-700/50 dark:text-gray-300;
+}
+
+.platform-filter {
+  @apply inline-flex items-center rounded-full border border-gray-200 bg-white px-3
+         py-1 text-xs font-medium text-gray-600 transition
+         hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700
+         dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300
+         dark:hover:border-primary-500/50 dark:hover:bg-primary-900/20
+         dark:hover:text-primary-300;
+}
+
+.platform-filter-active {
+  @apply border-primary-500 bg-primary-500 text-white shadow-sm
+         hover:border-primary-500 hover:bg-primary-500 hover:text-white
+         dark:border-primary-500 dark:bg-primary-500 dark:text-white;
 }
 
 .platform-chip-exclusive {
