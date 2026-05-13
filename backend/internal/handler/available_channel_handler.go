@@ -325,6 +325,11 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 
 // resolveGroupModels 按"交集 + LiteLLM 兜底"算法解析某 group 的模型列表。
 // 见 PricingGroupList 注释。
+//
+// 兜底触发条件（任一）：
+//   - 没有 channel 关联此 group
+//   - 关联的 channel 全部 SupportedModels 为空（透传 / 不限制）
+// → 这两种都视为"对模型无限制"，直接返回 LiteLLM 按 platform 过滤的全表。
 func resolveGroupModels(
 	channels []service.AvailableChannel,
 	groupID int64,
@@ -332,13 +337,11 @@ func resolveGroupModels(
 	getLiteLLMModels func(platform string) []string,
 ) []string {
 	var intersect map[string]struct{} // nil 表示还没遇到非空 channel
-	hasMatchingChannel := false
 
 	for _, ch := range channels {
 		if ch.Status != service.StatusActive {
 			continue
 		}
-		// 该 channel 是否关联此 group
 		matched := false
 		for _, gref := range ch.Groups {
 			if gref.ID == groupID {
@@ -349,7 +352,6 @@ func resolveGroupModels(
 		if !matched {
 			continue
 		}
-		hasMatchingChannel = true
 
 		// 收集该 channel 的 platform-matched 模型
 		cur := map[string]struct{}{}
@@ -366,7 +368,7 @@ func resolveGroupModels(
 			intersect = cur
 			continue
 		}
-		// 取交集：保留同时存在于 intersect 和 cur 的 model
+		// 取交集
 		next := map[string]struct{}{}
 		for k := range intersect {
 			if _, ok := cur[k]; ok {
@@ -376,15 +378,11 @@ func resolveGroupModels(
 		intersect = next
 	}
 
-	// 没匹配 channel → 该 group 无人服务，返回空
-	if !hasMatchingChannel {
-		return nil
-	}
-	// 全部 channel 都透传 → 用 LiteLLM 按 platform 兜底
+	// intersect == nil 涵盖两种情况：无 channel 关联、所有 channel 都透传
+	// 统一走 LiteLLM 兜底
 	if intersect == nil {
 		return append([]string(nil), getLiteLLMModels(platform)...)
 	}
-	// 有具体模型交集 → 排序后返回
 	out := make([]string, 0, len(intersect))
 	for k := range intersect {
 		out = append(out, k)
