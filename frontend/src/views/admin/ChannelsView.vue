@@ -932,7 +932,8 @@ function openFillDialog(sIdx: number) {
 
 function scaleOrNull(v: number | null, m: number): number | null {
   if (v == null) return null
-  return Number((v * m).toPrecision(10))
+  // 保留 2 位小数；parseFloat 去掉末尾零（0.80 → 0.8）
+  return parseFloat((v * m).toFixed(2))
 }
 
 async function submitBulkFill() {
