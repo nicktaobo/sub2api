@@ -329,7 +329,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore, useAppStore } from '@/stores'
+import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -337,11 +337,28 @@ const { t } = useI18n()
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const merchantStore = useMerchantStore()
 
-const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
-const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
+// 商户域名访问时优先用商户的品牌信息和 home_content，否则回退到全局公开设置
+const siteName = computed(() =>
+  (merchantStore.isMerchantSite && merchantStore.siteName) ||
+  appStore.cachedPublicSettings?.site_name ||
+  appStore.siteName ||
+  'Sub2API'
+)
+const siteLogo = computed(() =>
+  (merchantStore.isMerchantSite && merchantStore.siteLogo) ||
+  appStore.cachedPublicSettings?.site_logo ||
+  appStore.siteLogo ||
+  ''
+)
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
-const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
+const homeContent = computed(() => {
+  if (merchantStore.isMerchantSite) {
+    return merchantStore.homeContent || ''
+  }
+  return appStore.cachedPublicSettings?.home_content || ''
+})
 
 const isHomeContentUrl = computed(() => {
   const content = homeContent.value.trim()
