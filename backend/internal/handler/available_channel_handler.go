@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"sort"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -26,6 +28,7 @@ type AvailableChannelHandler struct {
 	settingService  *service.SettingService
 	billingService  *service.BillingService
 	merchantPricing *service.MerchantPricingService
+	accountService  *service.AccountService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -35,6 +38,7 @@ func NewAvailableChannelHandler(
 	settingService *service.SettingService,
 	billingService *service.BillingService,
 	merchantPricing *service.MerchantPricingService,
+	accountService *service.AccountService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService:  channelService,
@@ -42,6 +46,7 @@ func NewAvailableChannelHandler(
 		settingService:  settingService,
 		billingService:  billingService,
 		merchantPricing: merchantPricing,
+		accountService:  accountService,
 	}
 }
 
@@ -215,12 +220,15 @@ type userPricingGroup struct {
 
 // PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group。
 //
-// 模型集合算法（admin 完全不用配，自动算）：
-//  1. 扫所有 active channel：channel.GroupIDs 包含此 group 且 platform 匹配
-//  2. 跳过 SupportedModels 为空的 channel（视为"透传/不限制"，不参与交集）
-//  3. 非空 channel 之间取**交集**（保证模型在所有候选 channel 都能调通）
-//  4. 全部 channel 都透传 / 无 channel 关联 → 用 LiteLLM 全表按 group.platform
-//     过滤的 chat 模型作为兜底（透传场景下用户可调任何上游模型）
+// 模型集合算法（admin 不用额外配，全自动）：
+//  1. 拉该 group 下所有 active account（account_groups 多对多）
+//  2. 每个 account 的"支持模型"= account.credentials.model_mapping 的非通配
+//     符 from key 集合：
+//     - 空 mapping 或只有通配符 → 视为"透传/不限制"，不参与交集
+//     - 有非通配符 mapping → 这些 key 就是该账号显式支持的模型
+//  3. 所有参与交集的 account 之间取交集 → 该 group 的模型列表
+//  4. 没有 account / 全部透传 → 用 LiteLLM 按 group.platform 过滤的 chat
+//     模型作为兜底
 //
 // 不受 available_channels_enabled 开关限制。商户 sub_user 视角下，rate_multiplier
 // 替换为商户配置的 sell_rate（与计费路径一致）。
@@ -241,12 +249,6 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 	}
 	if len(userGroups) == 0 {
 		response.Success(c, []userPricingGroup{})
-		return
-	}
-
-	channels, err := h.channelService.ListAvailable(ctx)
-	if err != nil {
-		response.ErrorFrom(c, err)
 		return
 	}
 
@@ -296,8 +298,8 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			}
 		}
 
-		// 计算模型集合
-		modelNames := resolveGroupModels(channels, g.ID, g.Platform, getLiteLLMModels)
+		// 计算模型集合：取该 group 下所有 account.model_mapping 的非通配 from key 交集
+		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
 
 		item := userPricingGroup{
 			ID:             g.ID,
@@ -323,63 +325,66 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 	response.Success(c, out)
 }
 
-// resolveGroupModels 按"交集 + LiteLLM 兜底"算法解析某 group 的模型列表。
-// 见 PricingGroupList 注释。
+// resolveGroupModelsByAccount 按"account 交集 + LiteLLM 兜底"算法计算 group 的模型列表。
 //
-// 兜底触发条件（任一）：
-//   - 没有 channel 关联此 group
-//   - 关联的 channel 全部 SupportedModels 为空（透传 / 不限制）
-// → 这两种都视为"对模型无限制"，直接返回 LiteLLM 按 platform 过滤的全表。
-func resolveGroupModels(
-	channels []service.AvailableChannel,
+//   - 拉该 group 下所有 active account（accountService.ListByGroup）
+//   - 对每个 account 取 GetModelMapping()：
+//   - 空 mapping → 透传，不参与交集
+//   - 全是通配符 from（如 `gpt-*`）→ 透传，不参与交集
+//   - 含非通配符 from → 这些 from 就是该 account 显式支持的模型
+//   - 所有参与的 account 之间取交集
+//   - 无参与 / 无 account → LiteLLM 按 platform 兜底
+func (h *AvailableChannelHandler) resolveGroupModelsByAccount(
+	ctx context.Context,
 	groupID int64,
 	platform string,
 	getLiteLLMModels func(platform string) []string,
 ) []string {
-	var intersect map[string]struct{} // nil 表示还没遇到非空 channel
+	var intersect map[string]struct{} // nil 表示还没遇到任何"显式列模型"的账号
 
-	for _, ch := range channels {
-		if ch.Status != service.StatusActive {
-			continue
-		}
-		matched := false
-		for _, gref := range ch.Groups {
-			if gref.ID == groupID {
-				matched = true
-				break
+	if h.accountService != nil {
+		accounts, err := h.accountService.ListByGroup(ctx, groupID)
+		if err == nil {
+			for i := range accounts {
+				acc := accounts[i]
+				if acc.Status != service.StatusActive {
+					continue
+				}
+				if acc.Platform != platform {
+					// 防御性：理论上 account.platform 跟 group.platform 应该一致
+					continue
+				}
+				mapping := acc.GetModelMapping()
+				if len(mapping) == 0 {
+					// 透传，不参与交集
+					continue
+				}
+				cur := map[string]struct{}{}
+				for from := range mapping {
+					if strings.HasSuffix(from, "*") {
+						continue // 通配符 from 不算具体模型
+					}
+					cur[from] = struct{}{}
+				}
+				if len(cur) == 0 {
+					// 只有通配符 → 视为透传，不参与交集
+					continue
+				}
+				if intersect == nil {
+					intersect = cur
+					continue
+				}
+				next := map[string]struct{}{}
+				for k := range intersect {
+					if _, ok := cur[k]; ok {
+						next[k] = struct{}{}
+					}
+				}
+				intersect = next
 			}
 		}
-		if !matched {
-			continue
-		}
-
-		// 收集该 channel 的 platform-matched 模型
-		cur := map[string]struct{}{}
-		for _, m := range ch.SupportedModels {
-			if m.Platform == platform {
-				cur[m.Name] = struct{}{}
-			}
-		}
-		if len(cur) == 0 {
-			// 该 channel 透传（不限制模型），不参与交集
-			continue
-		}
-		if intersect == nil {
-			intersect = cur
-			continue
-		}
-		// 取交集
-		next := map[string]struct{}{}
-		for k := range intersect {
-			if _, ok := cur[k]; ok {
-				next[k] = struct{}{}
-			}
-		}
-		intersect = next
 	}
 
-	// intersect == nil 涵盖两种情况：无 channel 关联、所有 channel 都透传
-	// 统一走 LiteLLM 兜底
 	if intersect == nil {
 		return append([]string(nil), getLiteLLMModels(platform)...)
 	}
