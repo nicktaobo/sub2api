@@ -13,7 +13,7 @@ export function formatScaled(value: number | null, scale: number): string {
 }
 
 /**
- * USD → CNY 汇率。前端硬编码；后续可迁移到 PublicSettings 让管理员配置。
- * 调价口径：模型定价页"我们 ¥X / 1M token"展示用。
+ * 默认 CNY/USD 汇率（当后端 /settings/fx-rate 拉取失败时降级使用）。
+ * 实际值通过 fxRateAPI.get() 从后端拿。
  */
-export const USD_TO_CNY = 7.2
+export const DEFAULT_CNY_PER_USD = 6.8

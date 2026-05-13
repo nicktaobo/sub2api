@@ -11,15 +11,35 @@ import (
 // SettingHandler 公开设置处理器（无需认证）
 type SettingHandler struct {
 	settingService *service.SettingService
+	fxRateService  *service.FXRateService
 	version        string
 }
 
 // NewSettingHandler 创建公开设置处理器
-func NewSettingHandler(settingService *service.SettingService, version string) *SettingHandler {
+func NewSettingHandler(settingService *service.SettingService, fxRateService *service.FXRateService, version string) *SettingHandler {
 	return &SettingHandler{
 		settingService: settingService,
+		fxRateService:  fxRateService,
 		version:        version,
 	}
+}
+
+// GetFXRate 获取当前 CNY/USD 汇率（公开接口；前端"模型定价"页用来算等效美元价）
+// GET /api/v1/settings/fx-rate
+func (h *SettingHandler) GetFXRate(c *gin.Context) {
+	if h.fxRateService == nil {
+		response.Success(c, gin.H{"cny_per_usd": 6.8, "last_updated": nil})
+		return
+	}
+	last := h.fxRateService.LastUpdated()
+	var lastStr any
+	if !last.IsZero() {
+		lastStr = last.Format("2006-01-02T15:04:05Z07:00")
+	}
+	response.Success(c, gin.H{
+		"cny_per_usd":  h.fxRateService.CNYPerUSD(),
+		"last_updated": lastStr,
+	})
 }
 
 // GetPublicSettings 获取公开设置

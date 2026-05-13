@@ -406,18 +406,9 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
-                <div class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    @click="openFillDialog(sIdx)"
-                    class="text-xs text-primary-600 hover:text-primary-700"
-                  >
-                    ⚡ {{ t('admin.channels.bulkFill.button', '从模型文件加载') }}
-                  </button>
-                  <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                    + {{ t('common.add', 'Add') }}
-                  </button>
-                </div>
+                <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                  + {{ t('common.add', 'Add') }}
+                </button>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -589,63 +580,6 @@
                 ? t('common.update', 'Update')
                 : t('common.create', 'Create')
             }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
-
-    <!-- Bulk load model pricing from LiteLLM file -->
-    <BaseDialog
-      :show="fillDialog.show"
-      :title="t('admin.channels.bulkFill.title', '从模型文件加载定价')"
-      width="normal"
-      @close="fillDialog.show = false"
-    >
-      <form id="bulk-fill-form" class="space-y-4" @submit.prevent="submitBulkFill">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-          {{ t('admin.channels.bulkFill.description', '从 LiteLLM 价格表加载所有模型，每个模型生成一条定价条目；本站价 = 官方价 × 折扣。生成后可手动微调单条。') }}
-        </p>
-        <div>
-          <label class="input-label">{{ t('admin.channels.bulkFill.provider', '按厂商过滤') }}</label>
-          <input
-            v-model="fillDialog.provider"
-            type="text"
-            class="input"
-            :placeholder="t('admin.channels.bulkFill.providerPlaceholder', '如 anthropic / openai；留空 = 所有厂商')"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            {{ t('admin.channels.bulkFill.providerHint', '按 LiteLLM 的 litellm_provider 字段过滤，大小写不敏感') }}
-          </p>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.channels.bulkFill.multiplier', '折扣 / 倍率') }}</label>
-          <input
-            v-model.number="fillDialog.multiplier"
-            type="number"
-            min="0.0001"
-            step="0.0001"
-            required
-            class="input"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            {{ t('admin.channels.bulkFill.multiplierHint', '本站价 = 官方价 × 此值。1.0 = 跟官方平价，0.8 = 8 折，1.2 = 加价 20%。') }}
-          </p>
-        </div>
-        <label class="flex items-center gap-2 text-sm">
-          <input v-model="fillDialog.overwriteExisting" type="checkbox" class="rounded" />
-          <span>{{ t('admin.channels.bulkFill.replace', '替换当前所有定价条目（取消勾选则追加）') }}</span>
-        </label>
-      </form>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="fillDialog.show = false">{{ t('common.cancel', 'Cancel') }}</button>
-          <button
-            type="submit"
-            form="bulk-fill-form"
-            :disabled="fillDialog.submitting"
-            class="btn btn-primary"
-          >
-            {{ fillDialog.submitting ? t('admin.channels.bulkFill.filling', '加载中...') : t('admin.channels.bulkFill.load', '加载') }}
           </button>
         </div>
       </template>
@@ -908,77 +842,6 @@ function removePricingEntry(sectionIdx: number, idx: number) {
   form.platforms[sectionIdx].model_pricing.splice(idx, 1)
 }
 
-// ── Bulk load model pricing from LiteLLM file ──
-// 从 LiteLLM 模型价格表加载所有模型（可按 provider 过滤），按"官方价 × 折扣"
-// 生成定价条目；每个模型生成一条 entry，admin 之后可逐条微调。
-const fillDialog = reactive({
-  show: false,
-  sectionIdx: null as number | null,
-  provider: '',
-  multiplier: 1,
-  overwriteExisting: true,
-  submitting: false,
-})
-
-function openFillDialog(sIdx: number) {
-  fillDialog.sectionIdx = sIdx
-  // 默认按当前 platform 名作为 provider 过滤（与 LiteLLM litellm_provider 字段大小写不敏感匹配）
-  fillDialog.provider = form.platforms[sIdx]?.platform?.toLowerCase() ?? ''
-  fillDialog.multiplier = 1
-  fillDialog.overwriteExisting = true
-  fillDialog.submitting = false
-  fillDialog.show = true
-}
-
-function scaleOrNull(v: number | null, m: number): number | null {
-  if (v == null) return null
-  // 保留 2 位小数；parseFloat 去掉末尾零（0.80 → 0.8）
-  return parseFloat((v * m).toFixed(2))
-}
-
-async function submitBulkFill() {
-  if (fillDialog.sectionIdx == null) return
-  fillDialog.submitting = true
-  try {
-    const items = await adminAPI.channels.listAllModelDefaultPricing(
-      fillDialog.provider.trim() || undefined,
-    )
-    if (items.length === 0) {
-      appStore.showError(t('admin.channels.bulkFill.empty', '未找到符合条件的模型'))
-      return
-    }
-    const m = fillDialog.multiplier
-    const entries: PricingFormEntry[] = items.map((it) => ({
-      models: [it.model],
-      billing_mode: 'token',
-      input_price: scaleOrNull(perTokenToMTok(it.input_price), m),
-      output_price: scaleOrNull(perTokenToMTok(it.output_price), m),
-      cache_write_price: scaleOrNull(perTokenToMTok(it.cache_write_price), m),
-      cache_read_price: scaleOrNull(perTokenToMTok(it.cache_read_price), m),
-      image_output_price: scaleOrNull(perTokenToMTok(it.image_output_price), m),
-      per_request_price: null,
-      intervals: [],
-    }))
-    const section = form.platforms[fillDialog.sectionIdx]
-    if (fillDialog.overwriteExisting) {
-      section.model_pricing = entries
-    } else {
-      // 追加模式：跳过已经存在的模型名（按 entry.models[0] 比对）
-      const existing = new Set<string>()
-      for (const e of section.model_pricing) {
-        for (const m of e.models) existing.add(m)
-      }
-      const toAdd = entries.filter((e) => !existing.has(e.models[0]))
-      section.model_pricing.push(...toAdd)
-    }
-    appStore.showSuccess(t('admin.channels.bulkFill.result', { count: entries.length }))
-    fillDialog.show = false
-  } catch (err) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error', 'Error')))
-  } finally {
-    fillDialog.submitting = false
-  }
-}
 
 // ── Model Mapping helpers ──
 function addMappingEntry(sectionIdx: number) {

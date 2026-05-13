@@ -978,23 +978,18 @@ export default {
     endpoints: '可用端点',
     empty: '暂无可用端点',
     noModels: '该平台暂无模型',
-    noPricing: '未配置价格',
     selectPrompt: '请从左侧选择一个端点查看模型价格',
     modelsUnit: '个模型',
     rateLabel: '计费倍率',
-    fxNote: '汇率 1 USD ≈ {rate} CNY',
+    fxNote: '当前汇率 1 USD ≈ {rate} CNY',
+    officialPrice: '官方价格',
+    sitePrice: '本站价格',
     columns: {
       model: '模型',
-      input: '输入',
-      output: '输出',
-      cacheWrite: '缓存写入',
-      cacheRead: '缓存读取',
-      discount: '折扣'
-    },
-    discount: {
-      save: '省 {pct}%',
-      equal: '原价',
-      markup: '+ {pct}%'
+      input: '输入价格',
+      output: '输出价格',
+      cacheWrite: '缓存创建价格',
+      cacheRead: '缓存读取价格'
     }
   },
 
@@ -2332,21 +2327,6 @@ export default {
       noChannelsYet: '暂无渠道',
       createFirstChannel: '创建第一个渠道来管理模型定价',
       loadError: '加载渠道列表失败',
-      bulkFill: {
-        button: '从模型文件加载',
-        title: '从模型文件加载定价',
-        description: '从 LiteLLM 价格表加载所有模型，每个模型生成一条定价条目；本站价 = 官方价 × 折扣。生成后可手动微调单条。',
-        provider: '按厂商过滤',
-        providerPlaceholder: '如 anthropic / openai；留空 = 所有厂商',
-        providerHint: '按 LiteLLM 的 litellm_provider 字段过滤，大小写不敏感',
-        multiplier: '折扣 / 倍率',
-        multiplierHint: '本站价 = 官方价 × 此值。1.0 = 跟官方平价，0.8 = 8 折，1.2 = 加价 20%。',
-        replace: '替换当前所有定价条目（取消勾选则追加）',
-        load: '加载',
-        filling: '加载中...',
-        result: '已加载 {count} 个模型',
-        empty: '未找到符合条件的模型',
-      },
       createSuccess: '渠道创建成功',
       updateSuccess: '渠道更新成功',
       deleteSuccess: '渠道删除成功',

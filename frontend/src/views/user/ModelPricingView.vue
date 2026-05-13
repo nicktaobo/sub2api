@@ -18,31 +18,15 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
-            <button
-              type="button"
-              class="rounded-md px-3 py-1.5 font-medium transition"
-              :class="currency === 'CNY'
-                ? 'bg-primary-500 text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-              @click="currency = 'CNY'"
-            >¥ CNY</button>
-            <button
-              type="button"
-              class="rounded-md px-3 py-1.5 font-medium transition"
-              :class="currency === 'USD'
-                ? 'bg-primary-500 text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-              @click="currency = 'USD'"
-            >$ USD</button>
-          </div>
-
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('modelPricing.fxNote', { rate: fxRate.toFixed(2) }) }}
+          </span>
           <button
             type="button"
             class="btn btn-secondary"
             :title="t('common.refresh', 'Refresh')"
             :disabled="loading"
-            @click="loadChannels"
+            @click="reload"
           >
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </button>
@@ -92,7 +76,7 @@
                   </div>
                 </div>
                 <span class="rate-badge" :class="rateBadgeTone(channelBestRate(ch))">
-                  {{ formatRate(channelBestRate(ch)) }}
+                  {{ t('modelPricing.rateLabel') }}: {{ formatRate(channelBestRate(ch)) }}
                 </span>
               </div>
               <div class="mt-2 flex flex-wrap gap-1">
@@ -117,12 +101,27 @@
               <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
                 {{ selectedChannel.name }}
               </h2>
-              <span class="rate-badge" :class="rateBadgeTone(channelBestRate(selectedChannel))">
-                {{ t('modelPricing.rateLabel') }}: {{ formatRate(channelBestRate(selectedChannel)) }}
+              <span class="rate-badge" :class="rateBadgeTone(selectedRate)">
+                {{ t('modelPricing.rateLabel') }}: {{ formatRate(selectedRate) }}
               </span>
-              <span class="ml-auto text-xs text-gray-500 dark:text-gray-400">
-                {{ t('modelPricing.fxNote', { rate: USD_TO_CNY.toFixed(2) }) }}
-              </span>
+              <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-1.5 font-medium transition"
+                  :class="priceMode === 'official'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                  @click="priceMode = 'official'"
+                >{{ t('modelPricing.officialPrice') }}</button>
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-1.5 font-medium transition"
+                  :class="priceMode === 'site'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                  @click="priceMode = 'site'"
+                >{{ t('modelPricing.sitePrice') }}</button>
+              </div>
             </div>
 
             <div class="flex-1 overflow-auto">
@@ -146,11 +145,10 @@
                   <thead>
                     <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
                       <th class="px-5 py-3">{{ t('modelPricing.columns.model') }}</th>
-                      <th class="px-3 py-3">{{ t('modelPricing.columns.input') }}</th>
-                      <th class="px-3 py-3">{{ t('modelPricing.columns.output') }}</th>
-                      <th class="px-3 py-3">{{ t('modelPricing.columns.cacheWrite') }}</th>
-                      <th class="px-3 py-3">{{ t('modelPricing.columns.cacheRead') }}</th>
-                      <th class="px-5 py-3 text-right">{{ t('modelPricing.columns.discount') }}</th>
+                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.input') }}</th>
+                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.output') }}</th>
+                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheWrite') }}</th>
+                      <th class="px-3 py-3 text-right">{{ t('modelPricing.columns.cacheRead') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -163,40 +161,18 @@
                         <div class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
                           {{ model.name }}
                         </div>
-                        <div v-if="!model.pricing" class="mt-0.5 text-xs text-gray-400">
-                          {{ t('modelPricing.noPricing') }}
-                        </div>
                       </td>
-                      <PriceCell
-                        :site="model.pricing?.input_price"
-                        :official="model.pricing?.official_input_price"
-                        :rate="channelBestRate(selectedChannel)"
-                        :currency="currency"
-                      />
-                      <PriceCell
-                        :site="model.pricing?.output_price"
-                        :official="model.pricing?.official_output_price"
-                        :rate="channelBestRate(selectedChannel)"
-                        :currency="currency"
-                      />
-                      <PriceCell
-                        :site="model.pricing?.cache_write_price"
-                        :official="model.pricing?.official_cache_write_price"
-                        :rate="channelBestRate(selectedChannel)"
-                        :currency="currency"
-                      />
-                      <PriceCell
-                        :site="model.pricing?.cache_read_price"
-                        :official="model.pricing?.official_cache_read_price"
-                        :rate="channelBestRate(selectedChannel)"
-                        :currency="currency"
-                      />
-                      <td class="px-5 py-3 text-right">
-                        <DiscountBadge
-                          :site="model.pricing?.input_price"
-                          :official="model.pricing?.official_input_price"
-                          :rate="channelBestRate(selectedChannel)"
-                        />
+                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                        {{ formatPrice(model.pricing?.official_input_price) }}
+                      </td>
+                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                        {{ formatPrice(model.pricing?.official_output_price) }}
+                      </td>
+                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                        {{ formatPrice(model.pricing?.official_cache_write_price) }}
+                      </td>
+                      <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                        {{ formatPrice(model.pricing?.official_cache_read_price) }}
                       </td>
                     </tr>
                   </tbody>
@@ -224,11 +200,10 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
+import systemAPI from '@/api/system'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import PriceCell from '@/components/pricing/PriceCell.vue'
-import DiscountBadge from '@/components/pricing/DiscountBadge.vue'
-import { USD_TO_CNY } from '@/utils/pricing'
+import { DEFAULT_CNY_PER_USD } from '@/utils/pricing'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -236,8 +211,9 @@ const appStore = useAppStore()
 const channels = ref<UserAvailableChannel[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
-const currency = ref<'CNY' | 'USD'>('CNY')
+const priceMode = ref<'official' | 'site'>('site')
 const selectedChannelName = ref<string>('')
+const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
 
 const filteredChannels = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -262,8 +238,8 @@ const selectedChannel = computed(() =>
   filteredChannels.value.find((c) => c.name === selectedChannelName.value) ?? null,
 )
 
-// 同一渠道下可能有多个分组，每个分组有自己的倍率；前端展示"用户最优价"，
-// 取所有可见分组里最小的倍率。返回 1 作兜底（无分组时按 1x 显示）。
+// 同一渠道下可能有多个分组，每个分组有自己的倍率；展示用"用户最优价"——
+// 取所有可见分组里最小的倍率，因为倍率越小用户付得越少。
 function channelBestRate(ch: UserAvailableChannel): number {
   let best = Infinity
   for (const p of ch.platforms) {
@@ -276,11 +252,14 @@ function channelBestRate(ch: UserAvailableChannel): number {
   return Number.isFinite(best) ? best : 1
 }
 
+const selectedRate = computed(() =>
+  selectedChannel.value ? channelBestRate(selectedChannel.value) : 1,
+)
+
 function formatRate(rate: number): string {
   const r = Number(rate || 1)
   if (Math.abs(r - 1) < 1e-6) return '1x'
   if (r >= 10) return `${r.toFixed(0)}x`
-  // 去掉无意义的尾零：0.30 → 0.3，1.500 → 1.5
   return `${parseFloat(r.toFixed(3))}x`
 }
 
@@ -290,10 +269,47 @@ function rateBadgeTone(rate: number): string {
   return 'rate-badge-neutral'
 }
 
-async function loadChannels() {
+const priceCellTone = computed(() =>
+  priceMode.value === 'site'
+    ? 'text-primary-600 dark:text-primary-400'
+    : 'text-gray-700 dark:text-gray-300',
+)
+
+/**
+ * 价格格式化：
+ *   - 入参 v 是 per-token 美元价（如 0.000003）
+ *   - "official" 模式：直接 × 1M = 官方对外 $/M token
+ *   - "site"     模式：(group.rate / fx) × v × 1M = 等效美元 $/M token
+ *
+ * 站点用户充值 ¥1 = $1 名义额度，但市场汇率是 ¥{fx} = $1，所以名义 $X
+ * 对应的真实美元等效是 $X / fx。因此本站价 = group.rate × 官方价 / fx。
+ */
+function formatPrice(perTokenUSD: number | null | undefined): string {
+  if (perTokenUSD == null) return '-'
+  const officialPerM = perTokenUSD * 1_000_000
+  if (priceMode.value === 'official') {
+    return `$${trimNum(officialPerM)}/M`
+  }
+  const sitePerM = (selectedRate.value / fxRate.value) * officialPerM
+  return `$${trimNum(sitePerM)}/M`
+}
+
+function trimNum(n: number): string {
+  if (n === 0) return '0'
+  const digits = n >= 100 ? 0 : n >= 10 ? 2 : 4
+  const fixed = n.toFixed(digits)
+  return fixed.replace(/\.?0+$/, '') || '0'
+}
+
+async function reload() {
   loading.value = true
   try {
-    channels.value = await userChannelsAPI.getAvailable()
+    const [list, fx] = await Promise.all([
+      userChannelsAPI.getAvailable(),
+      systemAPI.getFXRate().catch(() => null),
+    ])
+    channels.value = list
+    if (fx && fx.cny_per_usd > 0) fxRate.value = fx.cny_per_usd
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
   } finally {
@@ -301,7 +317,6 @@ async function loadChannels() {
   }
 }
 
-// 列表加载后默认选中第一项；当前选中项被搜索过滤掉时也自动切换。
 watch(filteredChannels, (list) => {
   if (!list.length) {
     selectedChannelName.value = ''
@@ -312,7 +327,7 @@ watch(filteredChannels, (list) => {
   }
 }, { immediate: true })
 
-onMounted(loadChannels)
+onMounted(reload)
 </script>
 
 <style scoped>

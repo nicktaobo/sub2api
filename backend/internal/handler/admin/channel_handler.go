@@ -501,27 +501,3 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 	})
 }
 
-// ListModelDefaultPricing 列出 LiteLLM 价格表里所有模型（用于 admin 批量填充渠道定价）
-// GET /api/v1/admin/channels/model-pricing/all?provider=anthropic
-//   - provider 为空时返回所有 chat 模型
-//   - 大小写不敏感匹配 LiteLLM 的 litellm_provider 字段
-func (h *ChannelHandler) ListModelDefaultPricing(c *gin.Context) {
-	provider := c.Query("provider")
-	entries := h.billingService.ListAllModelPricings(provider)
-	out := make([]gin.H, 0, len(entries))
-	for _, e := range entries {
-		if e.Pricing == nil {
-			continue
-		}
-		out = append(out, gin.H{
-			"model":              e.Model,
-			"provider":           e.Pricing.LiteLLMProvider,
-			"input_price":        e.Pricing.InputCostPerToken,
-			"output_price":       e.Pricing.OutputCostPerToken,
-			"cache_write_price":  e.Pricing.CacheCreationInputTokenCost,
-			"cache_read_price":   e.Pricing.CacheReadInputTokenCost,
-			"image_output_price": e.Pricing.OutputCostPerImageToken,
-		})
-	}
-	response.Success(c, gin.H{"items": out, "total": len(out)})
-}

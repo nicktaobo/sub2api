@@ -29,6 +29,16 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 	return svc, nil
 }
 
+// ProvideFXRateService creates and initializes FXRateService.
+// 初始化失败不阻塞启动——会使用默认汇率（fallback），后续定时任务会重试。
+func ProvideFXRateService() *FXRateService {
+	svc := NewFXRateService()
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	svc.Initialize(ctx)
+	return svc
+}
+
 // ProvideUpdateService creates UpdateService with BuildInfo
 func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
 	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
@@ -444,6 +454,7 @@ var ProviderSet = wire.NewSet(
 	NewUsageService,
 	NewDashboardService,
 	ProvidePricingService,
+	ProvideFXRateService,
 	NewBillingService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,
