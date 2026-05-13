@@ -788,6 +788,15 @@ func (s *BillingService) ForceUpdatePricing() error {
 	return fmt.Errorf("pricing service not initialized")
 }
 
+// ListAllModelPricings 透传 PricingService.ListAll，返回 LiteLLM 价格表全量
+// （或按 provider 过滤）。providerFilter 为空时返回所有 chat 模型。
+func (s *BillingService) ListAllModelPricings(providerFilter string) []LiteLLMModelEntry {
+	if s.pricingService == nil {
+		return nil
+	}
+	return s.pricingService.ListAll(providerFilter)
+}
+
 // ImagePriceConfig 图片计费配置
 type ImagePriceConfig struct {
 	Price1K *float64 // 1K 尺寸价格（nil 表示使用默认值）

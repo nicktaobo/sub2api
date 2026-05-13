@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -874,6 +875,38 @@ func (s *PricingService) generateOpenAIModelVariants(model string, datePattern *
 	}
 
 	return variants
+}
+
+// LiteLLMModelEntry 列表返回项：模型名 + 价格数据（用于 admin 批量填充渠道定价）。
+type LiteLLMModelEntry struct {
+	Model   string
+	Pricing *LiteLLMModelPricing
+}
+
+// ListAll 返回 LiteLLM 价格表中所有模型，按字母序排序。
+//
+//   - providerFilter 非空时按 litellm_provider 大小写不敏感匹配过滤
+//   - 仅返回 mode == "chat" 或为空（兼容老条目）的模型；embedding/image_generation
+//     等非 chat 模式不参与渠道定价批量填充
+func (s *PricingService) ListAll(providerFilter string) []LiteLLMModelEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	filter := strings.ToLower(strings.TrimSpace(providerFilter))
+	out := make([]LiteLLMModelEntry, 0, len(s.pricingData))
+	for name, p := range s.pricingData {
+		if p == nil {
+			continue
+		}
+		if filter != "" && !strings.EqualFold(p.LiteLLMProvider, filter) {
+			continue
+		}
+		if p.Mode != "" && p.Mode != "chat" {
+			continue
+		}
+		out = append(out, LiteLLMModelEntry{Model: name, Pricing: p})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Model < out[j].Model })
+	return out
 }
 
 // GetStatus 获取服务状态

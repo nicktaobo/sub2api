@@ -164,5 +164,27 @@ export async function getModelDefaultPricing(model: string): Promise<ModelDefaul
   return data
 }
 
-const channelsAPI = { list, getById, create, update, remove, getModelDefaultPricing }
+/** LiteLLM 表里的单条模型价格（per-token，未应用倍率）。 */
+export interface LiteLLMModelEntry {
+  model: string
+  provider: string
+  input_price: number
+  output_price: number
+  cache_write_price: number
+  cache_read_price: number
+  image_output_price: number
+}
+
+/** 列出 LiteLLM 表里所有模型，可选按 provider 过滤（大小写不敏感）。 */
+export async function listAllModelDefaultPricing(
+  provider?: string,
+): Promise<LiteLLMModelEntry[]> {
+  const { data } = await apiClient.get<{ items: LiteLLMModelEntry[]; total: number }>(
+    '/admin/channels/model-pricing/all',
+    { params: provider ? { provider } : undefined },
+  )
+  return data?.items || []
+}
+
+const channelsAPI = { list, getById, create, update, remove, getModelDefaultPricing, listAllModelDefaultPricing }
 export default channelsAPI
