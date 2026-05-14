@@ -1,7 +1,7 @@
 <template>
   <div class="home-shell">
     <!-- ========== 顶部固定导航 ========== -->
-    <header class="hd-nav">
+    <header class="hd-nav" :class="{ 'hd-nav--light': hasEmbedContent }">
       <div class="hd-nav-inner">
         <router-link to="/home" class="hd-brand">
           <div class="hd-logo-wrap">
@@ -364,6 +364,8 @@ const isHomeContentUrl = computed(() => {
   const content = homeContent.value.trim()
   return content.startsWith('http://') || content.startsWith('https://')
 })
+// 有任何嵌入内容（iframe 或 HTML 注入）→ header 切成浅色磨砂主题，避免和商户内容冲突
+const hasEmbedContent = computed(() => homeContent.value.trim().length > 0)
 
 const comparisonKeys = ['pricing', 'models', 'management', 'stability', 'control'] as const
 
@@ -435,6 +437,26 @@ onMounted(() => {
   pointer-events: none;
   opacity: 0.5;
 }
+
+/* 浅色磨砂 header —— 商户嵌入内容时启用，避免深色 nav 跟浅色商户页冲突 */
+.hd-nav.hd-nav--light {
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.hd-nav--light::after {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.06) 30%,
+    rgba(0, 0, 0, 0.06) 70%,
+    transparent 100%);
+  opacity: 1;
+}
+.hd-nav--light .hd-brand,
+.hd-nav--light .hd-brand-name { color: #1d1d1f; }
+.hd-nav--light .hd-icon-btn { color: rgba(0, 0, 0, 0.6); }
+.hd-nav--light .hd-icon-btn:hover { background: rgba(0, 0, 0, 0.06); color: #1d1d1f; }
+.hd-nav--light .hd-logo-wrap::after { display: none; }
+/* 控制台 / 登录 蓝色 pill 在浅色 header 上保持原样（蓝色对白底也清晰） */
 .hd-nav-inner {
   max-width: 1280px; margin: 0 auto;
   padding: 0 22px;
