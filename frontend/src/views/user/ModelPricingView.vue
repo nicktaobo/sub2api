@@ -94,7 +94,7 @@
               @click="selectedGroupId = g.id"
             >
               <div class="flex items-start gap-3">
-                <div class="endpoint-icon-wrap">
+                <div class="endpoint-icon-wrap" :class="iconWrapClass(g.platform)">
                   <PlatformIcon :platform="(g.platform as GroupPlatform)" size="md" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -131,7 +131,7 @@
         <div class="card flex min-h-0 flex-col overflow-hidden">
           <template v-if="selectedGroup">
             <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700/50">
-              <div class="endpoint-icon-wrap endpoint-icon-wrap-lg">
+              <div class="endpoint-icon-wrap endpoint-icon-wrap-lg" :class="iconWrapClass(selectedGroup.platform)">
                 <PlatformIcon :platform="(selectedGroup.platform as GroupPlatform)" size="md" />
               </div>
               <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -295,6 +295,26 @@ const selectedGroup = computed(() =>
 )
 
 /**
+ * iconWrapClass 按 platform 返回端点 icon 圆角 wrap 的配色类。
+ * 跟项目里其它 platform badge 的色系保持一致：
+ *   anthropic → orange、openai → green、gemini → blue、antigravity → purple。
+ */
+function iconWrapClass(platform: string): string {
+  switch (platform) {
+    case 'anthropic':
+      return 'endpoint-icon-wrap-anthropic'
+    case 'openai':
+      return 'endpoint-icon-wrap-openai'
+    case 'gemini':
+      return 'endpoint-icon-wrap-gemini'
+    case 'antigravity':
+      return 'endpoint-icon-wrap-antigravity'
+    default:
+      return ''
+  }
+}
+
+/**
  * formatRate 展示分组的"计费倍率"，例如 1.8x、0.4x、25x。
  * 保留 2 位小数后去掉无意义零（1.50 → 1.5）。
  */
@@ -386,12 +406,32 @@ onMounted(reload)
 
 .endpoint-icon-wrap {
   @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg
-         bg-gradient-to-br from-primary-100 to-primary-50 text-primary-600
-         dark:from-primary-900/30 dark:to-primary-800/20 dark:text-primary-300;
+         bg-gradient-to-br from-gray-100 to-gray-50 text-gray-600
+         dark:from-dark-700/40 dark:to-dark-800/40 dark:text-gray-300;
 }
 
 .endpoint-icon-wrap-lg {
   @apply h-10 w-10;
+}
+
+.endpoint-icon-wrap-anthropic {
+  @apply bg-gradient-to-br from-orange-100 to-orange-50 text-orange-600
+         dark:from-orange-900/40 dark:to-orange-800/20 dark:text-orange-300;
+}
+
+.endpoint-icon-wrap-openai {
+  @apply bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600
+         dark:from-emerald-900/40 dark:to-emerald-800/20 dark:text-emerald-300;
+}
+
+.endpoint-icon-wrap-gemini {
+  @apply bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600
+         dark:from-blue-900/40 dark:to-blue-800/20 dark:text-blue-300;
+}
+
+.endpoint-icon-wrap-antigravity {
+  @apply bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600
+         dark:from-purple-900/40 dark:to-purple-800/20 dark:text-purple-300;
 }
 
 .rate-badge {
