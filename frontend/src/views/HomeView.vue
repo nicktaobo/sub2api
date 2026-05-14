@@ -420,11 +420,11 @@ onMounted(() => {
 
 /* ============ 顶部固定导航 ============ */
 .hd-nav {
-  position: sticky; top: 0; z-index: 100;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   height: var(--hd-nav-h);
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: saturate(180%) blur(22px);
-  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
 }
 .hd-nav::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
@@ -440,8 +440,8 @@ onMounted(() => {
 
 /* 浅色磨砂 header —— 商户嵌入内容时启用，避免深色 nav 跟浅色商户页冲突 */
 .hd-nav.hd-nav--light {
-  background: rgba(255, 255, 255, 0.78);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.45);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 .hd-nav--light::after {
   background: linear-gradient(90deg,
@@ -515,11 +515,13 @@ onMounted(() => {
 }
 
 /* ============ 嵌入区 ============ */
+/* nav 改成 fixed 浮于内容之上，所以嵌入内容直接从 y=0 开始填满整个视口，
+   让 nav 的 backdrop-filter 吃到下方内容的颜色而不是某个固定底色 */
 .hd-embed-frame {
-  height: calc(100vh - var(--hd-nav-h));
+  height: 100vh;
   width: 100%;
 }
-.hd-embed-html { min-height: calc(100vh - var(--hd-nav-h)); }
+.hd-embed-html { min-height: 100vh; }
 
 /* ============ Default Page ============ */
 .hd-default { color: var(--hd-ink); }
@@ -536,7 +538,7 @@ onMounted(() => {
   position: relative;
   background: #000;
   color: #fff;
-  padding: 100px 0 60px;
+  padding: 140px 0 60px;
   overflow: hidden;
   isolation: isolate;
 }
