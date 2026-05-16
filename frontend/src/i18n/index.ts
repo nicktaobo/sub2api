@@ -22,16 +22,7 @@ function getDefaultLocale(): LocaleCode {
   if (saved && isLocaleCode(saved)) {
     return saved
   }
-
-  const browserLang = navigator.language.toLowerCase()
-  // 优先匹配繁体中文（zh-TW / zh-HK / zh-Hant）
-  if (browserLang.startsWith('zh-tw') || browserLang.startsWith('zh-hk') || browserLang.includes('hant')) {
-    return 'zh-TW'
-  }
-  if (browserLang.startsWith('zh')) {
-    return 'zh'
-  }
-
+  // 首次访问默认英文，用户切到繁中后会写 localStorage 持久化。
   return DEFAULT_LOCALE
 }
 
