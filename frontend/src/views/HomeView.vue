@@ -108,7 +108,7 @@
                 <div class="hd-code-line hd-line-1">
                   <span class="hd-code-c1">$</span>
                   <span class="hd-code-c2">curl</span>
-                  <span class="hd-code-c3">https://api.sub2api.dev</span><span class="hd-code-c4">/v1/messages</span>
+                  <span class="hd-code-c3">{{ apiBaseUrl }}</span><span class="hd-code-c4">/v1/messages</span>
                 </div>
                 <div class="hd-code-line hd-line-2">
                   <span class="hd-code-c5">-H</span>
@@ -137,15 +137,15 @@
           <div class="hd-num-grid">
             <div class="hd-num-cell">
               <div class="hd-num-v">4<small>+</small></div>
-              <div class="hd-num-k">{{ t('home.providers.title') }}</div>
+              <div class="hd-num-k">{{ t('home.numbers.providers') }}</div>
             </div>
             <div class="hd-num-cell">
               <div class="hd-num-v">99.9<small>%</small></div>
-              <div class="hd-num-k">服务可用性</div>
+              <div class="hd-num-k">{{ t('home.numbers.uptime') }}</div>
             </div>
             <div class="hd-num-cell">
               <div class="hd-num-v">5<small>min</small></div>
-              <div class="hd-num-k">接入耗时</div>
+              <div class="hd-num-k">{{ t('home.numbers.integrationTime') }}</div>
             </div>
             <div class="hd-num-cell">
               <div class="hd-num-v">1<small></small></div>
@@ -158,13 +158,13 @@
       <!-- ===== Spotlight 1: 统一网关（白色全幅） ===== -->
       <section class="hd-spotlight hd-spotlight--light">
         <div class="hd-section-inner">
-          <div class="hd-spot-eyebrow">UNIFIED GATEWAY</div>
+          <div class="hd-spot-eyebrow">{{ t('home.unifiedGateway.eyebrow') }}</div>
           <h2 class="hd-spot-title">
-            一个密钥，<br />
-            <span class="hd-text-grad-blue">畅用所有主流大模型。</span>
+            {{ t('home.unifiedGateway.titleLine1') }}<br />
+            <span class="hd-text-grad-blue">{{ t('home.unifiedGateway.titleLine2') }}</span>
           </h2>
           <p class="hd-spot-sub">
-            无需分别申请、维护多份订阅。 Sub2API 把 Claude、GPT、Gemini 等服务整合到一套兼容标准的 API 之下，让接入变成几行代码的事。
+            {{ t('home.unifiedGateway.description') }}
           </p>
 
           <div class="hd-providers-stage">
@@ -203,39 +203,39 @@
       <!-- ===== Spotlight 2: 智能路由（黑色全幅） ===== -->
       <section class="hd-spotlight hd-spotlight--dark">
         <div class="hd-section-inner">
-          <div class="hd-spot-eyebrow hd-spot-eyebrow--dark">INTELLIGENT ROUTING</div>
+          <div class="hd-spot-eyebrow hd-spot-eyebrow--dark">{{ t('home.intelligentRouting.eyebrow') }}</div>
           <h2 class="hd-spot-title hd-spot-title--dark">
-            稳定可靠的<br />
-            <span class="hd-text-grad-blue-bright">智能调度引擎。</span>
+            {{ t('home.intelligentRouting.titleLine1') }}<br />
+            <span class="hd-text-grad-blue-bright">{{ t('home.intelligentRouting.titleLine2') }}</span>
           </h2>
           <p class="hd-spot-sub hd-spot-sub--dark">
-            多账号池自动负载与故障切换、会话级粘性路由、按 Token 实时计费 —— 一切只为让你的每一次请求都能在最优路径上完成。
+            {{ t('home.intelligentRouting.description') }}
           </p>
 
           <!-- Bento -->
           <div class="hd-bento">
             <div class="hd-bento-tile hd-bento-1">
               <div class="hd-bento-num">01</div>
-              <h3>会话保持</h3>
-              <p>同一会话固定路由至同一账号，保留上下文记忆与多轮对话状态。</p>
+              <h3>{{ t('home.intelligentRouting.bento.session.title') }}</h3>
+              <p>{{ t('home.intelligentRouting.bento.session.desc') }}</p>
               <div class="hd-bento-viz hd-viz-session"></div>
             </div>
             <div class="hd-bento-tile hd-bento-2">
               <div class="hd-bento-num">02</div>
-              <h3>账号池调度</h3>
-              <p>智能识别配额、限速、健康度，自动剔除异常账号。</p>
+              <h3>{{ t('home.intelligentRouting.bento.pool.title') }}</h3>
+              <p>{{ t('home.intelligentRouting.bento.pool.desc') }}</p>
               <div class="hd-bento-viz hd-viz-pool"></div>
             </div>
             <div class="hd-bento-tile hd-bento-3">
               <div class="hd-bento-num">03</div>
-              <h3>实时计费</h3>
-              <p>按 Token 精确计量，分钟级账单更新，支持配额上限。</p>
+              <h3>{{ t('home.intelligentRouting.bento.billing.title') }}</h3>
+              <p>{{ t('home.intelligentRouting.bento.billing.desc') }}</p>
               <div class="hd-bento-viz hd-viz-billing"></div>
             </div>
             <div class="hd-bento-tile hd-bento-4">
               <div class="hd-bento-num">04</div>
-              <h3>开箱可观测</h3>
-              <p>请求级日志、模型用量大盘、异常告警全部内置。</p>
+              <h3>{{ t('home.intelligentRouting.bento.observability.title') }}</h3>
+              <p>{{ t('home.intelligentRouting.bento.observability.desc') }}</p>
               <div class="hd-bento-viz hd-viz-obs"></div>
             </div>
           </div>
@@ -245,16 +245,16 @@
       <!-- ===== 对比（白色全幅） ===== -->
       <section class="hd-spotlight hd-spotlight--light hd-section--tight">
         <div class="hd-section-inner">
-          <div class="hd-spot-eyebrow">WHY US</div>
+          <div class="hd-spot-eyebrow">{{ t('home.comparison.eyebrow') }}</div>
           <h2 class="hd-spot-title">
-            两种选择，<br /><span class="hd-text-grad-blue">差距一目了然。</span>
+            {{ t('home.comparison.titleLine1') }}<br /><span class="hd-text-grad-blue">{{ t('home.comparison.titleLine2') }}</span>
           </h2>
 
           <div class="hd-compare">
             <div class="hd-cmp-col hd-cmp-col--off">
               <div class="hd-cmp-head">
-                <div class="hd-cmp-tag hd-cmp-tag--off">官方订阅</div>
-                <div class="hd-cmp-headline">逐家维护，逐月续费</div>
+                <div class="hd-cmp-tag hd-cmp-tag--off">{{ t('home.comparison.official.tag') }}</div>
+                <div class="hd-cmp-headline">{{ t('home.comparison.official.headline') }}</div>
               </div>
               <ul>
                 <li v-for="key in comparisonKeys" :key="key">
@@ -268,8 +268,8 @@
             </div>
             <div class="hd-cmp-col hd-cmp-col--us">
               <div class="hd-cmp-head">
-                <div class="hd-cmp-tag hd-cmp-tag--us">本平台 · 推荐</div>
-                <div class="hd-cmp-headline">一个 Key，所有可能</div>
+                <div class="hd-cmp-tag hd-cmp-tag--us">{{ t('home.comparison.us.tag') }}</div>
+                <div class="hd-cmp-headline">{{ t('home.comparison.us.headline') }}</div>
               </div>
               <ul>
                 <li v-for="key in comparisonKeys" :key="key">
@@ -353,6 +353,18 @@ const siteLogo = computed(() =>
   ''
 )
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+
+// 终端示例里的 API 域名：优先后台配置的 api_base_url，否则用当前站点 origin
+const apiBaseUrl = computed(() => {
+  const configured = (appStore.cachedPublicSettings?.api_base_url || '').trim()
+  if (configured) {
+    return configured.replace(/\/+$/, '')
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return ''
+})
 const homeContent = computed(() => {
   if (merchantStore.isMerchantSite) {
     return merchantStore.homeContent || ''

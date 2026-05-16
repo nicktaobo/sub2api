@@ -56,6 +56,17 @@ export default {
     // Comparison section
     comparison: {
       title: 'Why Choose Us?',
+      eyebrow: 'WHY US',
+      titleLine1: 'Two choices,',
+      titleLine2: 'the difference is clear.',
+      official: {
+        tag: 'Official Subscriptions',
+        headline: 'Manage one by one, renew monthly'
+      },
+      us: {
+        tag: 'Our Platform · Recommended',
+        headline: 'One key, infinite possibilities'
+      },
       headers: {
         feature: 'Comparison',
         official: 'Official Subscriptions',
@@ -104,6 +115,41 @@ export default {
       title: 'Ready to Get Started?',
       description: 'Sign up now and get free trial credits to experience seamless AI access',
       button: 'Sign Up Free'
+    },
+    numbers: {
+      providers: 'AI Providers',
+      uptime: 'Service Uptime',
+      integrationTime: 'Integration Time'
+    },
+    unifiedGateway: {
+      eyebrow: 'UNIFIED GATEWAY',
+      titleLine1: 'One key,',
+      titleLine2: 'unlocks every major model.',
+      description: 'No need to apply for or maintain multiple subscriptions. Sub2API unifies Claude, GPT, Gemini and more behind a single standards-compatible API — integration takes just a few lines of code.'
+    },
+    intelligentRouting: {
+      eyebrow: 'INTELLIGENT ROUTING',
+      titleLine1: 'A dependable',
+      titleLine2: 'intelligent scheduling engine.',
+      description: 'Automatic load balancing and failover across multi-account pools, session-level sticky routing, per-token real-time billing — everything is tuned so each request runs on the optimal path.',
+      bento: {
+        session: {
+          title: 'Session Persistence',
+          desc: 'The same session is pinned to the same account, preserving context memory and multi-turn dialogue state.'
+        },
+        pool: {
+          title: 'Account Pool Scheduling',
+          desc: 'Quota, rate limits, and health are detected intelligently, and abnormal accounts are removed automatically.'
+        },
+        billing: {
+          title: 'Real-time Billing',
+          desc: 'Precise per-token metering, minute-level bill updates, and quota caps are supported.'
+        },
+        observability: {
+          title: 'Observable Out of the Box',
+          desc: 'Request-level logs, model usage dashboards, and anomaly alerts are built in.'
+        }
+      }
     },
     footer: {
       allRightsReserved: 'All rights reserved.'

@@ -56,6 +56,17 @@ export default {
     // 优势对比
     comparison: {
       title: '为什么选择我们？',
+      eyebrow: 'WHY US',
+      titleLine1: '两种选择，',
+      titleLine2: '差距一目了然。',
+      official: {
+        tag: '官方订阅',
+        headline: '逐家维护，逐月续费'
+      },
+      us: {
+        tag: '本平台 · 推荐',
+        headline: '一个 Key，所有可能'
+      },
       headers: {
         feature: '对比项',
         official: '官方订阅',
@@ -104,6 +115,41 @@ export default {
       title: '准备好开始了吗？',
       description: '注册即可获得免费试用额度，体验一站式 AI 服务',
       button: '免费注册'
+    },
+    numbers: {
+      providers: 'AI 模型供应商',
+      uptime: '服务可用性',
+      integrationTime: '接入耗时'
+    },
+    unifiedGateway: {
+      eyebrow: 'UNIFIED GATEWAY',
+      titleLine1: '一个密钥，',
+      titleLine2: '畅用所有主流大模型。',
+      description: '无需分别申请、维护多份订阅。Sub2API 把 Claude、GPT、Gemini 等服务整合到一套兼容标准的 API 之下，让接入变成几行代码的事。'
+    },
+    intelligentRouting: {
+      eyebrow: 'INTELLIGENT ROUTING',
+      titleLine1: '稳定可靠的',
+      titleLine2: '智能调度引擎。',
+      description: '多账号池自动负载与故障切换、会话级粘性路由、按 Token 实时计费 —— 一切只为让你的每一次请求都能在最优路径上完成。',
+      bento: {
+        session: {
+          title: '会话保持',
+          desc: '同一会话固定路由至同一账号，保留上下文记忆与多轮对话状态。'
+        },
+        pool: {
+          title: '账号池调度',
+          desc: '智能识别配额、限速、健康度，自动剔除异常账号。'
+        },
+        billing: {
+          title: '实时计费',
+          desc: '按 Token 精确计量，分钟级账单更新，支持配额上限。'
+        },
+        observability: {
+          title: '开箱可观测',
+          desc: '请求级日志、模型用量大盘、异常告警全部内置。'
+        }
+      }
     },
     footer: {
       allRightsReserved: '保留所有权利。'
