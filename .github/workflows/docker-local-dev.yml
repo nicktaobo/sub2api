@@ -65,8 +65,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          # 不传 VERSION：让 Dockerfile 回退读 cmd/server/VERSION 文件，
+          # 前端版本徽标显示 v<semver>（如 v0.1.126），不再带 local-dev-<sha> 后缀。
+          # COMMIT 仍传入，便于 docker logs / /health 等处定位具体 commit。
           build-args: |
-            VERSION=local-dev-${{ steps.tags.outputs.sha_short }}
             COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=local-dev
           cache-to: type=gha,scope=local-dev,mode=max
