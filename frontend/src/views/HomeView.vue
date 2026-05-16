@@ -164,7 +164,7 @@
             <span class="hd-text-grad-blue">{{ t('home.unifiedGateway.titleLine2') }}</span>
           </h2>
           <p class="hd-spot-sub">
-            {{ t('home.unifiedGateway.description') }}
+            {{ t('home.unifiedGateway.description', { siteName }) }}
           </p>
 
           <div class="hd-providers-stage">

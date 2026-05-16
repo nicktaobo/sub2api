@@ -1643,7 +1643,7 @@
                 {{ t("admin.settings.linuxdo.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t("admin.settings.linuxdo.description") }}
+                {{ t("admin.settings.linuxdo.description", { siteName: appStore.siteName || '' }) }}
               </p>
             </div>
             <div class="space-y-5 p-6">

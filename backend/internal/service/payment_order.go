@@ -378,7 +378,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
 			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
 	}
-	subject := s.buildPaymentSubject(plan, limitAmount, cfg)
+	subject := s.buildPaymentSubject(ctx, plan, limitAmount, cfg)
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
@@ -467,12 +467,13 @@ func selectedInstanceSupportedTypes(sel *payment.InstanceSelection) string {
 	return sel.SupportedTypes
 }
 
-func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig) string {
+func (s *PaymentService) buildPaymentSubject(ctx context.Context, plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig) string {
+	siteName := (&SettingService{settingRepo: s.configService.settingRepo}).GetSiteName(ctx)
 	if plan != nil {
 		if plan.ProductName != "" {
 			return plan.ProductName
 		}
-		return "Sub2API Subscription " + plan.Name
+		return siteName + " Subscription " + plan.Name
 	}
 	amountStr := strconv.FormatFloat(limitAmount, 'f', 2, 64)
 	pf := strings.TrimSpace(cfg.ProductNamePrefix)
@@ -480,7 +481,7 @@ func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limit
 	if pf != "" || sf != "" {
 		return strings.TrimSpace(pf + " " + amountStr + " " + sf)
 	}
-	return "Sub2API " + amountStr + " CNY"
+	return siteName + " " + amountStr + " CNY"
 }
 
 func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
