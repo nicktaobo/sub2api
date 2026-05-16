@@ -316,9 +316,21 @@ func loginAgreementDocumentsToDTO(items []service.LoginAgreementDocument) []dto.
 			ID:        item.ID,
 			Title:     item.Title,
 			ContentMD: item.ContentMD,
+			I18n:      copyAdminLoginAgreementI18nToDTO(item.I18n),
 		})
 	}
 	return result
+}
+
+func copyAdminLoginAgreementI18nToDTO(src map[string]service.LoginAgreementLocaleContent) map[string]dto.LoginAgreementLocaleContent {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]dto.LoginAgreementLocaleContent, len(src))
+	for k, v := range src {
+		dst[k] = dto.LoginAgreementLocaleContent{Title: v.Title, ContentMD: v.ContentMD}
+	}
+	return dst
 }
 
 func loginAgreementDocumentsToService(items []dto.LoginAgreementDocument) []service.LoginAgreementDocument {
@@ -326,16 +338,38 @@ func loginAgreementDocumentsToService(items []dto.LoginAgreementDocument) []serv
 	for _, item := range items {
 		title := strings.TrimSpace(item.Title)
 		content := strings.TrimSpace(item.ContentMD)
-		if title == "" && content == "" {
+		i18n := normalizeAdminLoginAgreementI18n(item.I18n)
+		if title == "" && content == "" && len(i18n) == 0 {
 			continue
 		}
 		result = append(result, service.LoginAgreementDocument{
 			ID:        strings.TrimSpace(item.ID),
 			Title:     title,
 			ContentMD: content,
+			I18n:      i18n,
 		})
 	}
 	return result
+}
+
+func normalizeAdminLoginAgreementI18n(src map[string]dto.LoginAgreementLocaleContent) map[string]service.LoginAgreementLocaleContent {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]service.LoginAgreementLocaleContent, len(src))
+	for k, v := range src {
+		locale := strings.TrimSpace(k)
+		title := strings.TrimSpace(v.Title)
+		content := strings.TrimSpace(v.ContentMD)
+		if locale == "" || (title == "" && content == "") {
+			continue
+		}
+		dst[locale] = service.LoginAgreementLocaleContent{Title: title, ContentMD: content}
+	}
+	if len(dst) == 0 {
+		return nil
+	}
+	return dst
 }
 
 // UpdateSettingsRequest 更新设置请求
@@ -2373,6 +2407,22 @@ func equalLoginAgreementDocuments(a, b []service.LoginAgreementDocument) bool {
 	}
 	for i := range a {
 		if a[i].ID != b[i].ID || a[i].Title != b[i].Title || a[i].ContentMD != b[i].ContentMD {
+			return false
+		}
+		if !equalLoginAgreementI18n(a[i].I18n, b[i].I18n) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalLoginAgreementI18n(a, b map[string]service.LoginAgreementLocaleContent) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		w, ok := b[k]
+		if !ok || v.Title != w.Title || v.ContentMD != w.ContentMD {
 			return false
 		}
 	}

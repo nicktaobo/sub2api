@@ -5,7 +5,9 @@ package server_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -28,6 +30,12 @@ import (
 
 func TestAPIContracts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	// 登录条款默认值是大段 markdown（含繁中翻译），直接内联 JSON 不便维护。
+	// 这里通过 json.Marshal 序列化一次再注入到下方 wantJSON 模板。
+	defaultAgreementJSONBytes, err := json.Marshal(service.DefaultLoginAgreementDocuments())
+	require.NoError(t, err)
+	defaultAgreementJSON := string(defaultAgreementJSONBytes)
 
 	tests := []struct {
 		name       string
@@ -637,7 +645,7 @@ func TestAPIContracts(t *testing.T) {
 			method:     http.MethodGet,
 			path:       "/api/v1/admin/settings",
 			wantStatus: http.StatusOK,
-			wantJSON: `{
+			wantJSON: fmt.Sprintf(`{
 				"code": 0,
 				"message": "success",
 				"data": {
@@ -652,12 +660,7 @@ func TestAPIContracts(t *testing.T) {
 						"login_agreement_enabled": false,
 						"login_agreement_mode": "modal",
 						"login_agreement_updated_at": "2026-03-31",
-						"login_agreement_documents": [
-							{"id": "terms", "title": "服务条款", "content_md": ""},
-							{"id": "usage-policy", "title": "使用政策", "content_md": ""},
-							{"id": "supported-regions", "title": "支持的国家和地区", "content_md": ""},
-							{"id": "service-specific-terms", "title": "服务特定条款", "content_md": ""}
-						],
+						"login_agreement_documents": %s,
 						"smtp_host": "smtp.example.com",
 						"smtp_port": 587,
 						"smtp_username": "user",
@@ -840,7 +843,7 @@ func TestAPIContracts(t *testing.T) {
 					"wechat_connect_frontend_redirect_url": "/auth/wechat/callback",
 					"wechat_connect_scopes": "snsapi_login"
 				}
-			}`,
+			}`, defaultAgreementJSON),
 		},
 		{
 			name: "GET /api/v1/admin/settings falls back to config oauth defaults",
@@ -879,7 +882,7 @@ func TestAPIContracts(t *testing.T) {
 			method:     http.MethodGet,
 			path:       "/api/v1/admin/settings",
 			wantStatus: http.StatusOK,
-			wantJSON: `{
+			wantJSON: fmt.Sprintf(`{
 				"code": 0,
 				"message": "success",
 				"data": {
@@ -895,12 +898,7 @@ func TestAPIContracts(t *testing.T) {
 						"login_agreement_enabled": false,
 						"login_agreement_mode": "modal",
 						"login_agreement_updated_at": "2026-03-31",
-						"login_agreement_documents": [
-							{"id": "terms", "title": "服务条款", "content_md": ""},
-							{"id": "usage-policy", "title": "使用政策", "content_md": ""},
-							{"id": "supported-regions", "title": "支持的国家和地区", "content_md": ""},
-							{"id": "service-specific-terms", "title": "服务特定条款", "content_md": ""}
-						],
+						"login_agreement_documents": %s,
 						"smtp_host": "",
 						"smtp_port": 587,
 						"smtp_username": "",
@@ -1082,7 +1080,7 @@ func TestAPIContracts(t *testing.T) {
 					"auth_source_default_wechat_grant_on_first_bind": false,
 					"force_email_on_third_party_signup": false
 				}
-			}`,
+			}`, defaultAgreementJSON),
 		},
 		{
 			name:   "POST /api/v1/admin/accounts/bulk-update",

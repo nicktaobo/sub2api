@@ -116,7 +116,19 @@ func publicLoginAgreementDocumentsToDTO(items []service.LoginAgreementDocument) 
 			ID:        item.ID,
 			Title:     item.Title,
 			ContentMD: item.ContentMD,
+			I18n:      copyLoginAgreementI18nToDTO(item.I18n),
 		})
 	}
 	return result
+}
+
+func copyLoginAgreementI18nToDTO(src map[string]service.LoginAgreementLocaleContent) map[string]dto.LoginAgreementLocaleContent {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]dto.LoginAgreementLocaleContent, len(src))
+	for k, v := range src {
+		dst[k] = dto.LoginAgreementLocaleContent{Title: v.Title, ContentMD: v.ContentMD}
+	}
+	return dst
 }

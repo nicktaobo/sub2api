@@ -209,6 +209,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@/api/auth'
 import type { LoginAgreementDocument, TotpLoginResponse } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
+import { hasAnyLoginAgreementTitle } from '@/utils/loginAgreement'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 
 const { t } = useI18n()
@@ -339,7 +340,7 @@ function applyLoginAgreementSettings(settings: {
   login_agreement_documents?: LoginAgreementDocument[]
 }): void {
   const documents = Array.isArray(settings.login_agreement_documents)
-    ? settings.login_agreement_documents.filter((doc) => doc.title?.trim())
+    ? settings.login_agreement_documents.filter(hasAnyLoginAgreementTitle)
     : []
   loginAgreementDocuments.value = documents
   loginAgreementEnabled.value = settings.login_agreement_enabled === true && documents.length > 0

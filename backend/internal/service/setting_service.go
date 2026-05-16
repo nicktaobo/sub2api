@@ -218,27 +218,18 @@ func normalizeLoginAgreementMode(raw string) string {
 	}
 }
 
-func defaultLoginAgreementDocuments() []LoginAgreementDocument {
+func DefaultLoginAgreementDocuments() []LoginAgreementDocument {
 	return []LoginAgreementDocument{
 		{
 			ID:        "terms",
-			Title:     "服务条款",
-			ContentMD: "",
-		},
-		{
-			ID:        "usage-policy",
-			Title:     "使用政策",
-			ContentMD: "",
-		},
-		{
-			ID:        "supported-regions",
-			Title:     "支持的国家和地区",
-			ContentMD: "",
-		},
-		{
-			ID:        "service-specific-terms",
-			Title:     "服务特定条款",
-			ContentMD: "",
+			Title:     "Terms of Service",
+			ContentMD: defaultTermsContentEN,
+			I18n: map[string]LoginAgreementLocaleContent{
+				"zh-TW": {
+					Title:     "服務條款",
+					ContentMD: defaultTermsContentZhTW,
+				},
+			},
 		},
 	}
 }
@@ -273,7 +264,8 @@ func normalizeLoginAgreementDocuments(docs []LoginAgreementDocument) []LoginAgre
 	for i, doc := range docs {
 		title := strings.TrimSpace(doc.Title)
 		content := strings.TrimSpace(doc.ContentMD)
-		if title == "" && content == "" {
+		i18n := normalizeLoginAgreementI18n(doc.I18n)
+		if title == "" && content == "" && len(i18n) == 0 {
 			continue
 		}
 		id := normalizeLoginAgreementDocumentID(doc.ID)
@@ -290,23 +282,44 @@ func normalizeLoginAgreementDocuments(docs []LoginAgreementDocument) []LoginAgre
 			ID:        id,
 			Title:     title,
 			ContentMD: content,
+			I18n:      i18n,
 		})
 	}
 	return normalized
 }
 
+func normalizeLoginAgreementI18n(src map[string]LoginAgreementLocaleContent) map[string]LoginAgreementLocaleContent {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]LoginAgreementLocaleContent, len(src))
+	for k, v := range src {
+		locale := strings.TrimSpace(k)
+		title := strings.TrimSpace(v.Title)
+		content := strings.TrimSpace(v.ContentMD)
+		if locale == "" || (title == "" && content == "") {
+			continue
+		}
+		dst[locale] = LoginAgreementLocaleContent{Title: title, ContentMD: content}
+	}
+	if len(dst) == 0 {
+		return nil
+	}
+	return dst
+}
+
 func parseLoginAgreementDocuments(raw string) []LoginAgreementDocument {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return defaultLoginAgreementDocuments()
+		return DefaultLoginAgreementDocuments()
 	}
 	var docs []LoginAgreementDocument
 	if err := json.Unmarshal([]byte(raw), &docs); err != nil {
-		return defaultLoginAgreementDocuments()
+		return DefaultLoginAgreementDocuments()
 	}
 	docs = normalizeLoginAgreementDocuments(docs)
 	if len(docs) == 0 {
-		return defaultLoginAgreementDocuments()
+		return DefaultLoginAgreementDocuments()
 	}
 	return docs
 }
@@ -314,7 +327,7 @@ func parseLoginAgreementDocuments(raw string) []LoginAgreementDocument {
 func marshalLoginAgreementDocuments(docs []LoginAgreementDocument) (string, error) {
 	normalized := normalizeLoginAgreementDocuments(docs)
 	if len(normalized) == 0 {
-		normalized = defaultLoginAgreementDocuments()
+		normalized = DefaultLoginAgreementDocuments()
 	}
 	b, err := json.Marshal(normalized)
 	if err != nil {
@@ -2279,7 +2292,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 			oidcValidateIDTokenDefault = s.cfg.OIDC.ValidateIDToken
 		}
 	}
-	loginAgreementDocumentsJSON, err := marshalLoginAgreementDocuments(defaultLoginAgreementDocuments())
+	loginAgreementDocumentsJSON, err := marshalLoginAgreementDocuments(DefaultLoginAgreementDocuments())
 	if err != nil {
 		return err
 	}

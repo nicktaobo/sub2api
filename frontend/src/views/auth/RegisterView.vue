@@ -326,6 +326,7 @@ import {
   loadAffiliateReferralCode,
   resolveAffiliateReferralCode
 } from '@/utils/oauthAffiliate'
+import { hasAnyLoginAgreementTitle } from '@/utils/loginAgreement'
 import type { LoginAgreementDocument } from '@/types'
 
 const { t, locale } = useI18n()
@@ -517,7 +518,7 @@ function applyLoginAgreementSettings(settings: {
   login_agreement_documents?: LoginAgreementDocument[]
 }): void {
   const documents = Array.isArray(settings.login_agreement_documents)
-    ? settings.login_agreement_documents.filter((doc) => doc.title?.trim())
+    ? settings.login_agreement_documents.filter(hasAnyLoginAgreementTitle)
     : []
   loginAgreementDocuments.value = documents
   loginAgreementEnabled.value = settings.login_agreement_enabled === true && documents.length > 0

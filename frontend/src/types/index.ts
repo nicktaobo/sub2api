@@ -179,10 +179,17 @@ export interface CustomEndpoint {
   description: string
 }
 
+export interface LoginAgreementLocaleContent {
+  title?: string
+  content_md?: string
+}
+
 export interface LoginAgreementDocument {
   id: string
   title: string
   content_md: string
+  /** 按 locale 提供标题/正文覆盖，缺失时回退到 title/content_md */
+  i18n?: Record<string, LoginAgreementLocaleContent>
 }
 
 export interface PublicSettings {

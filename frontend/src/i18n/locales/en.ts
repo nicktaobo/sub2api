@@ -7067,4 +7067,28 @@ export default {
     },
   },
 
+  legal: {
+    login: 'Login',
+    badge: 'Terms',
+    updatedAt: 'Last updated: {date}',
+    emptyContent: 'No content available.',
+    loadErrorTitle: 'Failed to load document',
+    loadErrorDescription: 'Please refresh the page and try again later.',
+    notFoundTitle: 'Document not found',
+    notFoundDescription: 'This document does not exist or has been removed by the administrator.',
+    agreement: {
+      consent: 'I have read and agree to',
+      separator: ', ',
+      promptTitle: 'You must accept the latest Terms before continuing to sign in.',
+      promptHint: 'Account login and quick sign-in stay disabled until you accept.',
+      viewTerms: 'View Terms',
+      dialogTitle: 'Terms updated',
+      dialogDescriptionDated: 'Our Terms of Service were updated on {date}. Please review and accept them before continuing.',
+      dialogDescriptionRecent: 'Our Terms of Service were recently updated. Please review and accept them before continuing.',
+      relatedDocuments: 'Related documents',
+      decline: 'Decline',
+      acceptAndContinue: 'Accept and continue',
+    },
+  },
+
 }

@@ -7251,4 +7251,28 @@ export default {
     },
   },
 
+  legal: {
+    login: '登录',
+    badge: '登录条款',
+    updatedAt: '更新日期：{date}',
+    emptyContent: '暂无正文内容',
+    loadErrorTitle: '文档加载失败',
+    loadErrorDescription: '请稍后刷新页面重试。',
+    notFoundTitle: '文档不存在',
+    notFoundDescription: '当前条款文档不存在或已被管理员移除。',
+    agreement: {
+      consent: '我已阅读并同意',
+      separator: '、',
+      promptTitle: '继续登录前需要先同意最新条款。',
+      promptHint: '未同意前，账号密码输入和快捷登录会保持禁用。',
+      viewTerms: '查看条款',
+      dialogTitle: '条款更新通知',
+      dialogDescriptionDated: '我们的服务条款已于 {date} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。',
+      dialogDescriptionRecent: '我们的服务条款已于近期更新。在继续使用服务之前，请仔细阅读并同意以下条款。',
+      relatedDocuments: '相关文档',
+      decline: '拒绝',
+      acceptAndContinue: '同意并继续',
+    },
+  },
+
 }

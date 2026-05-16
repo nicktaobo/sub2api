@@ -287,9 +287,16 @@ type PublicSettings struct {
 }
 
 type LoginAgreementDocument struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	ContentMD string `json:"content_md"`
+	ID        string                                 `json:"id"`
+	Title     string                                 `json:"title"`
+	ContentMD string                                 `json:"content_md"`
+	// I18n 允许管理员为不同语言提供单独的标题与正文，前端按当前 locale 取值。
+	I18n map[string]LoginAgreementLocaleContent `json:"i18n,omitempty"`
+}
+
+type LoginAgreementLocaleContent struct {
+	Title     string `json:"title,omitempty"`
+	ContentMD string `json:"content_md,omitempty"`
 }
 
 // OverloadCooldownSettings 529过载冷却配置 DTO

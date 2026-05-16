@@ -17,7 +17,7 @@
             for="login-agreement-consent"
             class="cursor-pointer text-gray-700 dark:text-dark-200"
           >
-            我已阅读并同意
+            {{ t('legal.agreement.consent') }}
           </label>
           <template v-for="(doc, index) in documents" :key="doc.id || doc.title">
             <RouterLink
@@ -26,9 +26,9 @@
               rel="noopener noreferrer"
               class="font-medium text-primary-600 underline-offset-4 transition hover:text-primary-700 hover:underline dark:text-primary-300 dark:hover:text-primary-200"
             >
-              {{ doc.title }}
+              {{ resolveTitle(doc) }}
             </RouterLink>
-            <span v-if="index < documents.length - 1">、</span>
+            <span v-if="index < documents.length - 1">{{ t('legal.agreement.separator') }}</span>
           </template>
         </p>
       </div>
@@ -42,9 +42,9 @@
     <div class="flex items-start gap-3">
       <Icon name="shield" size="sm" class="mt-0.5 flex-shrink-0 text-primary-600 dark:text-primary-300" />
       <div class="min-w-0 flex-1">
-        <p class="font-medium">继续登录前需要先同意最新条款。</p>
+        <p class="font-medium">{{ t('legal.agreement.promptTitle') }}</p>
         <p class="mt-1 text-primary-700 dark:text-primary-200/80">
-          未同意前，账号密码输入和快捷登录会保持禁用。
+          {{ t('legal.agreement.promptHint') }}
         </p>
       </div>
       <button
@@ -52,7 +52,7 @@
         class="flex-shrink-0 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700"
         @click="emit('open')"
       >
-        查看条款
+        {{ t('legal.agreement.viewTerms') }}
       </button>
     </div>
   </div>
@@ -72,7 +72,7 @@
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <h2 class="text-xl font-bold tracking-normal text-gray-950 dark:text-white">
-                    条款更新通知
+                    {{ t('legal.agreement.dialogTitle') }}
                   </h2>
                   <span
                     v-if="updatedAt"
@@ -82,7 +82,9 @@
                   </span>
                 </div>
                 <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-dark-300">
-                  我们的服务条款已于 {{ updatedAt || '近期' }} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。
+                  {{ updatedAt
+                    ? t('legal.agreement.dialogDescriptionDated', { date: updatedAt })
+                    : t('legal.agreement.dialogDescriptionRecent') }}
                 </p>
               </div>
             </div>
@@ -90,11 +92,11 @@
 
           <div class="max-h-[58vh] overflow-y-auto px-6 py-5">
             <div class="mb-3 flex items-center justify-between gap-3">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">相关文档</p>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('legal.agreement.relatedDocuments') }}</p>
             </div>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <RouterLink
-                v-for="(doc, index) in documents"
+                v-for="doc in documents"
                 :key="doc.id || doc.title"
                 :to="documentRoute(doc)"
                 target="_blank"
@@ -102,10 +104,10 @@
                 class="group flex min-h-[72px] w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-white hover:shadow-sm dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/30 dark:hover:bg-dark-800"
               >
                 <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white text-gray-700 ring-1 ring-gray-200 transition group-hover:bg-primary-50 group-hover:text-primary-700 group-hover:ring-primary-100 dark:bg-dark-900 dark:text-dark-200 dark:ring-dark-700 dark:group-hover:bg-primary-500/10 dark:group-hover:text-primary-200 dark:group-hover:ring-primary-500/20">
-                  <Icon :name="documentIcon(index, doc.title)" size="sm" />
+                  <Icon :name="documentIcon(doc)" size="sm" />
                 </span>
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-semibold text-gray-950 dark:text-white">{{ doc.title }}</span>
+                  <span class="block truncate text-sm font-semibold text-gray-950 dark:text-white">{{ resolveTitle(doc) }}</span>
                 </span>
                 <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition group-hover:bg-primary-50 group-hover:text-primary-600 dark:group-hover:bg-primary-500/10 dark:group-hover:text-primary-300">
                   <Icon name="externalLink" size="sm" />
@@ -121,14 +123,14 @@
                 class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700"
                 @click="emit('reject')"
               >
-                拒绝
+                {{ t('legal.agreement.decline') }}
               </button>
               <button
                 type="button"
                 class="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-600/20 transition hover:bg-primary-700"
                 @click="emit('accept')"
               >
-                同意并继续
+                {{ t('legal.agreement.acceptAndContinue') }}
               </button>
             </div>
           </div>
@@ -140,7 +142,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import {
+  resolveLoginAgreementDocumentIcon,
+  resolveLoginAgreementDocumentLocale,
+  hasLoginAgreementTitle,
+} from '@/utils/loginAgreement'
 import type { LoginAgreementDocument } from '@/types'
 
 const props = withDefaults(defineProps<{
@@ -159,8 +167,12 @@ const emit = defineEmits<{
   open: []
 }>()
 
+const { t, locale } = useI18n()
+
 const dialogVisible = computed(() => props.visible && documents.value.length > 0)
-const documents = computed(() => props.documents.filter((doc) => doc.title.trim()))
+const documents = computed(() =>
+  props.documents.filter((doc) => hasLoginAgreementTitle(doc, locale.value))
+)
 const updatedAt = computed(() => props.updatedAt || '')
 const accepted = computed(() => props.accepted)
 const mode = computed(() => props.mode === 'checkbox' ? 'checkbox' : 'modal')
@@ -183,17 +195,12 @@ function handleCheckboxChange(event: Event): void {
   }
 }
 
-function documentIcon(index: number, title: string): 'document' | 'shield' | 'globe' | 'cog' {
-  if (title.includes('政策') || title.includes('隐私')) {
-    return 'shield'
-  }
-  if (title.includes('国家') || title.includes('地区')) {
-    return 'globe'
-  }
-  if (index === 3) {
-    return 'cog'
-  }
-  return 'document'
+function resolveTitle(doc: LoginAgreementDocument): string {
+  return resolveLoginAgreementDocumentLocale(doc, locale.value).title
+}
+
+function documentIcon(doc: LoginAgreementDocument): 'document' | 'shield' | 'globe' | 'cog' {
+  return resolveLoginAgreementDocumentIcon(doc.id, resolveTitle(doc))
 }
 </script>
 

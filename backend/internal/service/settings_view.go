@@ -265,9 +265,17 @@ type PublicSettings struct {
 }
 
 type LoginAgreementDocument struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	ContentMD string `json:"content_md"`
+	ID        string                                 `json:"id"`
+	Title     string                                 `json:"title"`
+	ContentMD string                                 `json:"content_md"`
+	// I18n 提供按 locale 的标题与正文覆盖，缺失时回退到外层 Title / ContentMD。
+	// key 为 vue-i18n 的 locale code（如 "en"、"zh"、"zh-TW"）。
+	I18n map[string]LoginAgreementLocaleContent `json:"i18n,omitempty"`
+}
+
+type LoginAgreementLocaleContent struct {
+	Title     string `json:"title,omitempty"`
+	ContentMD string `json:"content_md,omitempty"`
 }
 
 type WeChatConnectOAuthConfig struct {
