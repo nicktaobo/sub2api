@@ -5,62 +5,66 @@ package service
 //
 // 改动须知：修改文案后请同步更新 login_agreement_updated_at 以触发用户重新同意。
 
-const defaultTermsContentEN = `Welcome to the AI Token compute and API routing services provided by this platform. Before registering, signing in, creating API Keys, or using any platform services, please read this Agreement carefully. Using the services constitutes your acknowledgment that you have read, understood, and agreed to be bound by this Agreement in its entirety.
+const defaultTermsContentEN = `Welcome to the AI Token infrastructure and API routing services provided by this platform.
 
-## 1. Service Nature
+Before registering, logging in, creating an API Key, or using any services, please carefully read these Terms of Service. By accessing or using the platform, you acknowledge that you have read, understood, and agreed to all terms herein.
 
-This platform is an international AI API routing and compute resource platform, primarily providing:
+## 1. Nature of Service
+
+This platform is an international AI API routing and compute resource platform providing:
 * AI Token compute resources;
-* API gateway routing;
-* Model routing and load scheduling;
-* Developer technical support.
+* API routing and forwarding;
+* Model load balancing and scheduling;
+* Developer-oriented technical support services.
 
-The platform does not directly train, fine-tune, produce, or own any third-party AI models. All model capabilities originate from third-party model service providers.
+The platform does not directly train, fine-tune, own, or generate any AI models. All model capabilities are provided by third-party AI model providers.
 
-## 2. Service Audience & Region Restrictions
+## 2. Service Availability & Restricted Regions
 
-This platform does not currently provide services to users located within mainland China (PRC).
+The platform does not currently provide services to users located within the People's Republic of China mainland.
 
-Users are solely responsible for confirming that their location, network environment, payment methods, and usage behavior comply with applicable local laws, regulations, and international compliance requirements.
+Users are responsible for ensuring that their location, network environment, payment methods, and use of the services comply with all applicable laws, regulations, sanctions, and international compliance requirements within their jurisdiction.
 
-If the platform determines that a user is located in a restricted region, is subject to sanctions, qualifies as a high-risk entity, or otherwise presents compliance risks, the platform reserves the right to deny service, restrict functionality, or terminate the account.
+The platform reserves the right to reject service, suspend access, or terminate accounts associated with restricted regions, sanctioned entities, high-risk users, or compliance concerns.
 
 ## 3. User Responsibilities & Prohibited Conduct
 
-Users shall use the platform services in a lawful and compliant manner. The platform shall NOT be used for, including but not limited to:
-* Generating illegal, violent, sexual, hateful, or fraudulent content;
-* Cyber attacks, vulnerability exploitation, scraping abuse, or malicious resource consumption;
-* Money laundering, illegal payments, or other unlawful commercial activities;
-* Infringement of third-party intellectual property, privacy, or data rights;
-* Circumventing platform risk controls, rate limits, billing, or security mechanisms;
-* Bulk spamming, junk marketing, or fraudulent customer service activity;
-* Conduct that violates upstream model provider policies.
+Users must use the platform lawfully and in compliance with applicable regulations.
 
-The platform reserves the right to restrict, suspend, or terminate services in response to abnormal traffic, high-risk requests, or violations.
+Users may not use the platform for activities including but not limited to:
+* Generating unlawful, violent, fraudulent, hateful, or explicit content;
+* Cyberattacks, vulnerability exploitation, scraping abuse, or malicious resource consumption;
+* Fraud, money laundering, illegal payment activities, or unlawful commercial operations;
+* Violating third-party intellectual property rights, privacy rights, or data rights;
+* Circumventing platform security, rate limits, billing systems, or risk controls;
+* Spam distribution, fake customer support, or abusive automated operations;
+* Violating policies imposed by upstream AI model providers.
+
+The platform reserves the right to restrict, suspend, or terminate services for abusive, suspicious, or non-compliant activities.
 
 ## 4. Data, Privacy & Logging Policy
 
-The platform respects user privacy and data security.
+The platform values user privacy and data security.
 
-Apart from technical information necessary for service operation, security and risk control, billing and statistics, and legal compliance, the platform, as a general principle, does NOT persistently retain user prompts, uploaded content, model outputs, or business data.
+Except for technical information necessary for service operation, security protection, billing, auditing, and legal compliance, the platform generally does not proactively retain users' prompts, uploaded files, model outputs, or business data on a long-term basis.
 
-The platform does NOT use user data for:
+User data will not be used for:
 * AI model training;
 * Model fine-tuning;
-* Advertising or marketing;
-* Commercial resale or data trading.
+* Advertising or marketing purposes;
+* Commercial resale or data brokerage.
 
-The platform may, however, conduct necessary security audits and log analysis under the following circumstances:
-* System security incidents;
-* Attacks or abusive behavior;
-* Anomalous resource consumption;
+However, the platform may conduct necessary logging, auditing, and security analysis in situations involving:
+* Security incidents;
+* Abuse detection;
+* Abnormal traffic or resource usage;
 * Legal, regulatory, or judicial requirements.
 
-Some services may be processed by third-party model providers; data flow and retention for such services may additionally be governed by those third parties' policies.
+Certain requests may be processed by third-party AI providers, and related data handling practices may also be subject to the policies of those providers.
 
-## 5. Third-Party Models & Providers
+## 5. Third-Party Models & Service Providers
 
-Some platform capabilities are provided by third-party AI model and cloud service providers, including but not limited to:
+Certain platform capabilities rely on third-party AI model providers and cloud vendors, including but not limited to:
 * OpenAI
 * Anthropic
 * Google
@@ -68,13 +72,13 @@ Some platform capabilities are provided by third-party AI model and cloud servic
 * DeepSeek
 
 Users acknowledge and agree that:
-* The output, stability, context retention, policy restrictions, and availability of third-party models are not fully under the platform's control;
-* Upstream providers may adjust pricing, quotas, capabilities, or policies at any time;
-* The platform shall not bear direct liability for losses arising from third-party service anomalies, interruptions, blocks, policy changes, or events of force majeure.
+* Model outputs, stability, availability, retention behavior, and policy restrictions are not fully controlled by the platform;
+* Upstream providers may change pricing, quotas, capabilities, or policies at any time;
+* The platform shall not be directly liable for interruptions, restrictions, policy changes, outages, or force majeure events affecting third-party services.
 
-## 6. AI-Generated Content
+## 6. AI-Generated Content Disclaimer
 
-AI model outputs are probabilistic and may include hallucinations or factual errors.
+AI-generated content is probabilistic in nature and may contain inaccuracies, hallucinations, or unintended outputs.
 
 The platform makes no representations or warranties regarding:
 * Accuracy;
@@ -128,14 +132,14 @@ The platform reserves the right to upgrade, limit, suspend, or discontinue any m
 
 ## 10. Modification of Terms
 
-The platform reserves the right to update or modify this Agreement at any time based on business, legal, regulatory, or compliance requirements.
+The platform reserves the right to update or modify these Terms at any time based on business, legal, regulatory, or compliance requirements.
 
-Updated terms become effective upon publication on the platform. Continued use of the services constitutes acceptance of the revised Agreement.
+Updated Terms become effective upon publication on the platform. Continued use of the services constitutes acceptance of the revised Terms.
 
 ## 11. Suspension & Termination
 
 The platform reserves the right to suspend or terminate services if users:
-* Violate this Agreement;
+* Violate these Terms;
 * Engage in unlawful or high-risk activities;
 * Abuse platform resources;
 * Threaten platform security or operational stability;
@@ -145,9 +149,9 @@ The platform further reserves all rights to pursue legal remedies where applicab
 
 ## 12. Miscellaneous
 
-This Agreement shall be interpreted in accordance with applicable legal principles and international commercial practices.
+These Terms shall be interpreted in accordance with applicable legal principles and international commercial practices.
 
-If any provision of this Agreement is deemed invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+If any provision of these Terms is deemed invalid or unenforceable, the remaining provisions shall remain in full force and effect.
 `
 
 const defaultTermsContentZhTW = `歡迎使用本平台提供之 AI Token 算力與 API 轉接服務。

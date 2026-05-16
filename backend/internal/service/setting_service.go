@@ -222,7 +222,7 @@ func DefaultLoginAgreementDocuments() []LoginAgreementDocument {
 	return []LoginAgreementDocument{
 		{
 			ID:        "terms",
-			Title:     "User Service Agreement",
+			Title:     "Terms of Service",
 			ContentMD: defaultTermsContentEN,
 			I18n: map[string]LoginAgreementLocaleContent{
 				"zh-TW": {
