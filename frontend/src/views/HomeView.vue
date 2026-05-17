@@ -321,6 +321,9 @@
             >{{ t('home.docs') }}</a>
           </div>
         </div>
+        <p v-if="locale === 'zh-TW'" class="hd-footer-disclaimer">
+          本站僅針對非中華人民共和國行政管轄區域範圍內使用者提供 AI Token 算力資源服務；平台不主動取得、儲存或記錄使用者的具體使用內容、Prompt 及業務資料。
+        </p>
       </footer>
     </main>
   </div>
@@ -333,7 +336,7 @@ import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -1119,6 +1122,15 @@ onMounted(() => {
 }
 .hd-footer-meta a { color: var(--hd-mute); transition: color 0.15s ease; }
 .hd-footer-meta a:hover { color: var(--hd-brand); }
+.hd-footer-disclaimer {
+  max-width: 1080px;
+  margin: 18px auto 0;
+  padding: 0 22px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--hd-mute);
+  text-align: center;
+}
 
 /* ============ 动画 ============ */
 @keyframes hd-fade-up {

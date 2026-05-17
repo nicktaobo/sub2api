@@ -631,7 +631,17 @@ export default {
     invalidResetLink: '无效的重置链接',
     invalidResetLinkHint: '此密码重置链接无效或已过期。请重新请求一个新链接。',
     requestNewResetLink: '请求新的重置链接',
-    invalidOrExpiredToken: '密码重置链接无效或已过期。请重新请求一个新链接。'
+    invalidOrExpiredToken: '密码重置链接无效或已过期。请重新请求一个新链接。',
+    registerAgreement: {
+      title: '用户协议与隐私条款',
+      description: '创建账户前，请先阅读并同意以下条款。同意按钮将在 5 秒后解锁。',
+      relatedDocuments: '相关文档',
+      noDocuments: '请仔细阅读本站服务条款与隐私政策。',
+      accept: '我已阅读并同意',
+      acceptCountdown: '请仔细阅读（{seconds} 秒）',
+      decline: '不同意',
+      declineHint: '未同意协议前无法完成注册。'
+    }
   },
 
   // Dashboard

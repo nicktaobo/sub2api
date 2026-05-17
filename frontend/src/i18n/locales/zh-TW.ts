@@ -631,7 +631,17 @@ export default {
     invalidResetLink: '無效的重置連結',
     invalidResetLinkHint: '此密碼重置連結無效或已過期。請重新請求一個新連結。',
     requestNewResetLink: '請求新的重置連結',
-    invalidOrExpiredToken: '密碼重置連結無效或已過期。請重新請求一個新連結。'
+    invalidOrExpiredToken: '密碼重置連結無效或已過期。請重新請求一個新連結。',
+    registerAgreement: {
+      title: '使用者協議與隱私條款',
+      description: '建立帳戶前，請先閱讀並同意以下條款。閱讀按鈕將在 5 秒後解鎖。',
+      relatedDocuments: '相關文件',
+      noDocuments: '請仔細閱讀本站服務條款與隱私政策。',
+      accept: '我已閱讀並同意',
+      acceptCountdown: '請仔細閱讀（{seconds} 秒）',
+      decline: '不同意',
+      declineHint: '未同意協議前無法完成註冊。'
+    }
   },
 
   // Dashboard

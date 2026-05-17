@@ -632,7 +632,17 @@ export default {
     invalidResetLink: 'Invalid Reset Link',
     invalidResetLinkHint: 'This password reset link is invalid or has expired. Please request a new one.',
     requestNewResetLink: 'Request New Reset Link',
-    invalidOrExpiredToken: 'The password reset link is invalid or has expired. Please request a new one.'
+    invalidOrExpiredToken: 'The password reset link is invalid or has expired. Please request a new one.',
+    registerAgreement: {
+      title: 'User Agreement & Privacy Terms',
+      description: 'Before creating an account, please read and accept the terms below. The accept button unlocks after 5 seconds.',
+      relatedDocuments: 'Related documents',
+      noDocuments: 'Please carefully review our Terms of Service and Privacy Policy.',
+      accept: 'I have read and agree',
+      acceptCountdown: 'Please read carefully ({seconds}s)',
+      decline: 'Decline',
+      declineHint: 'You cannot register until you accept the terms.'
+    }
   },
 
   // Dashboard
