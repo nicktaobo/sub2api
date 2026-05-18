@@ -110,6 +110,9 @@ export default {
       antigravity: 'Antigravity',
       more: '更多'
     },
+    modelCatalog: {
+      navLabel: '模型广场'
+    },
     // CTA 区块
     cta: {
       title: '准备好开始了吗？',
@@ -7351,6 +7354,34 @@ export default {
       decline: '拒绝',
       acceptAndContinue: '同意并继续',
     },
+  },
+
+  publicModels: {
+    pageTitle: '模型广场',
+    badge: '公开模型',
+    title: '模型广场',
+    subtitle: '所有公开分组及其支持的模型，无需登录即可浏览。',
+    filterAll: '全部',
+    modelCount: '共 {count} 个模型',
+    empty: '当前暂无公开分组。',
+    loadErrorTitle: '加载失败',
+    loadErrorDescription: '请稍后刷新页面再试。',
+    footnote: '专属/订阅型分组不在此页展示；最终可用模型、价格与权限以控制台为准。'
+  },
+
+  apiDocs: {
+    pageTitle: '使用文档',
+    empty: '暂无文档内容。',
+    tocLabel: '目录',
+    tocEmpty: '当前文档暂无小节。',
+    entries: {
+      quickstart: {
+        navLabel: '快速接入'
+      },
+      apiGuide: {
+        navLabel: '使用文档'
+      }
+    }
   },
 
 }

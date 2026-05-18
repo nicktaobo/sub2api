@@ -325,6 +325,84 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// PricingGroupListPublic 返回所有公开（非专属、非订阅）的活跃分组，用于未登录访客
+// 的"模型广场"展示。和 PricingGroupList 共享同一份模型解析与官方价 lookup 逻辑，但
+// 不应用任何用户/商户上下文。
+//
+// GET /api/v1/pricing/public/groups
+func (h *AvailableChannelHandler) PricingGroupListPublic(c *gin.Context) {
+	ctx := c.Request.Context()
+	groups, err := h.apiKeyService.ListPublicGroups(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if len(groups) == 0 {
+		response.Success(c, []userPricingGroup{})
+		return
+	}
+
+	priceCache := make(map[string]*service.ModelPricing, 32)
+	lookupOfficial := func(model string) *service.ModelPricing {
+		if p, ok := priceCache[model]; ok {
+			return p
+		}
+		if h.billingService == nil {
+			priceCache[model] = nil
+			return nil
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			priceCache[model] = nil
+			return nil
+		}
+		priceCache[model] = p
+		return p
+	}
+
+	litellmByPlatform := map[string][]string{}
+	getLiteLLMModels := func(platform string) []string {
+		if v, ok := litellmByPlatform[platform]; ok {
+			return v
+		}
+		var out []string
+		if h.billingService != nil {
+			for _, e := range h.billingService.ListAllModelPricings(platform) {
+				out = append(out, e.Model)
+			}
+		}
+		litellmByPlatform[platform] = out
+		return out
+	}
+
+	out := make([]userPricingGroup, 0, len(groups))
+	for i := range groups {
+		g := groups[i]
+		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
+		item := userPricingGroup{
+			ID:             g.ID,
+			Name:           g.Name,
+			Platform:       g.Platform,
+			RateMultiplier: g.RateMultiplier,
+			IsExclusive:    g.IsExclusive,
+			Models:         []userPricingModel{},
+		}
+		for _, name := range modelNames {
+			m := userPricingModel{Name: name}
+			if p := lookupOfficial(name); p != nil {
+				m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+				m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+				m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+				m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+			}
+			item.Models = append(item.Models, m)
+		}
+		out = append(out, item)
+	}
+
+	response.Success(c, out)
+}
+
 // resolveGroupModelsByAccount 按"account 交集 + LiteLLM 兜底"算法计算 group 的模型列表。
 //
 //   - 拉该 group 下所有 active account（accountService.ListByGroup）

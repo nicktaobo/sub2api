@@ -110,6 +110,9 @@ export default {
       antigravity: 'Antigravity',
       more: 'More'
     },
+    modelCatalog: {
+      navLabel: 'Models'
+    },
     // CTA section
     cta: {
       title: 'Ready to Get Started?',
@@ -7167,6 +7170,34 @@ export default {
       decline: 'Decline',
       acceptAndContinue: 'Accept and continue',
     },
+  },
+
+  publicModels: {
+    pageTitle: 'Models',
+    badge: 'Public Models',
+    title: 'Model Marketplace',
+    subtitle: 'All public groups and their supported models — browse without signing in.',
+    filterAll: 'All',
+    modelCount: '{count} models',
+    empty: 'No public groups available right now.',
+    loadErrorTitle: 'Failed to load',
+    loadErrorDescription: 'Please refresh the page and try again later.',
+    footnote: 'Exclusive and subscription-only groups are not listed here; final availability, pricing, and permissions follow your console.'
+  },
+
+  apiDocs: {
+    pageTitle: 'Docs',
+    empty: 'No content available.',
+    tocLabel: 'Contents',
+    tocEmpty: 'No sections in this document.',
+    entries: {
+      quickstart: {
+        navLabel: 'Quick Start'
+      },
+      apiGuide: {
+        navLabel: 'Guide'
+      }
+    }
   },
 
 }

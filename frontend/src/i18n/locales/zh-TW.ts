@@ -110,6 +110,9 @@ export default {
       antigravity: 'Antigravity',
       more: '更多'
     },
+    modelCatalog: {
+      navLabel: '模型廣場'
+    },
     // CTA 區塊
     cta: {
       title: '準備好開始了嗎？',
@@ -7329,6 +7332,34 @@ export default {
       decline: '拒絕',
       acceptAndContinue: '同意並繼續',
     },
+  },
+
+  publicModels: {
+    pageTitle: '模型廣場',
+    badge: '公開模型',
+    title: '模型廣場',
+    subtitle: '所有公開分組及其支援的模型，無需登入即可瀏覽。',
+    filterAll: '全部',
+    modelCount: '共 {count} 個模型',
+    empty: '目前尚無公開分組。',
+    loadErrorTitle: '載入失敗',
+    loadErrorDescription: '請稍後重新整理頁面再試。',
+    footnote: '專屬/訂閱型分組不在此頁展示；最終可用模型、價格與權限以控制台為準。'
+  },
+
+  apiDocs: {
+    pageTitle: '使用文件',
+    empty: '尚無文件內容。',
+    tocLabel: '目錄',
+    tocEmpty: '目前文件尚無章節。',
+    entries: {
+      quickstart: {
+        navLabel: '快速接入'
+      },
+      apiGuide: {
+        navLabel: '使用文件'
+      }
+    }
   },
 
 }

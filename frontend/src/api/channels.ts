@@ -107,6 +107,14 @@ export async function getPricingGroups(options?: { signal?: AbortSignal }): Prom
   return data
 }
 
-export const userChannelsAPI = { getAvailable, getPricingGroups }
+/** GET /pricing/public/groups — 模型广场公开端点：只返回非专属、非订阅的活跃分组。 */
+export async function getPublicPricingGroups(options?: { signal?: AbortSignal }): Promise<UserPricingGroup[]> {
+  const { data } = await apiClient.get<UserPricingGroup[]>('/pricing/public/groups', {
+    signal: options?.signal,
+  })
+  return data
+}
+
+export const userChannelsAPI = { getAvailable, getPricingGroups, getPublicPricingGroups }
 
 export default userChannelsAPI

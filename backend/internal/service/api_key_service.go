@@ -797,6 +797,26 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 	return availableGroups, nil
 }
 
+// ListPublicGroups 返回所有公开（非专属、非订阅）的活跃分组，用于未登录访客
+// 的"模型广场"展示。不应用任何用户/商户上下文。
+func (s *APIKeyService) ListPublicGroups(ctx context.Context) ([]Group, error) {
+	allGroups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	out := make([]Group, 0, len(allGroups))
+	for _, g := range allGroups {
+		if g.IsExclusive {
+			continue
+		}
+		if g.IsSubscriptionType() {
+			continue
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
 // canUserBindGroupInternal 内部方法，检查用户是否可以绑定分组（使用预加载的订阅数据）
 func (s *APIKeyService) canUserBindGroupInternal(user *User, group *Group, subscribedGroupIDs map[int64]bool) bool {
 	// 订阅类型分组：需要有效订阅

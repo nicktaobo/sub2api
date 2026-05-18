@@ -191,6 +191,12 @@ func RegisterAuthRoutes(
 		settings.GET("/fx-rate", h.Setting.GetFXRate)
 	}
 
+	// 公开模型广场（无需认证）：只列出 is_exclusive=false 且非订阅型的活跃分组
+	publicPricing := v1.Group("/pricing/public")
+	{
+		publicPricing.GET("/groups", h.AvailableChannel.PricingGroupListPublic)
+	}
+
 	// 需要认证的当前用户信息
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))

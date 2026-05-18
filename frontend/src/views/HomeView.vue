@@ -11,6 +11,15 @@
         </router-link>
 
         <div class="hd-nav-right">
+          <router-link to="/models" class="hd-nav-link">
+            {{ t('home.modelCatalog.navLabel') }}
+          </router-link>
+          <router-link to="/docs/quickstart" class="hd-nav-link">
+            {{ t('apiDocs.entries.quickstart.navLabel') }}
+          </router-link>
+          <router-link to="/docs/api-guide" class="hd-nav-link">
+            {{ t('apiDocs.entries.apiGuide.navLabel') }}
+          </router-link>
           <LocaleSwitcher />
           <a
             v-if="docUrl"
@@ -503,6 +512,19 @@ onMounted(() => {
 .hd-logo-img { width: 100%; height: 100%; object-fit: contain; }
 .hd-brand-name { color: rgba(255, 255, 255, 0.92); }
 .hd-nav-right { display: flex; align-items: center; gap: 4px; }
+.hd-nav-link {
+  display: inline-flex; align-items: center;
+  height: 30px; padding: 0 12px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px; font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.hd-nav-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.hd-nav--light .hd-nav-link { color: rgba(0, 0, 0, 0.65); }
+.hd-nav--light .hd-nav-link:hover { background: rgba(0, 0, 0, 0.06); color: #1d1d1f; }
 .hd-icon-btn {
   display: inline-grid; place-items: center;
   width: 36px; height: 36px;
@@ -1183,5 +1205,6 @@ onMounted(() => {
   .hd-final-cta { padding: 100px 0; }
   .hd-nav-inner { padding: 0 16px; }
   .hd-brand-name { display: none; }
+  .hd-nav-link { display: none; }
 }
 </style>
