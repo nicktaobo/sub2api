@@ -141,7 +141,7 @@
           </div>
 
           <EmailOAuthButtons
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :github-enabled="githubOAuthEnabled"
             :google-enabled="googleOAuthEnabled"
             :show-divider="false"
@@ -149,17 +149,17 @@
 
           <LinuxDoOAuthSection
             v-if="linuxdoOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :show-divider="false"
           />
           <WechatOAuthSection
             v-if="wechatOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :show-divider="false"
           />
           <OidcOAuthSection
             v-if="oidcOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :provider-name="oidcOAuthProviderName"
             :show-divider="false"
           />
@@ -276,8 +276,15 @@ const agreementGateActive = computed(
   () => loginAgreementEnabled.value && !agreementAccepted.value
 )
 
+// 邮箱/密码输入与登录按钮：不受协议勾选状态影响——用户可以先填账密，
+// 提交时再由 validateForm 提醒勾选；避免出现"输入框灰着、用户不知道为什么"的体验。
 const authActionDisabled = computed(
-  () => isLoading.value || !publicSettingsLoaded.value || agreementGateActive.value
+  () => isLoading.value || !publicSettingsLoaded.value
+)
+
+// OAuth 一旦点击就会跳走，必须先勾过协议才能继续，沿用原来的强 gate。
+const oauthActionDisabled = computed(
+  () => authActionDisabled.value || agreementGateActive.value
 )
 
 const showOAuthLogin = computed(
