@@ -98,8 +98,10 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
-import quickstartMd from '@/assets/docs/quickstart.md?raw'
-import apiGuideMd from '@/assets/docs/api-guide.md?raw'
+import quickstartZhMd from '@/assets/docs/quickstart.md?raw'
+import apiGuideZhMd from '@/assets/docs/api-guide.md?raw'
+import quickstartEnMd from '@/assets/docs/quickstart.en.md?raw'
+import apiGuideEnMd from '@/assets/docs/api-guide.en.md?raw'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -111,12 +113,21 @@ const merchantStore = useMerchantStore()
 interface DocEntry {
   slug: string
   titleKey: string
-  content: string
+  // 按 locale 取源文件：en → 英文版；zh-TW 走 opencc 简→繁转换；zh 直接用简体
+  sources: { en: string; zh: string }
 }
 
 const entries: DocEntry[] = [
-  { slug: 'quickstart', titleKey: 'apiDocs.entries.quickstart.navLabel', content: quickstartMd },
-  { slug: 'api-guide', titleKey: 'apiDocs.entries.apiGuide.navLabel', content: apiGuideMd },
+  {
+    slug: 'quickstart',
+    titleKey: 'apiDocs.entries.quickstart.navLabel',
+    sources: { en: quickstartEnMd, zh: quickstartZhMd },
+  },
+  {
+    slug: 'api-guide',
+    titleKey: 'apiDocs.entries.apiGuide.navLabel',
+    sources: { en: apiGuideEnMd, zh: apiGuideZhMd },
+  },
 ]
 
 const currentSlug = computed(() => {
@@ -128,7 +139,13 @@ const currentEntry = computed<DocEntry | null>(() => {
   return entries.find((e) => e.slug === currentSlug.value) ?? null
 })
 
-const rawContent = computed(() => currentEntry.value?.content?.trim() || '')
+const rawContent = computed(() => {
+  const entry = currentEntry.value
+  if (!entry) return ''
+  // en → 直接读英文版；zh / zh-TW → 简体源（zh-TW 后续走 opencc 转换）
+  const src = locale.value === 'en' ? entry.sources.en : entry.sources.zh
+  return src.trim()
+})
 
 // 简→繁 转换器：只在 zh-TW 时按需加载 opencc-js，加载完成前先用原文渲染，加载完后再覆盖。
 const s2tConvert = ref<((text: string) => string) | null>(null)
