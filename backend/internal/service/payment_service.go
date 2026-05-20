@@ -84,6 +84,7 @@ type CreateOrderRequest struct {
 	PaymentSource   string
 	OrderType       string
 	PlanID          int64
+	Locale          string
 }
 
 type CreateOrderResponse struct {
@@ -175,18 +176,19 @@ type TopUserStat struct {
 // --- Service ---
 
 type PaymentService struct {
-	providerMu       sync.Mutex
-	providersLoaded  bool
-	entClient        *dbent.Client
-	registry         *payment.Registry
-	loadBalancer     payment.LoadBalancer
-	redeemService    *RedeemService
-	subscriptionSvc  *SubscriptionService
-	configService    *PaymentConfigService
-	userRepo         UserRepository
-	groupRepo        GroupRepository
-	resumeService    *PaymentResumeService
-	affiliateService *AffiliateService
+	providerMu               sync.Mutex
+	providersLoaded          bool
+	entClient                *dbent.Client
+	registry                 *payment.Registry
+	loadBalancer             payment.LoadBalancer
+	redeemService            *RedeemService
+	subscriptionSvc          *SubscriptionService
+	configService            *PaymentConfigService
+	userRepo                 UserRepository
+	groupRepo                GroupRepository
+	resumeService            *PaymentResumeService
+	affiliateService         *AffiliateService
+	notificationEmailService *NotificationEmailService
 
 	// MERCHANT-SYSTEM v1.0 (RFC §1.0.1 v1.12 P1-#2)
 	merchantCfg        config.MerchantConfig    // 启动期注入；用 s.merchantCfg.Enabled（不要写 s.cfg.Merchant.Enabled）
@@ -224,6 +226,10 @@ func NewPaymentService(
 	}
 	svc.resumeService = psNewPaymentResumeService(configService)
 	return svc
+}
+
+func (s *PaymentService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
+	s.notificationEmailService = notificationEmailService
 }
 
 // --- Provider Registry ---

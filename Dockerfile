@@ -20,7 +20,7 @@ FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install pnpm (pin major version, 与 .github/workflows/release.yml 保持一致)
+# Install pnpm (pin pnpm 到 9.15.0，避免 pnpm@latest 拉到 10.x 触发 approve-builds 严格模式)
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Install dependencies first (better caching)

@@ -48,6 +48,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if user.Status != payment.EntityStatusActive {
 		return nil, infraerrors.Forbidden("USER_INACTIVE", "user account is disabled")
 	}
+	if s.notificationEmailService != nil {
+		s.notificationEmailService.RememberRecipientLocale(ctx, req.UserID, user.Email, req.Locale)
+	}
 	orderAmount := req.Amount
 	limitAmount := req.Amount
 	if plan != nil {
@@ -498,24 +501,41 @@ func selectedInstanceSupportedTypes(sel *payment.InstanceSelection) string {
 }
 
 func (s *PaymentService) buildPaymentSubject(ctx context.Context, plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig, sel *payment.InstanceSelection) string {
-	siteName := (&SettingService{settingRepo: s.configService.settingRepo}).GetSiteName(ctx)
 	if plan != nil {
-		if plan.ProductName != "" {
-			return plan.ProductName
+		productName := plan.ProductName
+		if productName == "" {
+			productName = "Sub2API Subscription " + plan.Name
 		}
-		return siteName + " Subscription " + plan.Name
+		return applyPaymentProductNameAffix(productName, cfg)
 	}
 	currency := payment.DefaultPaymentCurrency
 	if sel != nil {
 		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 	}
 	amountStr := payment.FormatAmountForCurrency(limitAmount, currency)
+	if hasPaymentProductNameAffix(cfg) {
+		return applyPaymentProductNameAffix(amountStr, cfg)
+	}
+	siteName := (&SettingService{settingRepo: s.configService.settingRepo}).GetSiteName(ctx)
+	return siteName + " " + amountStr + " " + currency
+}
+
+func hasPaymentProductNameAffix(cfg *PaymentConfig) bool {
+	if cfg == nil {
+		return false
+	}
 	pf := strings.TrimSpace(cfg.ProductNamePrefix)
 	sf := strings.TrimSpace(cfg.ProductNameSuffix)
-	if pf != "" || sf != "" {
-		return strings.TrimSpace(pf + " " + amountStr + " " + sf)
+	return pf != "" || sf != ""
+}
+
+func applyPaymentProductNameAffix(productName string, cfg *PaymentConfig) string {
+	if !hasPaymentProductNameAffix(cfg) {
+		return productName
 	}
-	return siteName + " " + amountStr + " " + currency
+	pf := strings.TrimSpace(cfg.ProductNamePrefix)
+	sf := strings.TrimSpace(cfg.ProductNameSuffix)
+	return strings.TrimSpace(pf + " " + productName + " " + sf)
 }
 
 func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
