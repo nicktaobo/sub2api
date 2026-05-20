@@ -54,6 +54,10 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			abortWithGoogleError(c, 401, "User account is not active")
 			return
 		}
+		if _, message, ok := validateAPIKeyGroupAvailable(apiKey); !ok {
+			abortWithGoogleError(c, 403, message)
+			return
+		}
 
 		// MERCHANT-SYSTEM v1.0 (RFC §3.4 / §5.3.1)：suspended merchant 拦截（在 SimpleMode 之前）
 		if cfg != nil && cfg.Merchant.Enabled &&
