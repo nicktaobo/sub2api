@@ -4350,6 +4350,7 @@ export default {
       },
       notifyModeLabels: {
         silent: 'Silent',
+        banner: 'Banner',
         popup: 'Popup'
       },
       form: {
@@ -4357,7 +4358,7 @@ export default {
         content: 'Content (Markdown supported)',
         status: 'Status',
         notifyMode: 'Notify Mode',
-        notifyModeHint: 'Popup mode will show a popup notification to users',
+        notifyModeHint: 'Popup forces a modal; Banner rotates the latest 3 in a thin top bar; Silent only appears in the announcement center',
         startsAt: 'Starts At',
         endsAt: 'Ends At',
         startsAtHint: 'Leave empty to start immediately',

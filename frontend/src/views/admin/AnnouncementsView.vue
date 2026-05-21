@@ -77,15 +77,8 @@
           </template>
 
           <template #cell-notify_mode="{ row }">
-            <span
-              :class="[
-                'badge',
-                row.notify_mode === 'popup'
-                  ? 'badge-warning'
-                  : 'badge-gray'
-              ]"
-            >
-              {{ row.notify_mode === 'popup' ? t('admin.announcements.notifyModeLabels.popup') : t('admin.announcements.notifyModeLabels.silent') }}
+            <span :class="['badge', notifyModeBadgeClass(row.notify_mode)]">
+              {{ notifyModeLabel(row.notify_mode) }}
             </span>
           </template>
 
@@ -304,8 +297,21 @@ const statusOptions = computed(() => [
 
 const notifyModeOptions = computed(() => [
   { value: 'silent', label: t('admin.announcements.notifyModeLabels.silent') },
+  { value: 'banner', label: t('admin.announcements.notifyModeLabels.banner') },
   { value: 'popup', label: t('admin.announcements.notifyModeLabels.popup') }
 ])
+
+const notifyModeLabel = (mode: string) => {
+  if (mode === 'popup') return t('admin.announcements.notifyModeLabels.popup')
+  if (mode === 'banner') return t('admin.announcements.notifyModeLabels.banner')
+  return t('admin.announcements.notifyModeLabels.silent')
+}
+
+const notifyModeBadgeClass = (mode: string) => {
+  if (mode === 'popup') return 'badge-warning'
+  if (mode === 'banner') return 'badge-primary'
+  return 'badge-gray'
+}
 
 const columns = computed<Column[]>(() => [
   { key: 'title', label: t('admin.announcements.columns.title'), sortable: true },

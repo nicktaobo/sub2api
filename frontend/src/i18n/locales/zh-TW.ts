@@ -4370,6 +4370,7 @@ export default {
       },
       notifyModeLabels: {
         silent: '靜默',
+        banner: '橫幅滾動',
         popup: '彈窗'
       },
       form: {
@@ -4377,7 +4378,7 @@ export default {
         content: '內容（支援 Markdown）',
         status: '狀態',
         notifyMode: '通知方式',
-        notifyModeHint: '彈窗模式會自動彈出通知給使用者',
+        notifyModeHint: '彈窗會強制彈出；橫幅滾動在頂部以小條形式輪播最新 3 條；靜默只在公告中心可見',
         startsAt: '開始時間',
         endsAt: '結束時間',
         startsAtHint: '留空表示立即生效',

@@ -4506,6 +4506,7 @@ export default {
       },
       notifyModeLabels: {
         silent: '静默',
+        banner: '横幅滚动',
         popup: '弹窗'
       },
       form: {
@@ -4513,7 +4514,7 @@ export default {
         content: '内容（支持 Markdown）',
         status: '状态',
         notifyMode: '通知方式',
-        notifyModeHint: '弹窗模式会自动弹出通知给用户',
+        notifyModeHint: '弹窗会强制弹出；横幅滚动在顶部以小条形式轮播最新 3 条；静默只在公告中心可见',
         startsAt: '开始时间',
         endsAt: '结束时间',
         startsAtHint: '留空表示立即生效',
