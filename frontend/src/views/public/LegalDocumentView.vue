@@ -90,6 +90,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useHead } from '@unhead/vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import Icon from '@/components/icons/Icon.vue'
@@ -149,6 +150,17 @@ const renderedHtml = computed(() => {
 const documentIcon = computed(() =>
   resolveLoginAgreementDocumentIcon(currentDocument.value?.id, resolvedTitle.value)
 )
+
+useHead(() => ({
+  title: `${resolvedTitle.value || t('legal.badge')} | ${siteName.value}`,
+  htmlAttrs: { lang: locale.value },
+  meta: [
+    { name: 'description', content: resolvedTitle.value || t('legal.badge') },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:title', content: `${resolvedTitle.value || t('legal.badge')} | ${siteName.value}` },
+    { property: 'og:site_name', content: siteName.value },
+  ],
+}))
 
 onMounted(async () => {
   loading.value = true

@@ -97,8 +97,22 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			cleanPath = "index.html"
 		}
 
-		// For index.html or SPA routes, serve with injected settings
-		if cleanPath == "index.html" || !s.fileExists(cleanPath) {
+		if cleanPath == "index.html" {
+			s.serveIndexHTML(c)
+			return
+		}
+
+		if cleanPath == "sitemap.xml" {
+			s.serveSitemap(c)
+			return
+		}
+
+		// 不是具体存在的静态资源 → 可能是 prerender 路由（dist/<path>/index.html）
+		// 或 SPA fallback 路由，统一走注入逻辑
+		if !s.fileExists(cleanPath) {
+			if s.tryServePrerendered(c, cleanPath) {
+				return
+			}
 			s.serveIndexHTML(c)
 			return
 		}
@@ -112,6 +126,107 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 		s.fileServer.ServeHTTP(c.Writer, c.Request)
 		c.Abort()
 	}
+}
+
+// prerenderedRoutes 列出 SSG 生成的公开页路径，对应 frontend/scripts/prerender.mjs 的 ROUTES。
+// 同时作为 sitemap.xml 的内容源。新增 prerender 路由时两边一起改。
+var prerenderedRoutes = []string{
+	"/",
+	"/models",
+	"/docs/quickstart",
+	"/docs/api-guide",
+}
+
+// requestScheme 推断当前请求的 scheme：TLS 优先；其次 X-Forwarded-Proto；兜底 http。
+func requestScheme(c *gin.Context) string {
+	if c.Request.TLS != nil {
+		return "https"
+	}
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	return "http"
+}
+
+// serveSitemap 按当前请求 Host 动态拼出绝对 URL 的 sitemap.xml。
+// 多租户场景下每个商户域名访问会拿到对应域名的 sitemap。
+func (s *FrontendServer) serveSitemap(c *gin.Context) {
+	scheme := requestScheme(c)
+	host := c.Request.Host
+	base := scheme + "://" + host
+
+	var b bytes.Buffer
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	for _, p := range prerenderedRoutes {
+		b.WriteString("  <url><loc>")
+		b.WriteString(base)
+		b.WriteString(p)
+		b.WriteString("</loc></url>\n")
+	}
+	b.WriteString(`</urlset>` + "\n")
+
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "application/xml; charset=utf-8", b.Bytes())
+	c.Abort()
+}
+
+// tryServePrerendered: 检查 dist/<cleanPath>/index.html 是否存在（prerender 产物），
+// 若存在则以该文件为 baseHTML 走 __APP_CONFIG__ 注入逻辑。
+// prerender 产物每条路由内容不同，不能共用 index.html 的 baseHTML/缓存，
+// 因此每次读盘 + 注入（小文件，开销可忽略）。
+func (s *FrontendServer) tryServePrerendered(c *gin.Context, cleanPath string) bool {
+	if cleanPath == "" || cleanPath == "index.html" {
+		return false
+	}
+	candidate := strings.TrimSuffix(cleanPath, "/") + "/index.html"
+	file, err := s.distFS.Open(candidate)
+	if err != nil {
+		return false
+	}
+	baseHTML, err := io.ReadAll(file)
+	_ = file.Close()
+	if err != nil {
+		return false
+	}
+	s.servePrerenderedHTML(c, baseHTML)
+	return true
+}
+
+// servePrerenderedHTML: 把 prerender 产物当 baseHTML 注入 __APP_CONFIG__ 后返回。
+// 流程与 serveIndexHTML 一致但不走单例缓存，因为每个 path 有自己的产物。
+func (s *FrontendServer) servePrerenderedHTML(c *gin.Context, baseHTML []byte) {
+	nonce := middleware.GetNonceFromContext(c)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	settings, err := s.settings.GetPublicSettingsForInjection(ctx)
+	if err != nil {
+		content := replaceNoncePlaceholder(baseHTML, nonce)
+		c.Header("Cache-Control", "no-cache")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		c.Abort()
+		return
+	}
+
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		content := replaceNoncePlaceholder(baseHTML, nonce)
+		c.Header("Cache-Control", "no-cache")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		c.Abort()
+		return
+	}
+
+	script := []byte(`<script nonce="` + NonceHTMLPlaceholder + `">window.__APP_CONFIG__=` + string(settingsJSON) + `;</script>`)
+	headClose := []byte("</head>")
+	rendered := bytes.Replace(baseHTML, headClose, append(script, headClose...), 1)
+
+	content := replaceNoncePlaceholder(rendered, nonce)
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+	c.Abort()
 }
 
 func (s *FrontendServer) fileExists(path string) bool {

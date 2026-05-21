@@ -569,7 +569,8 @@ func TestNewFrontendServer(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, server.baseHTML)
-		assert.Contains(t, string(server.baseHTML), "<!doctype html>")
+		// prerender 后 dist/index.html 序列化为 <!DOCTYPE html>（大写），原 vite 产物是小写
+		assert.Contains(t, strings.ToLower(string(server.baseHTML)), "<!doctype html>")
 	})
 }
 
@@ -608,7 +609,7 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
-		assert.Contains(t, w.Body.String(), "<!doctype html>")
+		assert.Contains(t, strings.ToLower(w.Body.String()), "<!doctype html>")
 	})
 
 	t.Run("serves_index_html_for_spa_routes", func(t *testing.T) {

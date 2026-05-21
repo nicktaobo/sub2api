@@ -76,7 +76,10 @@ export default defineConfig(({ mode }) => {
               id.includes('/vue/') ||
               id.includes('/vue-router/') ||
               id.includes('/pinia/') ||
-              id.includes('/@vue/')
+              id.includes('/@vue/') ||
+              id.includes('/@unhead/') ||
+              id.includes('/unhead/') ||
+              id.includes('/hookable/')
             ) {
               return 'vendor-vue'
             }

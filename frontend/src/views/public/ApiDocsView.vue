@@ -94,6 +94,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useHead } from '@unhead/vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
@@ -287,6 +288,22 @@ const siteLogo = computed(() =>
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
+
+const docTitle = computed(() => {
+  const entry = currentEntry.value
+  return entry ? t(entry.titleKey) : t('apiDocs.pageTitle')
+})
+
+useHead(() => ({
+  title: `${docTitle.value} | ${siteName.value}`,
+  htmlAttrs: { lang: locale.value },
+  meta: [
+    { name: 'description', content: `${docTitle.value} — ${siteName.value}` },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:title', content: `${docTitle.value} | ${siteName.value}` },
+    { property: 'og:site_name', content: siteName.value },
+  ],
+}))
 
 onMounted(async () => {
   authStore.checkAuth()

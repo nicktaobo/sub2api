@@ -145,6 +145,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useHead } from '@unhead/vue'
 import Icon from '@/components/icons/Icon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
@@ -152,7 +153,7 @@ import userChannelsAPI, { type UserPricingGroup } from '@/api/channels'
 import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import type { GroupPlatform } from '@/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const merchantStore = useMerchantStore()
@@ -218,6 +219,18 @@ async function reload() {
     loading.value = false
   }
 }
+
+useHead(() => ({
+  title: `${t('publicModels.pageTitle')} | ${siteName.value}`,
+  htmlAttrs: { lang: locale.value },
+  meta: [
+    { name: 'description', content: t('publicModels.subtitle') },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:title', content: `${t('publicModels.title')} | ${siteName.value}` },
+    { property: 'og:description', content: t('publicModels.subtitle') },
+    { property: 'og:site_name', content: siteName.value },
+  ],
+}))
 
 onMounted(() => {
   authStore.checkAuth()

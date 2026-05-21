@@ -341,6 +341,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useHead } from '@unhead/vue'
 import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -403,6 +404,19 @@ const userInitial = computed(() => {
 })
 
 const currentYear = computed(() => new Date().getFullYear())
+
+useHead(() => ({
+  title: `${siteName.value} — ${t('home.heroSubtitle')}`,
+  htmlAttrs: { lang: locale.value },
+  meta: [
+    { name: 'description', content: t('home.heroDescription') },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:title', content: `${siteName.value} — ${t('home.heroSubtitle')}` },
+    { property: 'og:description', content: t('home.heroDescription') },
+    { property: 'og:site_name', content: siteName.value },
+    { name: 'twitter:card', content: 'summary_large_image' },
+  ],
+}))
 
 onMounted(() => {
   authStore.checkAuth()

@@ -119,6 +119,7 @@ tests
 CLAUDE.md
 .claude
 scripts
+!frontend/scripts/
 .code-review-state
 #openspec/
 code-reviews/
