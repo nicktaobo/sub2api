@@ -30,6 +30,11 @@ const ROUTES = ['/', '/models', '/docs/quickstart', '/docs/api-guide']
 // 避免上一次 prerender 写出的（可能损坏的）<path>/index.html 影响后续路由。
 const baseIndexHTML = readFileSync(join(distDir, 'index.html'), 'utf-8')
 
+// 同时把原始空壳备份到 dist/_spa-shell.html。后端用它做 SPA fallback（访问 /dashboard
+// 等未 prerender 的路径），避免把 / 的 home 渲染产物当兜底，导致刷新 dashboard 时
+// 先闪一下首页。下划线前缀避免被 sirv / 后端误识别为 SPA 路由。
+writeFileSync(join(distDir, '_spa-shell.html'), baseIndexHTML, 'utf-8')
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',

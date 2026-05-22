@@ -34,9 +34,14 @@ type PublicSettingsProvider interface {
 
 // FrontendServer serves the embedded frontend with settings injection
 type FrontendServer struct {
-	distFS      fs.FS
-	fileServer  http.Handler
-	baseHTML    []byte
+	distFS     fs.FS
+	fileServer http.Handler
+	// baseHTML 是 / 路由的 prerender 产物（dist/index.html）。请求 / 走它+缓存。
+	baseHTML []byte
+	// shellHTML 是 vite 出的原始空壳（dist/_spa-shell.html）。SPA fallback（未知路径，
+	// 比如 /dashboard 刷新）用它，避免拿 baseHTML 把 home 闪一下再跳 dashboard。
+	// 若 _spa-shell.html 不存在（未跑 prerender），退化为 baseHTML，行为同 SSG 前。
+	shellHTML   []byte
 	cache       *HTMLCache
 	settings    PublicSettingsProvider
 	overrideDir string // local file override directory
@@ -64,10 +69,20 @@ func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer
 	cache := NewHTMLCache()
 	cache.SetBaseHTML(baseHTML)
 
+	// 尝试加载 SPA fallback 空壳（prerender 产物）。读不到时退化为 baseHTML。
+	shellHTML := baseHTML
+	if shellFile, err := distFS.Open("_spa-shell.html"); err == nil {
+		if data, readErr := io.ReadAll(shellFile); readErr == nil && len(data) > 0 {
+			shellHTML = data
+		}
+		_ = shellFile.Close()
+	}
+
 	return &FrontendServer{
 		distFS:      distFS,
 		fileServer:  http.FileServer(http.FS(distFS)),
 		baseHTML:    baseHTML,
+		shellHTML:   shellHTML,
 		cache:       cache,
 		settings:    settingsProvider,
 		overrideDir: filepath.Join("data", "public"),
@@ -107,13 +122,22 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			return
 		}
 
+		// _spa-shell.html 是后端内部用的 SPA fallback 模板，对外屏蔽
+		if cleanPath == "_spa-shell.html" {
+			c.Status(http.StatusNotFound)
+			c.Abort()
+			return
+		}
+
 		// 不是具体存在的静态资源 → 可能是 prerender 路由（dist/<path>/index.html）
-		// 或 SPA fallback 路由，统一走注入逻辑
+		// 或 SPA fallback 路由
 		if !s.fileExists(cleanPath) {
 			if s.tryServePrerendered(c, cleanPath) {
 				return
 			}
-			s.serveIndexHTML(c)
+			// SPA fallback：用原始空壳，避免把 home prerender 产物当兜底，导致刷新
+			// /dashboard 等路径时先闪一下首页内容再被 Vue 跳到正确视图。
+			s.servePrerenderedHTML(c, s.shellHTML)
 			return
 		}
 
