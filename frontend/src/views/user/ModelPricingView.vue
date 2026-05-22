@@ -213,16 +213,16 @@
                       </div>
                     </td>
                     <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(model.official_input_price) }}
+                      {{ formatPrice(basePrice(model, 'input')) }}
                     </td>
                     <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(model.official_output_price) }}
+                      {{ formatPrice(basePrice(model, 'output')) }}
                     </td>
                     <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(model.official_cache_write_price) }}
+                      {{ formatPrice(basePrice(model, 'cache_write')) }}
                     </td>
                     <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(model.official_cache_read_price) }}
+                      {{ formatPrice(basePrice(model, 'cache_read')) }}
                     </td>
                   </tr>
                 </tbody>
@@ -250,7 +250,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
-import userChannelsAPI, { type UserPricingGroup } from '@/api/channels'
+import userChannelsAPI, { type UserPricingGroup, type UserPricingModel } from '@/api/channels'
 import systemAPI from '@/api/system'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -331,6 +331,24 @@ const priceCellTone = computed(() =>
     ? 'text-primary-600 dark:text-primary-400'
     : 'text-gray-700 dark:text-gray-300',
 )
+
+/**
+ * basePrice 选取展示用的基础单价（per-token USD）。
+ *   - official 模式：始终用 LiteLLM 官方价（official_*）
+ *   - site     模式：优先渠道管理员配的 channel 单价（input_price 等），未配置回退到 official
+ * 两类基础单价语义一致，后续 formatPrice 在 site 模式下统一按 group.rate / fx_rate 乘出本站价。
+ */
+function basePrice(
+  model: UserPricingModel,
+  field: 'input' | 'output' | 'cache_write' | 'cache_read',
+): number | null | undefined {
+  const officialKey = `official_${field}_price` as const
+  if (priceMode.value === 'official') {
+    return model[officialKey]
+  }
+  const siteKey = `${field}_price` as const
+  return model[siteKey] ?? model[officialKey]
+}
 
 /**
  * 价格格式化：

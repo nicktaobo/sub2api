@@ -84,6 +84,17 @@ export async function getAvailable(options?: { signal?: AbortSignal }): Promise<
  */
 export interface UserPricingModel {
   name: string
+  /**
+   * 渠道（channel）管理员显式配置的基础单价（USD / per token）。
+   * 与 official_* 同为"基础单价"语义：site 模式仍按 group.rate_multiplier / fx_rate
+   * 计算本站价，与计费链路 actualCost = totalCost × RateMultiplier 一致。
+   * 未在 channel 上配置时为 nil，前端回退到对应 official_* 字段。
+   */
+  input_price?: number | null
+  output_price?: number | null
+  cache_write_price?: number | null
+  cache_read_price?: number | null
+  /** LiteLLM 官方价（USD / per token）。模型不在 LiteLLM 表里或为 0 时缺失。 */
   official_input_price?: number | null
   official_output_price?: number | null
   official_cache_write_price?: number | null

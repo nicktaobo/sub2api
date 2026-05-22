@@ -197,10 +197,23 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	response.Success(c, out)
 }
 
-// userPricingModel 端点（group）下的单条模型；价格字段是 LiteLLM 官方价
-// （per token, USD），前端按 group.rate_multiplier / fx_rate 算出本站价。
+// userPricingModel 端点（group）下的单条模型。
+//
+// 价格字段两套：
+//   - input_price / output_price / cache_write_price / cache_read_price：
+//     渠道（channel）管理员显式配置的基础单价（per token, USD）。nil 表示该
+//     字段未在 channel 上配置，前端回退到 official_* 字段。
+//   - official_*：LiteLLM 官方价（per token, USD）。
+//
+// 两套都是"基础单价"语义：前端在 site 模式下仍然按 (group.rate_multiplier /
+// fx_rate) 乘出本站价，和实际计费链路 `actualCost = totalCost × RateMultiplier`
+// 保持一致 —— 渠道价覆盖只是替换 token 单价数据源，不绕过分组倍率。
 type userPricingModel struct {
 	Name                    string   `json:"name"`
+	InputPrice              *float64 `json:"input_price,omitempty"`
+	OutputPrice             *float64 `json:"output_price,omitempty"`
+	CacheWritePrice         *float64 `json:"cache_write_price,omitempty"`
+	CacheReadPrice          *float64 `json:"cache_read_price,omitempty"`
 	OfficialInputPrice      *float64 `json:"official_input_price,omitempty"`
 	OfficialOutputPrice     *float64 `json:"official_output_price,omitempty"`
 	OfficialCacheWritePrice *float64 `json:"official_cache_write_price,omitempty"`
@@ -310,14 +323,7 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			Models:         []userPricingModel{},
 		}
 		for _, name := range modelNames {
-			m := userPricingModel{Name: name}
-			if p := lookupOfficial(name); p != nil {
-				m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
-				m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
-				m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
-				m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
-			}
-			item.Models = append(item.Models, m)
+			item.Models = append(item.Models, h.buildPricingModel(ctx, g.ID, name, lookupOfficial))
 		}
 		out = append(out, item)
 	}
@@ -388,19 +394,41 @@ func (h *AvailableChannelHandler) PricingGroupListPublic(c *gin.Context) {
 			Models:         []userPricingModel{},
 		}
 		for _, name := range modelNames {
-			m := userPricingModel{Name: name}
-			if p := lookupOfficial(name); p != nil {
-				m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
-				m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
-				m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
-				m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
-			}
-			item.Models = append(item.Models, m)
+			item.Models = append(item.Models, h.buildPricingModel(ctx, g.ID, name, lookupOfficial))
 		}
 		out = append(out, item)
 	}
 
 	response.Success(c, out)
+}
+
+// buildPricingModel 拼装单条模型的定价 DTO：渠道配置的基础单价（input/output/
+// cache_write/cache_read）覆盖到独立字段，LiteLLM 官方价填到 official_*。
+// 两套字段都保持"基础单价"语义，前端按 group.rate_multiplier / fx_rate 算本站价。
+//
+// channelService 未注入或 group 未绑定 channel 时，channel 价部分留空。
+func (h *AvailableChannelHandler) buildPricingModel(
+	ctx context.Context,
+	groupID int64,
+	name string,
+	lookupOfficial func(string) *service.ModelPricing,
+) userPricingModel {
+	m := userPricingModel{Name: name}
+	if p := lookupOfficial(name); p != nil {
+		m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+		m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+		m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+		m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+	}
+	if h.channelService != nil {
+		if cp := h.channelService.GetChannelModelPricing(ctx, groupID, name); cp != nil {
+			m.InputPrice = cp.InputPrice
+			m.OutputPrice = cp.OutputPrice
+			m.CacheWritePrice = cp.CacheWritePrice
+			m.CacheReadPrice = cp.CacheReadPrice
+		}
+	}
+	return m
 }
 
 // resolveGroupModelsByAccount 按"account 交集 + LiteLLM 兜底"算法计算 group 的模型列表。
