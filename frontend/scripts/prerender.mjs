@@ -82,7 +82,10 @@ console.log(`[prerender] static server on http://localhost:${port}`)
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  // --disable-dev-shm-usage: docker 默认 /dev/shm 太小，chrome 会因共享内存不足崩溃
+  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  // CI/docker 容器里走系统装的 chromium；本地开发未设此变量时 puppeteer 用 bundled chrome
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
 })
 
 let failed = 0

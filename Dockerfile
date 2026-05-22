@@ -23,6 +23,19 @@ WORKDIR /app/frontend
 # Install pnpm (pin pnpm 到 9.15.0，避免 pnpm@latest 拉到 10.x 触发 approve-builds 严格模式)
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
+# Prerender (SSG) 需要 headless chromium。alpine 上跑 puppeteer 自带的 chromium
+# 兼容性差，让 puppeteer 用系统 chromium：装 alpine 的 chromium 包，跳过
+# puppeteer postinstall 下载，运行时用 PUPPETEER_EXECUTABLE_PATH 指向系统二进制。
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
