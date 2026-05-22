@@ -667,6 +667,10 @@ export default {
     hour: '按小時',
     modelDistribution: '模型分佈',
     groupDistribution: '分組使用分佈',
+    platformBreakdown: '按平台拆分',
+    platformBreakdownEmpty: '暫無平台用量',
+    platformCount: '{count} 個平台',
+    platformOther: '其他',
     tokenUsageTrend: 'Token 使用趨勢',
     noDataAvailable: '暫無資料',
     model: '模型',
@@ -1997,6 +2001,12 @@ export default {
       // 餘額變動記錄
       balanceHistory: '儲值記錄',
       balanceHistoryTip: '點選檢視儲值記錄',
+      columnAlwaysVisible: '該列固定顯示，不可隱藏',
+      // 平台用量明細（懸浮顯示）
+      platformBreakdown: '按平台拆分',
+      platformBreakdownEmpty: '暫無平台明細',
+      platformBreakdownHint: '懸浮檢視各平台用量',
+      platformOther: '其他',
       balanceHistoryTitle: '使用者儲值和併發變動記錄',
       noBalanceHistory: '暫無變動記錄',
       allTypes: '全部型別',
