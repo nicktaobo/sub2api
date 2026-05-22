@@ -193,6 +193,41 @@
           />
         </div>
 
+        <!-- 协议勾选框：勾选时弹出阅读窗，用户在弹窗内确认才算同意 -->
+        <div
+          v-if="loginAgreementDocuments.length > 0"
+          class="px-0.5"
+        >
+          <div class="flex items-start gap-2">
+            <input
+              id="register-agreement-consent"
+              type="checkbox"
+              :checked="agreementAccepted"
+              :disabled="isLoading"
+              class="mt-[2px] h-4 w-4 flex-shrink-0 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
+              @change="handleAgreementCheckboxChange"
+            />
+            <p class="min-w-0 flex-1 text-[13px] leading-5 text-gray-600 dark:text-dark-300">
+              <label
+                for="register-agreement-consent"
+                class="cursor-pointer text-gray-700 dark:text-dark-200"
+              >
+                {{ t('legal.agreement.consent') }}
+              </label>
+              <template v-for="(doc, index) in agreementDocLabels" :key="doc.key">
+                <button
+                  type="button"
+                  class="font-medium text-primary-600 underline-offset-4 transition hover:text-primary-700 hover:underline dark:text-primary-300 dark:hover:text-primary-200"
+                  @click="showAgreementModal = true"
+                >
+                  {{ doc.title }}
+                </button>
+                <span v-if="index < agreementDocLabels.length - 1">{{ t('legal.agreement.separator') }}</span>
+              </template>
+            </p>
+          </div>
+        </div>
+
         <RegisterAgreementModal
           :visible="showAgreementModal"
           :documents="loginAgreementDocuments"
@@ -248,7 +283,7 @@
         </div>
 
         <EmailOAuthButtons
-          :disabled="registrationActionDisabled"
+          :disabled="oauthActionDisabled"
           :aff-code="formData.aff_code"
           :github-enabled="githubOAuthEnabled"
           :google-enabled="googleOAuthEnabled"
@@ -257,19 +292,19 @@
 
         <LinuxDoOAuthSection
           v-if="linuxdoOAuthEnabled"
-          :disabled="registrationActionDisabled"
+          :disabled="oauthActionDisabled"
           :aff-code="formData.aff_code"
           :show-divider="false"
         />
         <WechatOAuthSection
           v-if="wechatOAuthEnabled"
-          :disabled="registrationActionDisabled"
+          :disabled="oauthActionDisabled"
           :aff-code="formData.aff_code"
           :show-divider="false"
         />
         <OidcOAuthSection
           v-if="oidcOAuthEnabled"
-          :disabled="registrationActionDisabled"
+          :disabled="oauthActionDisabled"
           :provider-name="oidcOAuthProviderName"
           :aff-code="formData.aff_code"
           :show-divider="false"
@@ -321,7 +356,11 @@ import {
   loadAffiliateReferralCode,
   resolveAffiliateReferralCode
 } from '@/utils/oauthAffiliate'
-import { hasAnyLoginAgreementTitle } from '@/utils/loginAgreement'
+import {
+  hasAnyLoginAgreementTitle,
+  hasLoginAgreementTitle,
+  resolveLoginAgreementDocumentLocale,
+} from '@/utils/loginAgreement'
 import type { LoginAgreementDocument } from '@/types'
 
 const { t, locale } = useI18n()
@@ -357,7 +396,7 @@ const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
 const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
 const agreementAccepted = ref<boolean>(false)
-const showAgreementModal = ref<boolean>(true)
+const showAgreementModal = ref<boolean>(false)
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -418,8 +457,15 @@ const showOAuthLogin = computed(
 
 const agreementGateActive = computed(() => !agreementAccepted.value)
 
+// 邮箱/密码输入和邮箱注册按钮：不受勾选状态影响——
+// 用户可以先填表单，提交时再由 validateForm 弹出协议窗。
 const registrationActionDisabled = computed(
-  () => isLoading.value || !settingsLoaded.value || agreementGateActive.value
+  () => isLoading.value || !settingsLoaded.value
+)
+
+// OAuth 一旦点击就会跳走，必须先勾过协议才能继续。
+const oauthActionDisabled = computed(
+  () => registrationActionDisabled.value || agreementGateActive.value
 )
 
 watch(validationToastMessage, (value, previousValue) => {
@@ -498,6 +544,26 @@ onUnmounted(() => {
 })
 
 // ==================== Register Agreement ====================
+
+const agreementDocLabels = computed(() =>
+  loginAgreementDocuments.value
+    .filter((doc) => hasLoginAgreementTitle(doc, locale.value))
+    .map((doc) => ({
+      key: doc.id || doc.title,
+      title: resolveLoginAgreementDocumentLocale(doc, locale.value).title,
+    })),
+)
+
+function handleAgreementCheckboxChange(event: Event): void {
+  const checked = (event.target as HTMLInputElement).checked
+  if (checked) {
+    // 勾选时强制弹出条款窗，让用户阅读后再确认
+    showAgreementModal.value = true
+  } else {
+    agreementAccepted.value = false
+    showAgreementModal.value = false
+  }
+}
 
 function acceptLoginAgreement(): void {
   agreementAccepted.value = true
