@@ -1100,6 +1100,14 @@ export default {
       output: 'Output',
       cacheWrite: 'Cache Write',
       cacheRead: 'Cache Read'
+    },
+    badge: {
+      perRequest: 'Per Request',
+      image: 'Per Image'
+    },
+    tier: {
+      label: 'Tier',
+      price: 'Price / Request'
     }
   },
 
@@ -2430,6 +2438,7 @@ export default {
         imageTiers: 'Image Tiers (Per Request)',
         addTier: 'Add Tier',
         noTiersYet: 'No tiers yet. Click add to configure per-request pricing.',
+        tierLabelMatrixHint: 'Tip: tier labels separated by "-" (e.g. Low-1024x1024) render as a 2D matrix on the user pricing page; otherwise shown as a flat list.',
         noPricingRules: 'No pricing rules yet. Click "Add" to create one.',
         perRequestPrice: 'Price per Request',
         perRequestPriceRequired: 'Per-request price or billing tiers required for per-request/image billing mode',

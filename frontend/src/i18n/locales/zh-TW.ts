@@ -1057,6 +1057,14 @@ export default {
       output: '輸出價格',
       cacheWrite: '快取建立價格',
       cacheRead: '快取讀取價格'
+    },
+    badge: {
+      perRequest: '按次計費',
+      image: '圖片計費'
+    },
+    tier: {
+      label: '檔位',
+      price: '每次價格'
     }
   },
 
@@ -2453,6 +2461,7 @@ export default {
         imageTiers: '圖片計費層級（按次）',
         addTier: '新增層級',
         noTiersYet: '暫無層級，點選新增配置按次計費價格',
+        tierLabelMatrixHint: '提示：層級標籤用 "-" 分隔（如 Low-1024x1024）會在使用者定價頁自動渲染為二維矩陣；否則按扁平列表展示。',
         noPricingRules: '暫無定價規則，點選"新增"建立',
         perRequestPrice: '單次價格',
         perRequestPriceRequired: '按次/圖片計費模式必須設定預設價格或至少一個計費層級',

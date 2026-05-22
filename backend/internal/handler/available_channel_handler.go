@@ -208,16 +208,24 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 // 两套都是"基础单价"语义：前端在 site 模式下仍然按 (group.rate_multiplier /
 // fx_rate) 乘出本站价，和实际计费链路 `actualCost = totalCost × RateMultiplier`
 // 保持一致 —— 渠道价覆盖只是替换 token 单价数据源，不绕过分组倍率。
+//
+// billing_mode / intervals 用于非 token 模式（per_request / image）的模型：
+//   - billing_mode 为空或 "token" 时，前端按 token 列展示（input/output/cache）；
+//   - billing_mode 为 "per_request" / "image" 时，前端按 intervals 列表渲染
+//     tier 分层定价（tier_label 含分隔符 "-" 时进一步 pivot 成二维矩阵）。
 type userPricingModel struct {
-	Name                    string   `json:"name"`
-	InputPrice              *float64 `json:"input_price,omitempty"`
-	OutputPrice             *float64 `json:"output_price,omitempty"`
-	CacheWritePrice         *float64 `json:"cache_write_price,omitempty"`
-	CacheReadPrice          *float64 `json:"cache_read_price,omitempty"`
-	OfficialInputPrice      *float64 `json:"official_input_price,omitempty"`
-	OfficialOutputPrice     *float64 `json:"official_output_price,omitempty"`
-	OfficialCacheWritePrice *float64 `json:"official_cache_write_price,omitempty"`
-	OfficialCacheReadPrice  *float64 `json:"official_cache_read_price,omitempty"`
+	Name                    string                   `json:"name"`
+	BillingMode             string                   `json:"billing_mode,omitempty"`
+	InputPrice              *float64                 `json:"input_price,omitempty"`
+	OutputPrice             *float64                 `json:"output_price,omitempty"`
+	CacheWritePrice         *float64                 `json:"cache_write_price,omitempty"`
+	CacheReadPrice          *float64                 `json:"cache_read_price,omitempty"`
+	PerRequestPrice         *float64                 `json:"per_request_price,omitempty"`
+	Intervals               []userPricingIntervalDTO `json:"intervals,omitempty"`
+	OfficialInputPrice      *float64                 `json:"official_input_price,omitempty"`
+	OfficialOutputPrice     *float64                 `json:"official_output_price,omitempty"`
+	OfficialCacheWritePrice *float64                 `json:"official_cache_write_price,omitempty"`
+	OfficialCacheReadPrice  *float64                 `json:"official_cache_read_price,omitempty"`
 }
 
 // userPricingGroup 「模型定价」展示页的端点 = 一个 group。
@@ -422,10 +430,27 @@ func (h *AvailableChannelHandler) buildPricingModel(
 	}
 	if h.channelService != nil {
 		if cp := h.channelService.GetChannelModelPricing(ctx, groupID, name); cp != nil {
+			m.BillingMode = string(cp.BillingMode)
 			m.InputPrice = cp.InputPrice
 			m.OutputPrice = cp.OutputPrice
 			m.CacheWritePrice = cp.CacheWritePrice
 			m.CacheReadPrice = cp.CacheReadPrice
+			m.PerRequestPrice = cp.PerRequestPrice
+			if len(cp.Intervals) > 0 {
+				m.Intervals = make([]userPricingIntervalDTO, 0, len(cp.Intervals))
+				for _, iv := range cp.Intervals {
+					m.Intervals = append(m.Intervals, userPricingIntervalDTO{
+						MinTokens:       iv.MinTokens,
+						MaxTokens:       iv.MaxTokens,
+						TierLabel:       iv.TierLabel,
+						InputPrice:      iv.InputPrice,
+						OutputPrice:     iv.OutputPrice,
+						CacheWritePrice: iv.CacheWritePrice,
+						CacheReadPrice:  iv.CacheReadPrice,
+						PerRequestPrice: iv.PerRequestPrice,
+					})
+				}
+			}
 		}
 	}
 	return m

@@ -202,29 +202,111 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
+                  <template
                     v-for="model in selectedGroup.models"
                     :key="model.name"
-                    class="border-t border-gray-50 transition hover:bg-primary-50/30 dark:border-dark-800 dark:hover:bg-primary-900/10"
                   >
-                    <td class="px-5 py-3">
-                      <div class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {{ model.name }}
-                      </div>
-                    </td>
-                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(basePrice(model, 'input')) }}
-                    </td>
-                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(basePrice(model, 'output')) }}
-                    </td>
-                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(basePrice(model, 'cache_write')) }}
-                    </td>
-                    <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
-                      {{ formatPrice(basePrice(model, 'cache_read')) }}
-                    </td>
-                  </tr>
+                    <tr
+                      class="border-t border-gray-50 transition hover:bg-primary-50/30 dark:border-dark-800 dark:hover:bg-primary-900/10"
+                    >
+                      <td class="px-5 py-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ model.name }}
+                          </span>
+                          <span
+                            v-if="modeBadge(model)"
+                            class="inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                          >
+                            {{ modeBadge(model) }}
+                          </span>
+                        </div>
+                      </td>
+                      <template v-if="isPerRequestMode(model)">
+                        <td colspan="4" class="px-3 py-3 text-right font-mono text-xs text-gray-400 dark:text-gray-500">
+                          —
+                        </td>
+                      </template>
+                      <template v-else>
+                        <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                          {{ formatPrice(basePrice(model, 'input')) }}
+                        </td>
+                        <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                          {{ formatPrice(basePrice(model, 'output')) }}
+                        </td>
+                        <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                          {{ formatPrice(basePrice(model, 'cache_write')) }}
+                        </td>
+                        <td class="px-3 py-3 text-right font-mono text-sm" :class="priceCellTone">
+                          {{ formatPrice(basePrice(model, 'cache_read')) }}
+                        </td>
+                      </template>
+                    </tr>
+                    <tr v-if="hasTierBlock(model)" class="border-t border-gray-50 bg-gray-50/30 dark:border-dark-800 dark:bg-dark-900/40">
+                      <td colspan="5" class="px-5 py-3">
+                        <!-- 二维矩阵模式：tier_label 含 '-' 时 pivot 成行 × 列 -->
+                        <table
+                          v-if="tierMatrix(model)"
+                          class="min-w-[240px] border-separate border-spacing-0 overflow-hidden rounded-md border border-gray-200 text-xs dark:border-dark-700"
+                        >
+                          <thead>
+                            <tr class="bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                              <th class="px-3 py-1.5 text-left font-medium"></th>
+                              <th
+                                v-for="col in tierMatrix(model)!.cols"
+                                :key="col"
+                                class="px-3 py-1.5 text-right font-medium"
+                              >
+                                {{ col }}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr
+                              v-for="row in tierMatrix(model)!.rows"
+                              :key="row"
+                              class="even:bg-white odd:bg-gray-50 dark:even:bg-dark-900/40 dark:odd:bg-dark-800/40"
+                            >
+                              <td class="px-3 py-1.5 text-left font-medium text-gray-700 dark:text-gray-200">
+                                {{ row }}
+                              </td>
+                              <td
+                                v-for="col in tierMatrix(model)!.cols"
+                                :key="col"
+                                class="px-3 py-1.5 text-right font-mono"
+                                :class="priceCellTone"
+                              >
+                                {{ formatPerImage(tierMatrix(model)!.cells[row]?.[col]) }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <!-- 扁平模式：tier_label 不含分隔符时降级 -->
+                        <table v-else class="min-w-[200px] border-separate border-spacing-0 overflow-hidden rounded-md border border-gray-200 text-xs dark:border-dark-700">
+                          <thead>
+                            <tr class="bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                              <th class="px-3 py-1.5 text-left font-medium">{{ t('modelPricing.tier.label') }}</th>
+                              <th class="px-3 py-1.5 text-right font-medium">{{ t('modelPricing.tier.price') }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr
+                              v-for="iv in (model.intervals ?? [])"
+                              :key="iv.tier_label ?? `${iv.min_tokens}-${iv.max_tokens ?? ''}`"
+                              class="even:bg-white odd:bg-gray-50 dark:even:bg-dark-900/40 dark:odd:bg-dark-800/40"
+                            >
+                              <td class="px-3 py-1.5 text-left text-gray-700 dark:text-gray-200">
+                                {{ iv.tier_label || '-' }}
+                              </td>
+                              <td class="px-3 py-1.5 text-right font-mono" :class="priceCellTone">
+                                {{ formatPerImage(iv.per_request_price) }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
@@ -365,6 +447,59 @@ function formatPrice(perTokenUSD: number | null | undefined): string {
   const rate = selectedGroup.value?.rate_multiplier ?? 1
   const sitePerM = (rate / fxRate.value) * officialPerM
   return `$${trimNum(sitePerM)}/M`
+}
+
+const TIER_SEP = '-'
+
+function isPerRequestMode(model: UserPricingModel): boolean {
+  const mode = model.billing_mode
+  return mode === 'per_request' || mode === 'image'
+}
+
+function hasTierBlock(model: UserPricingModel): boolean {
+  return isPerRequestMode(model) && (model.intervals?.length ?? 0) > 0
+}
+
+function modeBadge(model: UserPricingModel): string {
+  if (model.billing_mode === 'image') return t('modelPricing.badge.image')
+  if (model.billing_mode === 'per_request') return t('modelPricing.badge.perRequest')
+  return ''
+}
+
+type TierMatrixData = {
+  rows: string[]
+  cols: string[]
+  cells: Record<string, Record<string, number | null | undefined>>
+}
+
+function tierMatrix(model: UserPricingModel): TierMatrixData | null {
+  const ivs = model.intervals ?? []
+  if (ivs.length === 0) return null
+  const rows: string[] = []
+  const cols: string[] = []
+  const cells: Record<string, Record<string, number | null | undefined>> = {}
+  for (const iv of ivs) {
+    const label = (iv.tier_label ?? '').trim()
+    const sepIdx = label.indexOf(TIER_SEP)
+    if (sepIdx <= 0 || sepIdx >= label.length - 1) return null
+    const row = label.slice(0, sepIdx).trim()
+    const col = label.slice(sepIdx + 1).trim()
+    if (!row || !col) return null
+    if (!rows.includes(row)) rows.push(row)
+    if (!cols.includes(col)) cols.push(col)
+    if (!cells[row]) cells[row] = {}
+    cells[row][col] = iv.per_request_price
+  }
+  return { rows, cols, cells }
+}
+
+function formatPerImage(perItemUSD: number | null | undefined): string {
+  if (perItemUSD == null) return '-'
+  if (priceMode.value === 'official') {
+    return '$' + trimNum(perItemUSD)
+  }
+  const rate = selectedGroup.value?.rate_multiplier ?? 1
+  return '$' + trimNum((rate / fxRate.value) * perItemUSD)
 }
 
 function trimNum(n: number): string {

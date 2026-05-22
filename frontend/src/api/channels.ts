@@ -85,6 +85,12 @@ export async function getAvailable(options?: { signal?: AbortSignal }): Promise<
 export interface UserPricingModel {
   name: string
   /**
+   * 计费模式：'token'（默认）按 token 计费，input/output/cache 列展示；
+   * 'per_request' / 'image' 按次/图片计费，渲染 intervals 子表（tier_label 分隔符 '-'
+   * 时 pivot 成二维矩阵）。
+   */
+  billing_mode?: BillingMode | string
+  /**
    * 渠道（channel）管理员显式配置的基础单价（USD / per token）。
    * 与 official_* 同为"基础单价"语义：site 模式仍按 group.rate_multiplier / fx_rate
    * 计算本站价，与计费链路 actualCost = totalCost × RateMultiplier 一致。
@@ -94,6 +100,10 @@ export interface UserPricingModel {
   output_price?: number | null
   cache_write_price?: number | null
   cache_read_price?: number | null
+  /** per_request / image 模式：每次请求/每图片的基础单价（USD）。 */
+  per_request_price?: number | null
+  /** per_request / image 模式：tier 分层定价（tier_label + per_request_price）。 */
+  intervals?: UserPricingInterval[]
   /** LiteLLM 官方价（USD / per token）。模型不在 LiteLLM 表里或为 0 时缺失。 */
   official_input_price?: number | null
   official_output_price?: number | null

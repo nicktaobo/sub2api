@@ -1104,6 +1104,14 @@ export default {
       output: '输出价格',
       cacheWrite: '缓存创建价格',
       cacheRead: '缓存读取价格'
+    },
+    badge: {
+      perRequest: '按次计费',
+      image: '图片计费'
+    },
+    tier: {
+      label: '档位',
+      price: '每次价格'
     }
   },
 
@@ -2507,6 +2515,7 @@ export default {
         imageTiers: '图片计费层级（按次）',
         addTier: '添加层级',
         noTiersYet: '暂无层级，点击添加配置按次计费价格',
+        tierLabelMatrixHint: '提示：层级标签用 "-" 分隔（如 Low-1024x1024）会在用户定价页自动渲染为二维矩阵；否则按扁平列表展示。',
         noPricingRules: '暂无定价规则，点击"添加"创建',
         perRequestPrice: '单次价格',
         perRequestPriceRequired: '按次/图片计费模式必须设置默认价格或至少一个计费层级',
