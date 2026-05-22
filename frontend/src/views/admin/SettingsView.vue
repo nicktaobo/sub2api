@@ -4292,14 +4292,27 @@
                   >
                     {{ t("admin.settings.site.siteSubtitle") }}
                   </label>
-                  <input
-                    v-model="form.site_subtitle"
-                    type="text"
-                    class="input"
-                    :placeholder="
-                      t('admin.settings.site.siteSubtitlePlaceholder')
-                    "
-                  />
+                  <div class="space-y-2">
+                    <div
+                      v-for="code in SITE_SUBTITLE_LOCALES"
+                      :key="code"
+                      class="flex items-stretch overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
+                    >
+                      <span
+                        class="inline-flex flex-shrink-0 items-center border-r border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-400"
+                      >
+                        {{ SITE_SUBTITLE_LOCALE_LABELS[code] }}
+                      </span>
+                      <input
+                        v-model="siteSubtitleI18n[code]"
+                        type="text"
+                        class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-white dark:placeholder:text-dark-500"
+                        :placeholder="
+                          t('admin.settings.site.siteSubtitlePlaceholder')
+                        "
+                      />
+                    </div>
+                  </div>
                   <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.site.siteSubtitleHint") }}
                   </p>
@@ -4981,6 +4994,48 @@
                           class="input font-mono text-sm"
                           :placeholder="localText('在这里填写正式 Markdown 内容。', 'Write the final Markdown content here.')"
                         ></textarea>
+                    </div>
+
+                    <div class="mt-4 space-y-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
+                      <p class="text-xs font-semibold text-gray-600 dark:text-dark-300">
+                        {{ localText("多语言翻译（可选）", "Translations (optional)") }}
+                      </p>
+                      <p class="text-xs text-gray-500 dark:text-dark-400">
+                        {{ localText("未填写的语言会回退到上方默认标题和内容。", "Unfilled locales fall back to the default title and content above.") }}
+                      </p>
+                      <div
+                        v-for="code in DOC_I18N_EXTRA_LOCALES"
+                        :key="code"
+                        class="space-y-2 rounded-md border border-gray-200 bg-white p-3 dark:border-dark-700 dark:bg-dark-900/60"
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="inline-flex items-center rounded-md bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-200">
+                            {{ SITE_SUBTITLE_LOCALE_LABELS[code] }}
+                          </span>
+                        </div>
+                        <div>
+                          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                            {{ localText("文档名称", "Document title") }}
+                          </label>
+                          <input
+                            v-model="ensureDocLocaleEntry(doc, code).title"
+                            type="text"
+                            class="input text-sm"
+                            :placeholder="localText('例如：服务条款', 'Example: Terms of Service')"
+                          />
+                        </div>
+                        <div>
+                          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                            {{ localText("Markdown 内容", "Markdown content") }}
+                          </label>
+                          <textarea
+                            v-model="ensureDocLocaleEntry(doc, code).content_md"
+                            rows="6"
+                            class="input font-mono text-sm"
+                            :placeholder="localText('该语言下的 Markdown 内容（留空则回退默认）。', 'Markdown content for this locale (leave blank to fall back).')"
+                          ></textarea>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -6709,29 +6764,45 @@ const tablePageSizeMin = 5;
 const tablePageSizeMax = 1000;
 const tablePageSizeDefault = 20;
 
+// 站点副标题/协议文档支持的额外语言（默认语言为 form.title / form.content_md）。
+const SITE_SUBTITLE_LOCALES = ["en", "zh-TW", "zh"] as const;
+type SiteSubtitleLocale = (typeof SITE_SUBTITLE_LOCALES)[number];
+const SITE_SUBTITLE_LOCALE_LABELS: Record<SiteSubtitleLocale, string> = {
+  en: "English",
+  "zh-TW": "繁體中文",
+  zh: "简体中文",
+};
+const DOC_I18N_EXTRA_LOCALES: SiteSubtitleLocale[] = ["zh-TW", "zh"];
+
 function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   return [
-    {
-      id: "terms",
-      title: "服务条款",
-      content_md: "",
-    },
-    {
-      id: "usage-policy",
-      title: "使用政策",
-      content_md: "",
-    },
-    {
+    withDocI18nDefaults({ id: "terms", title: "服务条款", content_md: "" }),
+    withDocI18nDefaults({ id: "usage-policy", title: "使用政策", content_md: "" }),
+    withDocI18nDefaults({
       id: "supported-regions",
       title: "支持的国家和地区",
       content_md: "",
-    },
-    {
+    }),
+    withDocI18nDefaults({
       id: "service-specific-terms",
       title: "服务特定条款",
       content_md: "",
-    },
+    }),
   ];
+}
+
+// 给文档预填扩展语言的 i18n 槽位，便于在模板里直接 v-model 编辑。
+function withDocI18nDefaults(
+  doc: LoginAgreementDocument,
+): LoginAgreementDocument {
+  if (!doc.i18n) doc.i18n = {};
+  for (const code of DOC_I18N_EXTRA_LOCALES) {
+    if (!doc.i18n[code]) doc.i18n[code] = { title: "", content_md: "" };
+    if (typeof doc.i18n[code]!.title !== "string") doc.i18n[code]!.title = "";
+    if (typeof doc.i18n[code]!.content_md !== "string")
+      doc.i18n[code]!.content_md = "";
+  }
+  return doc;
 }
 
 function normalizeLoginAgreementDocumentId(raw: string): string {
@@ -7512,11 +7583,72 @@ function removeEndpoint(index: number) {
 }
 
 function addLoginAgreementDocument() {
-  form.login_agreement_documents.push({
-    id: `custom-${Date.now().toString(36)}`,
-    title: "",
-    content_md: "",
-  });
+  form.login_agreement_documents.push(
+    withDocI18nDefaults({
+      id: `custom-${Date.now().toString(36)}`,
+      title: "",
+      content_md: "",
+    }),
+  );
+}
+
+// 站点副标题多语言编辑：admin 在 form.site_subtitle 中存储 JSON 或纯文本。
+// 编辑期间通过 siteSubtitleI18n 拆成 3 个输入框，保存前再合回去。
+const siteSubtitleI18n = reactive<Record<SiteSubtitleLocale, string>>({
+  en: "",
+  "zh-TW": "",
+  zh: "",
+});
+
+function loadSiteSubtitleI18nFromForm() {
+  siteSubtitleI18n.en = "";
+  siteSubtitleI18n["zh-TW"] = "";
+  siteSubtitleI18n.zh = "";
+  const raw = (form.site_subtitle || "").trim();
+  if (!raw) return;
+  if (raw.startsWith("{")) {
+    try {
+      const obj = JSON.parse(raw) as Record<string, unknown>;
+      if (obj && typeof obj === "object") {
+        for (const code of SITE_SUBTITLE_LOCALES) {
+          const value = obj[code];
+          if (typeof value === "string") {
+            siteSubtitleI18n[code] = value;
+          }
+        }
+        return;
+      }
+    } catch {
+      // 不是 JSON，按纯文本处理
+    }
+  }
+  siteSubtitleI18n.en = raw;
+}
+
+function serializeSiteSubtitleFromI18n(): string {
+  const en = siteSubtitleI18n.en.trim();
+  const zhTw = siteSubtitleI18n["zh-TW"].trim();
+  const zh = siteSubtitleI18n.zh.trim();
+  if (!zhTw && !zh) {
+    return en;
+  }
+  const obj: Record<string, string> = {};
+  if (en) obj.en = en;
+  if (zhTw) obj["zh-TW"] = zhTw;
+  if (zh) obj.zh = zh;
+  return JSON.stringify(obj);
+}
+
+function ensureDocLocaleEntry(
+  doc: LoginAgreementDocument,
+  code: string,
+): { title: string; content_md: string } {
+  if (!doc.i18n) doc.i18n = {};
+  if (!doc.i18n[code]) doc.i18n[code] = { title: "", content_md: "" };
+  const entry = doc.i18n[code];
+  if (typeof entry.title !== "string") entry.title = "";
+  if (typeof entry.content_md !== "string") entry.content_md = "";
+  return entry as { title: string; content_md: string };
 }
 
 function removeLoginAgreementDocument(index: number) {
@@ -7525,14 +7657,35 @@ function removeLoginAgreementDocument(index: number) {
 
 function normalizeLoginAgreementDocumentsForSave(): LoginAgreementDocument[] {
   return form.login_agreement_documents
-    .map((doc, index) => ({
-      id:
-        normalizeLoginAgreementDocumentId(doc.id || doc.title) ||
-        `doc-${index + 1}`,
-      title: doc.title.trim(),
-      content_md: doc.content_md.trim(),
-    }))
-    .filter((doc) => doc.title || doc.content_md);
+    .map((doc, index) => {
+      const i18n: LoginAgreementDocument["i18n"] = {};
+      if (doc.i18n) {
+        for (const [code, entry] of Object.entries(doc.i18n)) {
+          const title = (entry?.title || "").trim();
+          const content_md = (entry?.content_md || "").trim();
+          if (title || content_md) {
+            i18n![code] = { title, content_md };
+          }
+        }
+      }
+      const normalized: LoginAgreementDocument = {
+        id:
+          normalizeLoginAgreementDocumentId(doc.id || doc.title) ||
+          `doc-${index + 1}`,
+        title: doc.title.trim(),
+        content_md: doc.content_md.trim(),
+      };
+      if (Object.keys(i18n!).length > 0) {
+        normalized.i18n = i18n;
+      }
+      return normalized;
+    })
+    .filter(
+      (doc) =>
+        doc.title ||
+        doc.content_md ||
+        (doc.i18n && Object.keys(doc.i18n).length > 0),
+    );
 }
 
 function findDuplicateLoginAgreementDocumentId(
@@ -7599,12 +7752,26 @@ async function loadSettings() {
     form.login_agreement_documents =
       Array.isArray(settings.login_agreement_documents) &&
       settings.login_agreement_documents.length > 0
-        ? settings.login_agreement_documents.map((doc) => ({
-            id: doc.id || "",
-            title: doc.title || "",
-            content_md: doc.content_md || "",
-          }))
+        ? settings.login_agreement_documents.map((doc) =>
+            withDocI18nDefaults({
+              id: doc.id || "",
+              title: doc.title || "",
+              content_md: doc.content_md || "",
+              i18n: doc.i18n
+                ? Object.fromEntries(
+                    Object.entries(doc.i18n).map(([code, entry]) => [
+                      code,
+                      {
+                        title: entry?.title || "",
+                        content_md: entry?.content_md || "",
+                      },
+                    ]),
+                  )
+                : {},
+            }),
+          )
         : defaultLoginAgreementDocuments();
+    loadSiteSubtitleI18nFromForm();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
@@ -7950,7 +8117,7 @@ async function saveSettings() {
       default_user_rpm_limit: form.default_user_rpm_limit,
       site_name: form.site_name,
       site_logo: form.site_logo,
-      site_subtitle: form.site_subtitle,
+      site_subtitle: serializeSiteSubtitleFromI18n(),
       api_base_url: form.api_base_url,
       contact_info: form.contact_info,
       doc_url: form.doc_url,

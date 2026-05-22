@@ -455,6 +455,7 @@ export default {
 
   // Auth
   auth: {
+    siteSubtitleDefault: '订阅转 API 统一网关',
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
@@ -674,6 +675,7 @@ export default {
       description: '创建账户前，请先阅读并同意以下条款。同意按钮将在 5 秒后解锁。',
       relatedDocuments: '相关文档',
       noDocuments: '请仔细阅读本站服务条款与隐私政策。',
+      emptyContent: '该文档暂无内容。',
       accept: '我已阅读并同意',
       acceptCountdown: '请仔细阅读（{seconds} 秒）',
       decline: '不同意',

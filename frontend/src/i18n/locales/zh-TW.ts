@@ -450,6 +450,7 @@ export default {
 
   // Auth
   auth: {
+    siteSubtitleDefault: '訂閱轉 API 統一閘道',
     welcomeBack: '歡迎回來',
     signInToAccount: '登入您的帳戶以繼續',
     signIn: '登入',
@@ -640,6 +641,7 @@ export default {
       description: '建立帳戶前，請先閱讀並同意以下條款。閱讀按鈕將在 5 秒後解鎖。',
       relatedDocuments: '相關文件',
       noDocuments: '請仔細閱讀本站服務條款與隱私政策。',
+      emptyContent: '此文件暫無內容。',
       accept: '我已閱讀並同意',
       acceptCountdown: '請仔細閱讀（{seconds} 秒）',
       decline: '不同意',

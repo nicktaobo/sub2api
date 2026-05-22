@@ -455,6 +455,7 @@ export default {
 
   // Auth
   auth: {
+    siteSubtitleDefault: 'Subscription to API Conversion Platform',
     welcomeBack: 'Welcome Back',
     signInToAccount: 'Sign in to your account to continue',
     signIn: 'Sign In',
@@ -675,6 +676,7 @@ export default {
       description: 'Before creating an account, please read and accept the terms below. The accept button unlocks after 5 seconds.',
       relatedDocuments: 'Related documents',
       noDocuments: 'Please carefully review our Terms of Service and Privacy Policy.',
+      emptyContent: 'No content available for this document yet.',
       accept: 'I have read and agree',
       acceptCountdown: 'Please read carefully ({seconds}s)',
       decline: 'Decline',
