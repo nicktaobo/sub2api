@@ -105,6 +105,9 @@ type AffiliateRepository interface {
 	GetAffiliateByCode(ctx context.Context, code string) (*AffiliateSummary, error)
 	BindInviter(ctx context.Context, userID, inviterID int64) (bool, error)
 	AccrueQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceOrderID *int64) (bool, error)
+	// AccrueConsumptionQuota 消费侧返利入账（不冻结、source_type=consume、不关联 order）。
+	// 与 AccrueQuota 分开是因为消费返利由 worker 聚合后调用，语义跟充值返利清晰隔离。
+	AccrueConsumptionQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64) (bool, error)
 	GetAccruedRebateFromInvitee(ctx context.Context, inviterID, inviteeUserID int64) (float64, error)
 	ThawFrozenQuota(ctx context.Context, userID int64) (float64, error)
 	TransferQuotaToBalance(ctx context.Context, userID int64) (float64, float64, error)
@@ -383,6 +386,78 @@ func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, invit
 	}
 
 	applied, err := s.repo.AccrueQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate, freezeHours, sourceOrderID)
+	if err != nil {
+		return 0, err
+	}
+	if !applied {
+		return 0, nil
+	}
+	return rebate, nil
+}
+
+// AccrueConsumptionRebate 消费返利入账，由 worker 聚合后调用。
+//
+// 入参 suggestedRebate 已经是 hook 端按全局比例算好的返利金额（用户自己的专属比例 v1 不影响消费侧）。
+// 本方法负责：
+//  1. 总开关 + 消费子开关都开
+//  2. duration 窗口校验（与充值返利共用 affiliate_rebate_duration_days）
+//  3. per-invitee cap 截断（与充值返利共用 cap，两侧累计）
+//  4. 调 AccrueConsumptionQuota 入账（不冻结）
+//
+// 返回 (实际入账金额, error)。被开关 / 窗口 / cap 拒绝时返回 (0, nil)。
+func (s *AffiliateService) AccrueConsumptionRebate(ctx context.Context, inviterID, inviteeUserID int64, suggestedRebate float64) (float64, error) {
+	if s == nil || s.repo == nil {
+		return 0, nil
+	}
+	if inviterID <= 0 || inviteeUserID <= 0 || suggestedRebate <= 0 || math.IsNaN(suggestedRebate) || math.IsInf(suggestedRebate, 0) {
+		return 0, nil
+	}
+	if !s.IsEnabled(ctx) {
+		return 0, nil
+	}
+	if s.settingService != nil && !s.settingService.IsAffiliateConsumeRebateEnabled(ctx) {
+		return 0, nil
+	}
+
+	// 加载 invitee 用于 duration 校验
+	inviteeSummary, err := s.repo.EnsureUserAffiliate(ctx, inviteeUserID)
+	if err != nil {
+		return 0, err
+	}
+	// inviter_id 可能已经被解绑（CASCADE 关系不会发生，但防御性检查）
+	if inviteeSummary.InviterID == nil || *inviteeSummary.InviterID != inviterID {
+		return 0, nil
+	}
+	// 有效期检查
+	if s.settingService != nil {
+		if durationDays := s.settingService.GetAffiliateRebateDurationDays(ctx); durationDays > 0 {
+			if time.Now().After(inviteeSummary.CreatedAt.AddDate(0, 0, durationDays)) {
+				return 0, nil
+			}
+		}
+	}
+
+	rebate := roundTo(suggestedRebate, 8)
+	// 单人累计上限：跟充值返利共享同一个 cap。
+	if s.settingService != nil {
+		if perInviteeCap := s.settingService.GetAffiliateRebatePerInviteeCap(ctx); perInviteeCap > 0 {
+			existing, err := s.repo.GetAccruedRebateFromInvitee(ctx, inviterID, inviteeUserID)
+			if err != nil {
+				return 0, err
+			}
+			if existing >= perInviteeCap {
+				return 0, nil
+			}
+			if remaining := perInviteeCap - existing; rebate > remaining {
+				rebate = roundTo(remaining, 8)
+			}
+		}
+	}
+	if rebate <= 0 {
+		return 0, nil
+	}
+
+	applied, err := s.repo.AccrueConsumptionQuota(ctx, inviterID, inviteeUserID, rebate)
 	if err != nil {
 		return 0, err
 	}
