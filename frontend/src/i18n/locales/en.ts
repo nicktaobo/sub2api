@@ -2181,7 +2181,9 @@ export default {
         exclusive: 'Exclusive Group',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
-        rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
+        rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).',
+        affiliateRebateExcluded: 'Exclude this group from affiliate consumption rebate',
+        affiliateRebateExcludedHint: 'When checked, consumption in this group will not generate affiliate rebate for inviters. Topup rebate is unaffected.'
       },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
@@ -5386,6 +5388,14 @@ export default {
           durationDaysDesc: 'Rebate relationship expires after this many days since invitee registration. 0 = permanent.',
           perInviteeCap: 'Per-Invitee Rebate Cap',
           perInviteeCapDesc: 'Maximum total rebate from a single invitee. 0 = no limit.',
+          consume: {
+            title: 'Consumption Rebate',
+            description: "Rebate the inviter when the invitee's API usage debits balance. Independent toggle from topup rebate.",
+            rate: 'Consumption Rebate Rate (%)',
+            rateDesc: 'Computed from the platform actual receipt of each consumption.',
+            minAmount: 'Min Amount per Consumption (USD)',
+            minAmountDesc: 'Consumption below this threshold will not enqueue rebate, avoiding outbox flooding.',
+          },
           customUsers: {
             title: 'Per-User Overrides',
             description: 'Set a custom invite code or exclusive rebate rate for specific users. Lists only users that have an override applied.',

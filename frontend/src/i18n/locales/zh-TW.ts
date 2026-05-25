@@ -2184,6 +2184,8 @@ export default {
         rpmLimit: '每分鐘請求數 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每使用者在本分組每分鐘最大請求數，0 = 不限制；一旦設定即接管該使用者的限流（覆蓋使用者級 rpm_limit）',
+        affiliateRebateExcluded: '該分組不參與邀請返利分成（消費側）',
+        affiliateRebateExcludedHint: '勾選後，本分組的消費不會觸發邀請返利分成給邀請人；充值返利不受影響',
         exclusiveLabel: '專屬分組',
         exclusiveHint: '專屬分組，可以手動指定給使用者',
         platformLabel: '平台限制',
@@ -5445,6 +5447,14 @@ export default {
           durationDaysDesc: '被邀請使用者註冊後多少天內的儲值產生返利。0 = 永久有效。',
           perInviteeCap: '單人返利上限',
           perInviteeCapDesc: '每個被邀請使用者最多產生的返利總額。0 = 無上限。',
+          consume: {
+            title: '消費返利',
+            description: '被邀請人 API 消費時按比例分給邀請人。開關與儲值返利獨立。',
+            rate: '消費返利比例 (%)',
+            rateDesc: '按被邀請人當次消費的「平台實收」金額計算返利。',
+            minAmount: '單次最小入帳閾值 (USD)',
+            minAmountDesc: '單次消費低於該閾值不寫 outbox，避免高頻低額請求灌爆佇列。',
+          },
           customUsers: {
             title: '專屬使用者配置',
             description: '為指定使用者設定專屬邀請碼或專屬返利比例。僅展示已設定過專屬配置的使用者。',

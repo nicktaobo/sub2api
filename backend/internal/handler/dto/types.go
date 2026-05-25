@@ -119,6 +119,9 @@ type Group struct {
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制），设置后覆盖用户级 rpm_limit。
 	RPMLimit int `json:"rpm_limit"`
 
+	// AffiliateRebateExcluded 该分组消费不参与邀请返利分成（migration 143）
+	AffiliateRebateExcluded bool `json:"affiliate_rebate_excluded"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

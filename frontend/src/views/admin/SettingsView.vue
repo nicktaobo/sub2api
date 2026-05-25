@@ -5388,6 +5388,54 @@
                 </p>
               </div>
 
+              <!-- 消费返利（与充值返利独立，可单独开关） -->
+              <div class="border-t border-gray-100 pt-6 dark:border-dark-700">
+                <div class="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t('admin.settings.features.affiliate.consume.title') }}
+                    </h3>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('admin.settings.features.affiliate.consume.description') }}
+                    </p>
+                  </div>
+                  <Toggle v-model="form.affiliate_consume_rebate_enabled" />
+                </div>
+                <div v-if="form.affiliate_consume_rebate_enabled" class="space-y-4">
+                  <div>
+                    <label class="input-label">
+                      {{ t('admin.settings.features.affiliate.consume.rate') }}
+                    </label>
+                    <input
+                      v-model.number="form.affiliate_consume_rebate_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      class="input"
+                    />
+                    <p class="mt-1 text-xs text-gray-400">
+                      {{ t('admin.settings.features.affiliate.consume.rateDesc') }}
+                    </p>
+                  </div>
+                  <div>
+                    <label class="input-label">
+                      {{ t('admin.settings.features.affiliate.consume.minAmount') }}
+                    </label>
+                    <input
+                      v-model.number="form.affiliate_consume_rebate_min_amount"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      class="input"
+                    />
+                    <p class="mt-1 text-xs text-gray-400">
+                      {{ t('admin.settings.features.affiliate.consume.minAmountDesc') }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- 专属用户管理 -->
               <div class="border-t border-gray-100 pt-6 dark:border-dark-700">
                 <div class="mb-3 flex items-center justify-between">
@@ -7033,6 +7081,9 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
+  affiliate_consume_rebate_enabled: false,
+  affiliate_consume_rebate_rate: 5,
+  affiliate_consume_rebate_min_amount: 0.0001,
   default_concurrency: 1,
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
@@ -8308,6 +8359,9 @@ async function saveSettings() {
       affiliate_rebate_freeze_hours: Math.max(0, Math.min(720, Number(form.affiliate_rebate_freeze_hours) || 0)),
       affiliate_rebate_duration_days: Math.max(0, Math.min(3650, Math.floor(Number(form.affiliate_rebate_duration_days) || 0))),
       affiliate_rebate_per_invitee_cap: Math.max(0, Number(form.affiliate_rebate_per_invitee_cap) || 0),
+      affiliate_consume_rebate_enabled: !!form.affiliate_consume_rebate_enabled,
+      affiliate_consume_rebate_rate: Math.min(100, Math.max(0, Number(form.affiliate_consume_rebate_rate) || 0)),
+      affiliate_consume_rebate_min_amount: Math.max(0, Number(form.affiliate_consume_rebate_min_amount) || 0),
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,

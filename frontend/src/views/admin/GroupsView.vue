@@ -509,6 +509,17 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
+        <div>
+          <label class="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="createForm.affiliate_rebate_excluded"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            {{ t("admin.groups.form.affiliateRebateExcluded") }}
+          </label>
+          <p class="input-hint">{{ t("admin.groups.form.affiliateRebateExcludedHint") }}</p>
+        </div>
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -1691,6 +1702,17 @@
             :placeholder="t('admin.groups.form.rpmLimitPlaceholder')"
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
+        </div>
+        <div>
+          <label class="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="editForm.affiliate_rebate_excluded"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            {{ t("admin.groups.form.affiliateRebateExcluded") }}
+          </label>
+          <p class="input-hint">{{ t("admin.groups.form.affiliateRebateExcludedHint") }}</p>
         </div>
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
@@ -3138,6 +3160,8 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // 邀请返利消费侧排除（migration 143）
+  affiliate_rebate_excluded: false,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3424,6 +3448,8 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // 邀请返利消费侧排除（migration 143）
+  affiliate_rebate_excluded: false,
 });
 
 type ImagePricingFormState = {
@@ -3795,6 +3821,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.affiliate_rebate_excluded = group.affiliate_rebate_excluded ?? false;
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
     group.model_routing,

@@ -233,6 +233,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:             settings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:            settings.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:           settings.AffiliateRebatePerInviteeCap,
+		AffiliateConsumeRebateEnabled:          settings.AffiliateConsumeRebateEnabled,
+		AffiliateConsumeRebateRate:             settings.AffiliateConsumeRebateRate,
+		AffiliateConsumeRebateMinAmount:        settings.AffiliateConsumeRebateMinAmount,
 		DefaultUserRPMLimit:                    settings.DefaultUserRPMLimit,
 		DefaultSubscriptions:                   defaultSubscriptions,
 		EnableModelFallback:                    settings.EnableModelFallback,
@@ -540,6 +543,9 @@ type UpdateSettingsRequest struct {
 	AffiliateRebateFreezeHours                *int                              `json:"affiliate_rebate_freeze_hours"`
 	AffiliateRebateDurationDays               *int                              `json:"affiliate_rebate_duration_days"`
 	AffiliateRebatePerInviteeCap              *float64                          `json:"affiliate_rebate_per_invitee_cap"`
+	AffiliateConsumeRebateEnabled             *bool                             `json:"affiliate_consume_rebate_enabled"`
+	AffiliateConsumeRebateRate                *float64                          `json:"affiliate_consume_rebate_rate"`
+	AffiliateConsumeRebateMinAmount           *float64                          `json:"affiliate_consume_rebate_min_amount"`
 	DefaultUserRPMLimit                       int                               `json:"default_user_rpm_limit"`
 	DefaultSubscriptions                      []dto.DefaultSubscriptionSetting  `json:"default_subscriptions"`
 	AuthSourceDefaultEmailBalance             *float64                          `json:"auth_source_default_email_balance"`
@@ -738,6 +744,28 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if affiliateRebatePerInviteeCap < 0 {
 		affiliateRebatePerInviteeCap = service.AffiliateRebatePerInviteeCapDefault
+	}
+	// 消费返利（migration 143）：未传字段沿用旧值，传了 nil pointer 同样保持
+	affiliateConsumeRebateEnabled := previousSettings.AffiliateConsumeRebateEnabled
+	if req.AffiliateConsumeRebateEnabled != nil {
+		affiliateConsumeRebateEnabled = *req.AffiliateConsumeRebateEnabled
+	}
+	affiliateConsumeRebateRate := previousSettings.AffiliateConsumeRebateRate
+	if req.AffiliateConsumeRebateRate != nil {
+		affiliateConsumeRebateRate = *req.AffiliateConsumeRebateRate
+	}
+	if affiliateConsumeRebateRate < service.AffiliateRebateRateMin {
+		affiliateConsumeRebateRate = service.AffiliateRebateRateMin
+	}
+	if affiliateConsumeRebateRate > service.AffiliateRebateRateMax {
+		affiliateConsumeRebateRate = service.AffiliateRebateRateMax
+	}
+	affiliateConsumeRebateMinAmount := previousSettings.AffiliateConsumeRebateMinAmount
+	if req.AffiliateConsumeRebateMinAmount != nil {
+		affiliateConsumeRebateMinAmount = *req.AffiliateConsumeRebateMinAmount
+	}
+	if affiliateConsumeRebateMinAmount < 0 {
+		affiliateConsumeRebateMinAmount = service.AffiliateConsumeRebateMinAmountDefault
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -1663,6 +1691,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:             affiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:            affiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:           affiliateRebatePerInviteeCap,
+		AffiliateConsumeRebateEnabled:          affiliateConsumeRebateEnabled,
+		AffiliateConsumeRebateRate:             affiliateConsumeRebateRate,
+		AffiliateConsumeRebateMinAmount:        affiliateConsumeRebateMinAmount,
 		DefaultUserRPMLimit:                    req.DefaultUserRPMLimit,
 		DefaultSubscriptions:                   defaultSubscriptions,
 		EnableModelFallback:                    req.EnableModelFallback,
@@ -2086,6 +2117,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:             updatedSettings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:            updatedSettings.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:           updatedSettings.AffiliateRebatePerInviteeCap,
+		AffiliateConsumeRebateEnabled:          updatedSettings.AffiliateConsumeRebateEnabled,
+		AffiliateConsumeRebateRate:             updatedSettings.AffiliateConsumeRebateRate,
+		AffiliateConsumeRebateMinAmount:        updatedSettings.AffiliateConsumeRebateMinAmount,
 		DefaultUserRPMLimit:                    updatedSettings.DefaultUserRPMLimit,
 		DefaultSubscriptions:                   updatedDefaultSubscriptions,
 		EnableModelFallback:                    updatedSettings.EnableModelFallback,

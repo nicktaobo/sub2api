@@ -549,6 +549,8 @@ export interface Group {
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
+  // 邀请返利消费侧排除（migration 143）
+  affiliate_rebate_excluded?: boolean
   created_at: string
   updated_at: string
 }

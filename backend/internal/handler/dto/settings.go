@@ -157,6 +157,10 @@ type SystemSettings struct {
 	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
 	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
 	AffiliateRebatePerInviteeCap float64                      `json:"affiliate_rebate_per_invitee_cap"`
+	// 消费返利（migration 143）
+	AffiliateConsumeRebateEnabled   bool    `json:"affiliate_consume_rebate_enabled"`
+	AffiliateConsumeRebateRate      float64 `json:"affiliate_consume_rebate_rate"`
+	AffiliateConsumeRebateMinAmount float64 `json:"affiliate_consume_rebate_min_amount"`
 	DefaultUserRPMLimit          int                          `json:"default_user_rpm_limit"`
 	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
 

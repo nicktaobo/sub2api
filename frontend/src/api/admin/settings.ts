@@ -332,6 +332,9 @@ export interface SystemSettings {
   affiliate_rebate_freeze_hours: number;
   affiliate_rebate_duration_days: number;
   affiliate_rebate_per_invitee_cap: number;
+  affiliate_consume_rebate_enabled: boolean;
+  affiliate_consume_rebate_rate: number;
+  affiliate_consume_rebate_min_amount: number;
   default_concurrency: number;
   default_user_rpm_limit: number;
   default_subscriptions: DefaultSubscriptionSetting[];
@@ -579,6 +582,9 @@ export interface UpdateSettingsRequest {
   affiliate_rebate_freeze_hours?: number;
   affiliate_rebate_duration_days?: number;
   affiliate_rebate_per_invitee_cap?: number;
+  affiliate_consume_rebate_enabled?: boolean;
+  affiliate_consume_rebate_rate?: number;
+  affiliate_consume_rebate_min_amount?: number;
   default_concurrency?: number;
   default_user_rpm_limit?: number;
   default_subscriptions?: DefaultSubscriptionSetting[];

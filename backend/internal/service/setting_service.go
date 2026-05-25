@@ -1816,6 +1816,16 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		settings.AffiliateRebatePerInviteeCap = AffiliateRebatePerInviteeCapDefault
 	}
 	updates[SettingKeyAffiliateRebatePerInviteeCap] = strconv.FormatFloat(settings.AffiliateRebatePerInviteeCap, 'f', 8, 64)
+
+	// 消费返利（migration 143）
+	updates[SettingKeyAffiliateConsumeRebateEnabled] = strconv.FormatBool(settings.AffiliateConsumeRebateEnabled)
+	settings.AffiliateConsumeRebateRate = clampAffiliateRebateRate(settings.AffiliateConsumeRebateRate)
+	updates[SettingKeyAffiliateConsumeRebateRate] = strconv.FormatFloat(settings.AffiliateConsumeRebateRate, 'f', 8, 64)
+	if settings.AffiliateConsumeRebateMinAmount < 0 {
+		settings.AffiliateConsumeRebateMinAmount = AffiliateConsumeRebateMinAmountDefault
+	}
+	updates[SettingKeyAffiliateConsumeRebateMinAmount] = strconv.FormatFloat(settings.AffiliateConsumeRebateMinAmount, 'f', 8, 64)
+
 	updates[SettingKeyDefaultUserRPMLimit] = strconv.Itoa(settings.DefaultUserRPMLimit)
 	defaultSubsJSON, err := json.Marshal(settings.DefaultSubscriptions)
 	if err != nil {
@@ -2680,6 +2690,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAffiliateRebateFreezeHours:                strconv.Itoa(AffiliateRebateFreezeHoursDefault),
 		SettingKeyAffiliateRebateDurationDays:               strconv.Itoa(AffiliateRebateDurationDaysDefault),
 		SettingKeyAffiliateRebatePerInviteeCap:              strconv.FormatFloat(AffiliateRebatePerInviteeCapDefault, 'f', 2, 64),
+		SettingKeyAffiliateConsumeRebateEnabled:             strconv.FormatBool(AffiliateConsumeRebateEnabledDefault),
+		SettingKeyAffiliateConsumeRebateRate:                strconv.FormatFloat(AffiliateConsumeRebateRateDefault, 'f', 8, 64),
+		SettingKeyAffiliateConsumeRebateMinAmount:           strconv.FormatFloat(AffiliateConsumeRebateMinAmountDefault, 'f', 8, 64),
 		SettingKeyDefaultUserRPMLimit:                       "0",
 		SettingKeyDefaultSubscriptions:                      "[]",
 		SettingKeyAuthSourceDefaultEmailBalance:             "0",
@@ -2869,6 +2882,20 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	if perInviteeCap, err := strconv.ParseFloat(settings[SettingKeyAffiliateRebatePerInviteeCap], 64); err == nil && perInviteeCap >= 0 {
 		result.AffiliateRebatePerInviteeCap = perInviteeCap
 	}
+
+	// 消费返利（migration 143）
+	result.AffiliateConsumeRebateEnabled = settings[SettingKeyAffiliateConsumeRebateEnabled] == "true"
+	if consumeRate, err := strconv.ParseFloat(settings[SettingKeyAffiliateConsumeRebateRate], 64); err == nil {
+		result.AffiliateConsumeRebateRate = clampAffiliateRebateRate(consumeRate)
+	} else {
+		result.AffiliateConsumeRebateRate = AffiliateConsumeRebateRateDefault
+	}
+	if minAmount, err := strconv.ParseFloat(settings[SettingKeyAffiliateConsumeRebateMinAmount], 64); err == nil && minAmount >= 0 {
+		result.AffiliateConsumeRebateMinAmount = minAmount
+	} else {
+		result.AffiliateConsumeRebateMinAmount = AffiliateConsumeRebateMinAmountDefault
+	}
+
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
 	// 敏感信息直接返回，方便测试连接时使用

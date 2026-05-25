@@ -151,6 +151,12 @@ type SystemSettings struct {
 	AffiliateRebateFreezeHours   int
 	AffiliateRebateDurationDays  int
 	AffiliateRebatePerInviteeCap float64
+
+	// 消费返利（migration 143）—— 独立开关 + 比例 + 最小入账阈值
+	AffiliateConsumeRebateEnabled   bool
+	AffiliateConsumeRebateRate      float64
+	AffiliateConsumeRebateMinAmount float64
+
 	DefaultUserRPMLimit          int
 	DefaultSubscriptions         []DefaultSubscriptionSetting
 

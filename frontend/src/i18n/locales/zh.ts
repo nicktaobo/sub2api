@@ -2239,6 +2239,8 @@ export default {
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
+        affiliateRebateExcluded: '该分组不参与邀请返利分成（消费侧）',
+        affiliateRebateExcludedHint: '勾选后，本分组的消费不会触发邀请返利分成给邀请人；充值返利不受影响',
         exclusiveLabel: '专属分组',
         exclusiveHint: '专属分组，可以手动指定给用户',
         platformLabel: '平台限制',
@@ -5549,6 +5551,14 @@ export default {
           durationDaysDesc: '被邀请用户注册后多少天内的充值产生返利。0 = 永久有效。',
           perInviteeCap: '单人返利上限',
           perInviteeCapDesc: '每个被邀请用户最多产生的返利总额。0 = 无上限。',
+          consume: {
+            title: '消费返利',
+            description: '被邀请人 API 消费时按比例分给邀请人。开关与充值返利独立。',
+            rate: '消费返利比例 (%)',
+            rateDesc: '按被邀请人当次消费的「平台实收」金额计算返利。',
+            minAmount: '单次最小入账阈值 (USD)',
+            minAmountDesc: '单次消费低于该阈值不写 outbox，避免高频低额请求灌爆队列。',
+          },
           customUsers: {
             title: '专属用户配置',
             description: '为指定用户设置专属邀请码或专属返利比例。仅展示已设置过专属配置的用户。',
