@@ -2351,6 +2351,44 @@ func (s *SettingService) GetAffiliateRebatePerInviteeCap(ctx context.Context) fl
 	return cap
 }
 
+// IsAffiliateConsumeRebateEnabled 检查消费返利是否启用。
+// 必须 affiliate_enabled 总开关 + 消费子开关同时 true 才生效；调用方自行检查总开关。
+func (s *SettingService) IsAffiliateConsumeRebateEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateConsumeRebateEnabled)
+	if err != nil {
+		return AffiliateConsumeRebateEnabledDefault
+	}
+	return value == "true"
+}
+
+// GetAffiliateConsumeRebateRatePercent 读取并 clamp 消费返利比例（百分比）。
+// 与充值返利比例独立配置；解析失败、缺失或越界回退到 AffiliateConsumeRebateRateDefault。
+func (s *SettingService) GetAffiliateConsumeRebateRatePercent(ctx context.Context) float64 {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateConsumeRebateRate)
+	if err != nil {
+		return AffiliateConsumeRebateRateDefault
+	}
+	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return AffiliateConsumeRebateRateDefault
+	}
+	return clampAffiliateRebateRate(rate)
+}
+
+// GetAffiliateConsumeRebateMinAmount 返回单次消费写 outbox 的最小阈值（USD）。
+// 低于此值的消费不写 outbox，避免高频低额请求把队列灌爆。
+func (s *SettingService) GetAffiliateConsumeRebateMinAmount(ctx context.Context) float64 {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateConsumeRebateMinAmount)
+	if err != nil {
+		return AffiliateConsumeRebateMinAmountDefault
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return AffiliateConsumeRebateMinAmountDefault
+	}
+	return v
+}
+
 // IsPasswordResetEnabled 检查是否启用密码重置功能
 // 要求：必须同时开启邮件验证
 func (s *SettingService) IsPasswordResetEnabled(ctx context.Context) bool {

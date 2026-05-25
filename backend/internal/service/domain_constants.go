@@ -29,6 +29,11 @@ const (
 	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
 	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
 	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
+
+	// 消费返利（migration 143）—— 独立开关 + 比例，跟充值返利完全分开。
+	AffiliateConsumeRebateEnabledDefault   = false  // 消费返利总开关默认关闭
+	AffiliateConsumeRebateRateDefault      = 5.0    // 消费返利比例默认 5%
+	AffiliateConsumeRebateMinAmountDefault = 0.0001 // 单次消费 SiteActualCost 低于该阈值不写 outbox
 )
 
 // Platform constants
@@ -110,6 +115,9 @@ const (
 	SettingKeyAffiliateRebateFreezeHours       = "affiliate_rebate_freeze_hours"       // 返利冻结期（小时，0=不冻结）
 	SettingKeyAffiliateRebateDurationDays      = "affiliate_rebate_duration_days"      // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap     = "affiliate_rebate_per_invitee_cap"    // 单人返利上限（0=无上限）
+	SettingKeyAffiliateConsumeRebateEnabled    = "affiliate_consume_rebate_enabled"    // 消费返利开关（独立于充值返利）
+	SettingKeyAffiliateConsumeRebateRate       = "affiliate_consume_rebate_rate"       // 消费返利比例（百分比，0-100）
+	SettingKeyAffiliateConsumeRebateMinAmount  = "affiliate_consume_rebate_min_amount" // 单次消费最小入账阈值（USD，低于此值不写 outbox）
 	SettingKeyRiskControlEnabled               = "risk_control_enabled"                // 是否启用风控中心入口与审计链路
 	SettingKeyContentModerationConfig          = "content_moderation_config"           // 内容审计配置（JSON）
 	SettingKeyLoginAgreementEnabled            = "login_agreement_enabled"             // 登录前是否要求同意条款

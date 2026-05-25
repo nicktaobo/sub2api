@@ -94,6 +94,12 @@ type AffiliateDetail struct {
 	Invitees                   []AffiliateInvitee `json:"invitees"`
 }
 
+// AffiliateConsumeOutboxRepository 邀请返利消费侧 outbox 的薄 repo（migration 143）。
+// 同步插入由 usage_billing_repo 在事务内执行；该接口仅供 worker 检查积压。
+type AffiliateConsumeOutboxRepository interface {
+	HasPending(ctx context.Context) (bool, error)
+}
+
 type AffiliateRepository interface {
 	EnsureUserAffiliate(ctx context.Context, userID int64) (*AffiliateSummary, error)
 	GetAffiliateByCode(ctx context.Context, code string) (*AffiliateSummary, error)

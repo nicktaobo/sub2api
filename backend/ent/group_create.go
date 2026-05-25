@@ -481,6 +481,20 @@ func (_c *GroupCreate) SetNillableRpmLimit(v *int) *GroupCreate {
 	return _c
 }
 
+// SetAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field.
+func (_c *GroupCreate) SetAffiliateRebateExcluded(v bool) *GroupCreate {
+	_c.mutation.SetAffiliateRebateExcluded(v)
+	return _c
+}
+
+// SetNillableAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAffiliateRebateExcluded(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAffiliateRebateExcluded(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -702,6 +716,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
 	}
+	if _, ok := _c.mutation.AffiliateRebateExcluded(); !ok {
+		v := group.DefaultAffiliateRebateExcluded
+		_c.mutation.SetAffiliateRebateExcluded(v)
+	}
 	return nil
 }
 
@@ -800,6 +818,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
+	}
+	if _, ok := _c.mutation.AffiliateRebateExcluded(); !ok {
+		return &ValidationError{Name: "affiliate_rebate_excluded", err: errors.New(`ent: missing required field "Group.affiliate_rebate_excluded"`)}
 	}
 	return nil
 }
@@ -963,6 +984,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
+	}
+	if value, ok := _c.mutation.AffiliateRebateExcluded(); ok {
+		_spec.SetField(group.FieldAffiliateRebateExcluded, field.TypeBool, value)
+		_node.AffiliateRebateExcluded = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1660,6 +1685,18 @@ func (u *GroupUpsert) AddRpmLimit(v int) *GroupUpsert {
 	return u
 }
 
+// SetAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field.
+func (u *GroupUpsert) SetAffiliateRebateExcluded(v bool) *GroupUpsert {
+	u.Set(group.FieldAffiliateRebateExcluded, v)
+	return u
+}
+
+// UpdateAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAffiliateRebateExcluded() *GroupUpsert {
+	u.SetExcluded(group.FieldAffiliateRebateExcluded)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -2332,6 +2369,20 @@ func (u *GroupUpsertOne) AddRpmLimit(v int) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateRpmLimit() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field.
+func (u *GroupUpsertOne) SetAffiliateRebateExcluded(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAffiliateRebateExcluded(v)
+	})
+}
+
+// UpdateAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAffiliateRebateExcluded() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAffiliateRebateExcluded()
 	})
 }
 
@@ -3173,6 +3224,20 @@ func (u *GroupUpsertBulk) AddRpmLimit(v int) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateRpmLimit() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field.
+func (u *GroupUpsertBulk) SetAffiliateRebateExcluded(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAffiliateRebateExcluded(v)
+	})
+}
+
+// UpdateAffiliateRebateExcluded sets the "affiliate_rebate_excluded" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAffiliateRebateExcluded() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAffiliateRebateExcluded()
 	})
 }
 

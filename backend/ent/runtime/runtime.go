@@ -881,6 +881,10 @@ func init() {
 	groupDescRpmLimit := groupFields[30].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
+	// groupDescAffiliateRebateExcluded is the schema descriptor for affiliate_rebate_excluded field.
+	groupDescAffiliateRebateExcluded := groupFields[31].Descriptor()
+	// group.DefaultAffiliateRebateExcluded holds the default value on creation for the affiliate_rebate_excluded field.
+	group.DefaultAffiliateRebateExcluded = groupDescAffiliateRebateExcluded.Default.(bool)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0
