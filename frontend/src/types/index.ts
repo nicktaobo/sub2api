@@ -179,6 +179,22 @@ export interface CustomEndpoint {
   description: string
 }
 
+export type ContactMethodType =
+  | 'telegram'
+  | 'wechat_work'
+  | 'wechat'
+  | 'qq'
+  | 'email'
+  | 'custom'
+
+export interface ContactMethod {
+  id: string
+  type: ContactMethodType | ''
+  label: string
+  value: string
+  sort_order: number
+}
+
 export interface LoginAgreementLocaleContent {
   title?: string
   content_md?: string
@@ -212,6 +228,7 @@ export interface PublicSettings {
   site_subtitle: string
   api_base_url: string
   contact_info: string
+  contact_methods: ContactMethod[]
   doc_url: string
   home_content: string
   hide_ccs_import_button: boolean

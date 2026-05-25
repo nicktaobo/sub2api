@@ -119,6 +119,12 @@ export default {
       description: '註冊即可獲得免費試用額度，體驗一站式 AI 服務',
       button: '免費註冊'
     },
+    // 聯絡我們
+    contact: {
+      eyebrow: 'CONTACT US',
+      title: '需要協助？隨時聯絡我們',
+      subtitle: '工單、技術支援、合作洽談，挑你方便的渠道。'
+    },
     numbers: {
       providers: 'AI 模型供應商',
       uptime: '服務可用性',
@@ -5712,6 +5718,22 @@ export default {
         contactInfo: '客服聯絡方式',
         contactInfoPlaceholder: '例如：QQ: 123456789',
         contactInfoHint: '填寫客服聯絡方式，將展示在兌換頁面、個人資料等位置',
+        contactMethods: {
+          title: '聯絡方式（含圖示）',
+          description: '設定多條聯絡渠道，將在首頁、控制台底部、頭像下拉選單中以圖示形式顯示。',
+          itemLabel: '第 {n} 條',
+          type: '類型',
+          name: '顯示名稱',
+          namePlaceholder: '例如：TG 客服',
+          value: '連結 / 帳號',
+          valuePlaceholder: '例如：https://t.me/milton123',
+          add: '新增聯絡方式',
+          types: {
+            wechatWork: '企業微信',
+            wechat: '微信',
+            custom: '自訂',
+          },
+        },
         docUrl: '文件連結',
         docUrlHint: '文件網站的連結。留空則隱藏文件連結。',
         docUrlPlaceholder: 'https://docs.example.com',

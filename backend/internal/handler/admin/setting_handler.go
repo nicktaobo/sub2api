@@ -216,6 +216,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SiteSubtitle:                           settings.SiteSubtitle,
 		APIBaseURL:                             settings.APIBaseURL,
 		ContactInfo:                            settings.ContactInfo,
+		ContactMethods:                         dto.ParseContactMethods(settings.ContactMethods),
 		DocURL:                                 settings.DocURL,
 		HomeContent:                            settings.HomeContent,
 		HideCcsImportButton:                    settings.HideCcsImportButton,
@@ -521,6 +522,7 @@ type UpdateSettingsRequest struct {
 	SiteSubtitle                string                `json:"site_subtitle"`
 	APIBaseURL                  string                `json:"api_base_url"`
 	ContactInfo                 string                `json:"contact_info"`
+	ContactMethods              *[]dto.ContactMethod  `json:"contact_methods"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
@@ -1411,6 +1413,78 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		customEndpointsJSON = string(endpointBytes)
 	}
 
+	// 联系方式（结构化）验证
+	const (
+		maxContactMethods       = 20
+		maxContactMethodLabelLen = 50
+		maxContactMethodValueLen = 2048
+		maxContactMethodIDLen    = 32
+	)
+	contactMethodsJSON := previousSettings.ContactMethods
+	if req.ContactMethods != nil {
+		methods := *req.ContactMethods
+		if len(methods) > maxContactMethods {
+			response.BadRequest(c, "Too many contact methods (max 20)")
+			return
+		}
+		allowedTypes := map[string]struct{}{
+			"telegram": {}, "wechat_work": {}, "wechat": {},
+			"qq": {}, "email": {}, "custom": {}, "": {},
+		}
+		seen := make(map[string]struct{}, len(methods))
+		for i := range methods {
+			methods[i].Label = strings.TrimSpace(methods[i].Label)
+			methods[i].Value = strings.TrimSpace(methods[i].Value)
+			methods[i].Type = strings.TrimSpace(methods[i].Type)
+			methods[i].ID = strings.TrimSpace(methods[i].ID)
+			if methods[i].Label == "" {
+				response.BadRequest(c, "Contact method label is required")
+				return
+			}
+			if len(methods[i].Label) > maxContactMethodLabelLen {
+				response.BadRequest(c, "Contact method label is too long (max 50 characters)")
+				return
+			}
+			if methods[i].Value == "" {
+				response.BadRequest(c, "Contact method value is required")
+				return
+			}
+			if len(methods[i].Value) > maxContactMethodValueLen {
+				response.BadRequest(c, "Contact method value is too long (max 2048 characters)")
+				return
+			}
+			if _, ok := allowedTypes[methods[i].Type]; !ok {
+				response.BadRequest(c, "Contact method type is not supported: "+methods[i].Type)
+				return
+			}
+			if methods[i].ID == "" {
+				id, err := generateMenuItemID()
+				if err != nil {
+					response.Error(c, http.StatusInternalServerError, "Failed to generate contact method ID")
+					return
+				}
+				methods[i].ID = id
+			} else if len(methods[i].ID) > maxContactMethodIDLen {
+				response.BadRequest(c, "Contact method ID is too long (max 32 characters)")
+				return
+			} else if !menuItemIDPattern.MatchString(methods[i].ID) {
+				response.BadRequest(c, "Contact method ID contains invalid characters")
+				return
+			}
+			if _, exists := seen[methods[i].ID]; exists {
+				response.BadRequest(c, "Duplicate contact method ID: "+methods[i].ID)
+				return
+			}
+			seen[methods[i].ID] = struct{}{}
+		}
+		contactBytes, err := json.Marshal(methods)
+		if err != nil {
+			response.BadRequest(c, "Failed to serialize contact methods")
+			return
+		}
+		contactMethodsJSON = string(contactBytes)
+	}
+
 	// Ops metrics collector interval validation (seconds).
 	if req.OpsMetricsIntervalSeconds != nil {
 		v := *req.OpsMetricsIntervalSeconds
@@ -1573,6 +1647,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteSubtitle:                           req.SiteSubtitle,
 		APIBaseURL:                             req.APIBaseURL,
 		ContactInfo:                            req.ContactInfo,
+		ContactMethods:                         contactMethodsJSON,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
 		HideCcsImportButton:                    req.HideCcsImportButton,
@@ -1995,6 +2070,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteSubtitle:                           updatedSettings.SiteSubtitle,
 		APIBaseURL:                             updatedSettings.APIBaseURL,
 		ContactInfo:                            updatedSettings.ContactInfo,
+		ContactMethods:                         dto.ParseContactMethods(updatedSettings.ContactMethods),
 		DocURL:                                 updatedSettings.DocURL,
 		HomeContent:                            updatedSettings.HomeContent,
 		HideCcsImportButton:                    updatedSettings.HideCcsImportButton,
@@ -2381,6 +2457,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.ContactInfo != after.ContactInfo {
 		changed = append(changed, "contact_info")
+	}
+	if before.ContactMethods != after.ContactMethods {
+		changed = append(changed, "contact_methods")
 	}
 	if before.DocURL != after.DocURL {
 		changed = append(changed, "doc_url")

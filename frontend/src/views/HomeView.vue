@@ -311,6 +311,16 @@
         </div>
       </section>
 
+      <!-- ===== 联系我们 ===== -->
+      <section v-if="contactMethods.length > 0" class="hd-contact-section">
+        <div class="hd-section-inner">
+          <div class="hd-contact-eyebrow">{{ t('home.contact.eyebrow') }}</div>
+          <h2 class="hd-contact-title">{{ t('home.contact.title') }}</h2>
+          <p class="hd-contact-sub">{{ t('home.contact.subtitle') }}</p>
+          <ContactMethodsBar variant="card" class="hd-contact-bar" />
+        </div>
+      </section>
+
       <!-- ===== Footer（浅色） ===== -->
       <footer class="hd-footer">
         <div class="hd-section-inner hd-footer-inner">
@@ -345,6 +355,7 @@ import { useHead } from '@unhead/vue'
 import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
+import ContactMethodsBar from '@/components/common/ContactMethodsBar.vue'
 
 const { t, locale } = useI18n()
 
@@ -366,6 +377,7 @@ const siteLogo = computed(() =>
   ''
 )
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const contactMethods = computed(() => appStore.cachedPublicSettings?.contact_methods || [])
 
 // 终端示例里的 API 域名：优先后台配置的 api_base_url，否则用当前站点 origin
 const apiBaseUrl = computed(() => {
@@ -1134,6 +1146,37 @@ onMounted(() => {
   max-width: 600px;
   margin: 0 auto 44px;
   line-height: 1.5;
+}
+
+/* ============ Contact Us ============ */
+.hd-contact-section {
+  background: var(--hd-bg-soft);
+  padding: 100px 0 60px;
+  border-top: 1px solid var(--hd-line);
+  text-align: center;
+}
+.hd-contact-eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--hd-brand);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.hd-contact-title {
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--hd-ink);
+  margin: 0 0 16px;
+}
+.hd-contact-sub {
+  font-size: 16px;
+  color: var(--hd-mute);
+  margin-bottom: 40px;
+}
+.hd-contact-bar {
+  justify-content: center;
 }
 
 /* ============ Footer ============ */

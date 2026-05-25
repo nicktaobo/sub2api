@@ -119,6 +119,12 @@ export default {
       description: '注册即可获得免费试用额度，体验一站式 AI 服务',
       button: '免费注册'
     },
+    // 联系我们
+    contact: {
+      eyebrow: 'CONTACT US',
+      title: '需要帮助？随时联系我们',
+      subtitle: '工单、技术支持、合作咨询，挑你方便的渠道。'
+    },
     numbers: {
       providers: 'AI 模型供应商',
       uptime: '服务可用性',
@@ -5871,6 +5877,22 @@ export default {
         contactInfo: '客服联系方式',
         contactInfoPlaceholder: '例如：QQ: 123456789',
         contactInfoHint: '填写客服联系方式，将展示在兑换页面、个人资料等位置',
+        contactMethods: {
+          title: '联系方式（带图标）',
+          description: '配置多条联系渠道，将在首页、控制台底部、头像下拉菜单中以图标形式展示。',
+          itemLabel: '第 {n} 条',
+          type: '类型',
+          name: '显示名称',
+          namePlaceholder: '例如：TG 客服',
+          value: '链接 / 账号',
+          valuePlaceholder: '例如：https://t.me/milton123',
+          add: '新增联系方式',
+          types: {
+            wechatWork: '企业微信',
+            wechat: '微信',
+            custom: '自定义',
+          },
+        },
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',

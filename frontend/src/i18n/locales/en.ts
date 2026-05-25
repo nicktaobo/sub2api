@@ -119,6 +119,12 @@ export default {
       description: 'Sign up now and get free trial credits to experience seamless AI access',
       button: 'Sign Up Free'
     },
+    // Contact us
+    contact: {
+      eyebrow: 'CONTACT US',
+      title: 'Need help? Talk to us.',
+      subtitle: 'Tickets, technical support, partnership — pick the channel that suits you.'
+    },
     numbers: {
       providers: 'AI Providers',
       uptime: 'Service Uptime',
@@ -5715,6 +5721,22 @@ export default {
         contactInfo: 'Contact Info',
         contactInfoPlaceholder: 'e.g., QQ: 123456789',
         contactInfoHint: 'Customer support contact info, displayed on redeem page, profile, etc.',
+        contactMethods: {
+          title: 'Contact Methods (with icons)',
+          description: 'Configure multiple support channels — shown on the homepage, dashboard footer, and avatar dropdown with icons.',
+          itemLabel: 'Method #{n}',
+          type: 'Type',
+          name: 'Display name',
+          namePlaceholder: 'e.g., TG Support',
+          value: 'Link / handle',
+          valuePlaceholder: 'e.g., https://t.me/milton123',
+          add: 'Add contact method',
+          types: {
+            wechatWork: 'WeChat Work',
+            wechat: 'WeChat',
+            custom: 'Custom',
+          },
+        },
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',

@@ -23,6 +23,16 @@ type CustomEndpoint struct {
 	Description string `json:"description"`
 }
 
+// ContactMethod represents one admin-configured contact channel (e.g. Telegram, WeChat Work).
+// `Type` controls which icon the frontend renders. Empty Type falls back to a generic link icon.
+type ContactMethod struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`  // telegram | wechat_work | wechat | qq | email | custom
+	Label     string `json:"label"` // human-readable name e.g. "TG 客服"
+	Value     string `json:"value"` // URL, account number, email etc.
+	SortOrder int    `json:"sort_order"`
+}
+
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
 	RegistrationEnabled              bool                     `json:"registration_enabled"`
@@ -130,6 +140,7 @@ type SystemSettings struct {
 	SiteSubtitle                string           `json:"site_subtitle"`
 	APIBaseURL                  string           `json:"api_base_url"`
 	ContactInfo                 string           `json:"contact_info"`
+	ContactMethods              []ContactMethod  `json:"contact_methods"`
 	DocURL                      string           `json:"doc_url"`
 	HomeContent                 string           `json:"home_content"`
 	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
@@ -274,6 +285,7 @@ type PublicSettings struct {
 	SiteSubtitle                     string                   `json:"site_subtitle"`
 	APIBaseURL                       string                   `json:"api_base_url"`
 	ContactInfo                      string                   `json:"contact_info"`
+	ContactMethods                   []ContactMethod          `json:"contact_methods"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
@@ -481,6 +493,20 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 	var items []CustomEndpoint
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
 		return []CustomEndpoint{}
+	}
+	return items
+}
+
+// ParseContactMethods parses a JSON string into a slice of ContactMethod.
+// Returns empty slice on empty/invalid input.
+func ParseContactMethods(raw string) []ContactMethod {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return []ContactMethod{}
+	}
+	var items []ContactMethod
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return []ContactMethod{}
 	}
 	return items
 }

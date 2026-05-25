@@ -18,6 +18,17 @@
       <main class="p-4 md:p-6 lg:p-8">
         <slot />
       </main>
+
+      <!-- Dashboard Footer -->
+      <footer
+        v-if="contactMethods.length > 0"
+        class="border-t border-gray-100 px-4 py-4 dark:border-dark-700 md:px-6 lg:px-8"
+      >
+        <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>{{ $t('common.contactSupport') }}</span>
+          <ContactMethodsBar variant="inline" />
+        </div>
+      </footer>
     </div>
   </div>
 </template>
@@ -31,11 +42,13 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import ContactMethodsBar from '@/components/common/ContactMethodsBar.vue'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const isAdmin = computed(() => authStore.user?.role === 'admin')
+const contactMethods = computed(() => appStore.cachedPublicSettings?.contact_methods || [])
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
