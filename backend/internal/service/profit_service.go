@@ -1,10 +1,14 @@
 // 利润核算 service：按 团队(分公司/销售) / 客户 / 代理(商户) 四个维度
 // 实时聚合 usage_logs，输出 营收/成本/毛利。
 //
-// 利润口径统一为：actual_cost - total_cost
-//   - actual_cost: 计费倍率后的应收
-//   - total_cost : 平台向上游的基础成本
-// 该差额代表"平台 + 商户"链路总加成。不区分商户/平台分账（用户明确不做分佣）。
+// 利润口径：
+//   营收 = actual_cost                                      （计费倍率后的应收）
+//   成本 = COALESCE(account_stats_cost, total_cost)
+//          × COALESCE(account_rate_multiplier, 1)           （账号侧真实采购成本）
+//   毛利 = 营收 - 成本
+//
+// 成本公式与 dashboard / usage 等已有报表完全一致：调高账号的 rate_multiplier
+// 等价于"账号采购单价变贵"，毛利随之下降；调低反之。不引入新字段、不分摊。
 //
 // 归属继承：sub_user 的归属继承自其商户 owner 的属性值；owner 和独立用户读自身。
 
@@ -137,7 +141,8 @@ func (s *ProfitService) summaryByMerchant(ctx context.Context, q ProfitSummaryQu
 		       COALESCE(m.name, '') AS merchant_name,
 		       COUNT(ul.id) AS req_cnt,
 		       COALESCE(SUM(ul.actual_cost), 0)::float8 AS revenue,
-		       COALESCE(SUM(ul.total_cost), 0)::float8 AS cost
+		       COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost)
+		                    * COALESCE(ul.account_rate_multiplier, 1)), 0)::float8 AS cost
 		FROM usage_logs ul
 		JOIN user_merchant um ON um.user_id = ul.user_id
 		LEFT JOIN merchants m ON m.id = um.merchant_id
@@ -188,7 +193,8 @@ func (s *ProfitService) summaryByUser(ctx context.Context, q ProfitSummaryQuery)
 		       COALESCE(NULLIF(u.username, ''), u.email) AS display_name,
 		       COUNT(ul.id) AS req_cnt,
 		       COALESCE(SUM(ul.actual_cost), 0)::float8 AS revenue,
-		       COALESCE(SUM(ul.total_cost), 0)::float8 AS cost
+		       COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost)
+		                    * COALESCE(ul.account_rate_multiplier, 1)), 0)::float8 AS cost
 		FROM usage_logs ul
 		JOIN users u ON u.id = ul.user_id
 		WHERE ul.created_at >= $1 AND ul.created_at < $2
@@ -244,7 +250,8 @@ func (s *ProfitService) summaryByAttribute(ctx context.Context, q ProfitSummaryQ
 		SELECT COALESCE(NULLIF(uav.value, ''), '') AS attr_value,
 		       COUNT(ul.id) AS req_cnt,
 		       COALESCE(SUM(ul.actual_cost), 0)::float8 AS revenue,
-		       COALESCE(SUM(ul.total_cost), 0)::float8 AS cost
+		       COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost)
+		                    * COALESCE(ul.account_rate_multiplier, 1)), 0)::float8 AS cost
 		FROM usage_logs ul
 		JOIN user_owner uo ON uo.user_id = ul.user_id
 		LEFT JOIN user_attribute_values uav
