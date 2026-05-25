@@ -1443,7 +1443,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 
 	// 联系方式（结构化）验证
 	const (
-		maxContactMethods       = 20
+		maxContactMethods        = 20
 		maxContactMethodLabelLen = 50
 		maxContactMethodValueLen = 2048
 		maxContactMethodIDLen    = 32

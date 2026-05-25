@@ -151,18 +151,18 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency           int                          `json:"default_concurrency"`
-	DefaultBalance               float64                      `json:"default_balance"`
-	AffiliateRebateRate          float64                      `json:"affiliate_rebate_rate"`
-	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
-	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
-	AffiliateRebatePerInviteeCap float64                      `json:"affiliate_rebate_per_invitee_cap"`
+	DefaultConcurrency           int     `json:"default_concurrency"`
+	DefaultBalance               float64 `json:"default_balance"`
+	AffiliateRebateRate          float64 `json:"affiliate_rebate_rate"`
+	AffiliateRebateFreezeHours   int     `json:"affiliate_rebate_freeze_hours"`
+	AffiliateRebateDurationDays  int     `json:"affiliate_rebate_duration_days"`
+	AffiliateRebatePerInviteeCap float64 `json:"affiliate_rebate_per_invitee_cap"`
 	// 消费返利（migration 143）
-	AffiliateConsumeRebateEnabled   bool    `json:"affiliate_consume_rebate_enabled"`
-	AffiliateConsumeRebateRate      float64 `json:"affiliate_consume_rebate_rate"`
-	AffiliateConsumeRebateMinAmount float64 `json:"affiliate_consume_rebate_min_amount"`
-	DefaultUserRPMLimit          int                          `json:"default_user_rpm_limit"`
-	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	AffiliateConsumeRebateEnabled   bool                         `json:"affiliate_consume_rebate_enabled"`
+	AffiliateConsumeRebateRate      float64                      `json:"affiliate_consume_rebate_rate"`
+	AffiliateConsumeRebateMinAmount float64                      `json:"affiliate_consume_rebate_min_amount"`
+	DefaultUserRPMLimit             int                          `json:"default_user_rpm_limit"`
+	DefaultSubscriptions            []DefaultSubscriptionSetting `json:"default_subscriptions"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -329,9 +329,9 @@ type PublicSettings struct {
 }
 
 type LoginAgreementDocument struct {
-	ID        string                                 `json:"id"`
-	Title     string                                 `json:"title"`
-	ContentMD string                                 `json:"content_md"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	ContentMD string `json:"content_md"`
 	// I18n 允许管理员为不同语言提供单独的标题与正文，前端按当前 locale 取值。
 	I18n map[string]LoginAgreementLocaleContent `json:"i18n,omitempty"`
 }
