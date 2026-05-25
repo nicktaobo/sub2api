@@ -90,6 +90,10 @@ type APIKeyAuthGroupSnapshot struct {
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`
+
+	// AffiliateRebateExcluded 该分组消费不参与邀请返利（migration 143）；
+	// 必须进 snapshot，否则 gateway hook 拿不到这个字段。
+	AffiliateRebateExcluded bool `json:"affiliate_rebate_excluded"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存
