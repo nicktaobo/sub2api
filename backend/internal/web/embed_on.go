@@ -253,13 +253,22 @@ func (s *FrontendServer) servePrerenderedHTML(c *gin.Context, baseHTML []byte) {
 	c.Abort()
 }
 
+// fileExists 仅在 path 指向一个**文件**时返回 true。
+// 排除目录是为了让 prerender 路由（如 /models 对应 dist/models/ 目录）
+// 落入下面的 tryServePrerendered 分支，而不是被 http.FileServer 接管 ——
+// 后者对"访问目录不带斜杠"的默认行为是 301 加斜杠并返回相对 Location，
+// 既多一跳又对部分爬虫不友好。
 func (s *FrontendServer) fileExists(path string) bool {
 	file, err := s.distFS.Open(path)
 	if err != nil {
 		return false
 	}
-	_ = file.Close()
-	return true
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // tryServeOverride checks if a local override file exists and serves it.

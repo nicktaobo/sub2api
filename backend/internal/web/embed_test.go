@@ -541,6 +541,47 @@ func TestFrontendServer_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
 	})
+
+	// Prerender 路由（dist/<path>/ 是目录而非文件）必须直接返回 prerender 产物，
+	// 不能被 http.FileServer 当成"目录访问不带斜杠"301 到带斜杠版本 —— 那样
+	// 既多一跳又是相对 Location，对爬虫和 SEO 都不友好。
+	t.Run("prerender_routes_served_inline_no_301", func(t *testing.T) {
+		provider := &mockSettingsProvider{
+			settings: map[string]string{"site_name": "TestSite"},
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(middleware.CSPNonceKey, "test-nonce")
+			c.Next()
+		})
+		router.Use(server.Middleware())
+
+		// 这些路径在 frontend/scripts/prerender.mjs 的 ROUTES 里
+		// （dist/<path>/index.html 由 prerender 写入）
+		prerenderRoutes := []string{"/models", "/docs/quickstart", "/docs/api-guide"}
+
+		for _, path := range prerenderRoutes {
+			t.Run(path, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				router.ServeHTTP(w, req)
+
+				assert.Equal(t, http.StatusOK, w.Code, "should not redirect")
+				assert.NotEqual(t, http.StatusMovedPermanently, w.Code)
+				assert.Empty(t, w.Header().Get("Location"), "no Location header expected")
+				assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+				// prerender 产物在 mount 后会有 #app 的非空子树，body 不再是 <div id="app"></div>
+				body := w.Body.String()
+				assert.Contains(t, strings.ToLower(body), "<!doctype html>")
+				assert.NotContains(t, body, `<div id="app"></div></body>`,
+					"应该是 prerender 产物而非空壳 SPA shell")
+			})
+		}
+	})
 }
 
 func TestNewFrontendServer(t *testing.T) {
