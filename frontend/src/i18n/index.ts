@@ -84,4 +84,9 @@ export const availableLocales = [
   { code: 'zh-TW', name: '繁體中文' }
 ] as const
 
+// 简体中文仅对管理员开放，由 LocaleSwitcher 根据登录身份动态合并
+export const adminOnlyLocales = [
+  { code: 'zh', name: '简体中文' }
+] as const
+
 export default i18n
