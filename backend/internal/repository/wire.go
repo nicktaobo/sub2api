@@ -93,6 +93,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorRequestTemplateRepository,
 	NewContentModerationRepository,
 	NewAffiliateRepository,
+	NewAffiliateConsumeOutboxRepository,
 
 	// MERCHANT-SYSTEM v1.0
 	NewMerchantRepository,

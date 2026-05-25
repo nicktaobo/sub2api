@@ -100,6 +100,7 @@ func provideCleanup(
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	merchantEarningsWorker *service.MerchantEarningsWorker,
 	merchantReconcileJob *service.MerchantReconcileJob,
+	affiliateRebateWorker *service.AffiliateRebateWorker,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -257,6 +258,12 @@ func provideCleanup(
 			{"MerchantReconcileJob", func() error {
 				if merchantReconcileJob != nil {
 					merchantReconcileJob.Stop()
+				}
+				return nil
+			}},
+			{"AffiliateRebateWorker", func() error {
+				if affiliateRebateWorker != nil {
+					affiliateRebateWorker.Stop()
 				}
 				return nil
 			}},

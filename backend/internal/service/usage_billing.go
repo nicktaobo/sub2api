@@ -44,6 +44,10 @@ type UsageBillingCommand struct {
 	// 互斥：每次最多有一个非 nil。owner 自用→Ledger（同步）；sub_user markup→Outbox（异步）
 	MerchantOutbox *MerchantOutboxDraft
 	MerchantLedger *MerchantLedgerDraft
+
+	// 邀请返利消费侧（migration 143）—— 与 merchant 独立，可同时非 nil。
+	// nil 表示这次消费不分润给 inviter（未绑定/开关关/分组排除/低于阈值/订阅计费）。
+	AffiliateConsumeOutbox *AffiliateRebateOutboxDraft
 }
 
 func (c *UsageBillingCommand) Normalize() {

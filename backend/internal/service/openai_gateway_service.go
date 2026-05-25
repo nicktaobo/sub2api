@@ -344,6 +344,7 @@ type OpenAIGatewayService struct {
 	balanceNotifyService  *BalanceNotifyService
 	settingService        *SettingService
 	merchantPricing       *MerchantPricingService // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -389,6 +390,7 @@ func NewOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	merchantPricing *MerchantPricingService,
+	affiliateRebatePricing *AffiliateRebatePricingService,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
 		accountRepo:         accountRepo,
@@ -421,8 +423,9 @@ func NewOpenAIGatewayService(
 		balanceNotifyService:  balanceNotifyService,
 		settingService:        settingService,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		merchantPricing:       merchantPricing,
+		codexSnapshotThrottle:   newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		merchantPricing:         merchantPricing,
+		affiliateRebatePricing:  affiliateRebatePricing,
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
@@ -5588,6 +5591,26 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride
 		}
 	}
+
+	// 邀请返利消费侧 hook（migration 143）
+	var affiliateRebateResult AffiliateRebateResult
+	if s.affiliateRebatePricing != nil && cost != nil {
+		var groupID int64
+		var groupExcluded bool
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		if apiKey.Group != nil {
+			groupExcluded = apiKey.Group.AffiliateRebateExcluded
+		}
+		affiliateRebateResult = s.affiliateRebatePricing.ApplyConsumptionRebate(ctx, AffiliateRebateInput{
+			UserID:         user.ID,
+			GroupID:        groupID,
+			GroupExcluded:  groupExcluded,
+			BillingType:    billingType,
+			SiteActualCost: cost.ActualCost,
+		})
+	}
 	if result.ImageCount > 0 {
 		usageLog.RateMultiplier = imageMultiplier
 	} else {
@@ -5662,6 +5685,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
 			MerchantOutbox:      merchantPricingResult.MerchantOutbox,
 			MerchantLedger:      merchantPricingResult.MerchantLedger,
+
+			// 邀请返利消费侧（migration 143）
+			AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

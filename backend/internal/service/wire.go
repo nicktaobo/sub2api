@@ -550,6 +550,10 @@ var ProviderSet = wire.NewSet(
 	ProvideMerchantEarningsWorker,
 	ProvideMerchantReconcileJob,
 
+	// 邀请返利消费侧（migration 143）
+	NewAffiliateRebatePricingService,
+	ProvideAffiliateRebateWorker,
+
 	// 利润自动化核算
 	NewProfitService,
 )
@@ -615,4 +619,12 @@ func ProvideMerchantReconcileJob(cfg *config.Config, db *sql.DB, outboxRepo Merc
 	j := NewMerchantReconcileJob(cfg, db, outboxRepo, ps)
 	j.Start()
 	return j
+}
+
+// ProvideAffiliateRebateWorker 邀请返利消费侧 worker（migration 143）：
+// 构造并启动后台 worker（每 5s 拉一批）。Stop 由 cleanup 调用。
+func ProvideAffiliateRebateWorker(cfg *config.Config, db *sql.DB, outboxRepo AffiliateConsumeOutboxRepository, settingService *SettingService) *AffiliateRebateWorker {
+	w := NewAffiliateRebateWorker(cfg, db, outboxRepo, settingService)
+	w.Start()
+	return w
 }

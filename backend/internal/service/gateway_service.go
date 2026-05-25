@@ -576,6 +576,7 @@ type GatewayService struct {
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
 	merchantPricing       *MerchantPricingService // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
 }
 
 // NewGatewayService creates a new GatewayService
@@ -607,6 +608,7 @@ func NewGatewayService(
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
 	merchantPricing *MerchantPricingService,
+	affiliateRebatePricing *AffiliateRebatePricingService,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -641,8 +643,9 @@ func NewGatewayService(
 		tlsFPProfileService:  tlsFPProfileService,
 		channelService:       channelService,
 		resolver:             resolver,
-		balanceNotifyService: balanceNotifyService,
-		merchantPricing:      merchantPricing,
+		balanceNotifyService:   balanceNotifyService,
+		merchantPricing:        merchantPricing,
+		affiliateRebatePricing: affiliateRebatePricing,
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
@@ -7986,6 +7989,9 @@ type postUsageBillingParams struct {
 	BalanceCostOverride *float64             // markup 后金额（仅余额扣款用，不影响 quota/rate_limit/stats）
 	MerchantOutbox      *MerchantOutboxDraft // sub_user 异步分润 outbox 草稿
 	MerchantLedger      *MerchantLedgerDraft // owner 自用同步 ledger 草稿
+
+	// 邀请返利消费侧（migration 143）—— 与 merchant 独立，可同时非 nil。
+	AffiliateConsumeOutbox *AffiliateRebateOutboxDraft
 }
 
 func (p *postUsageBillingParams) shouldDeductAPIKeyQuota() bool {
@@ -8158,6 +8164,9 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	// 商户草稿透传（订阅分支已确保为 nil）
 	cmd.MerchantOutbox = p.MerchantOutbox
 	cmd.MerchantLedger = p.MerchantLedger
+
+	// 邀请返利消费侧草稿透传（订阅分支下 affiliate hook 同样返 nil）
+	cmd.AffiliateConsumeOutbox = p.AffiliateConsumeOutbox
 
 	cmd.Normalize()
 	return cmd
@@ -8545,6 +8554,26 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		})
 	}
 
+	// 邀请返利消费侧 hook（migration 143）—— 与 merchant 独立、可同时生效。
+	var affiliateRebateResult AffiliateRebateResult
+	if s.affiliateRebatePricing != nil {
+		var groupID int64
+		var groupExcluded bool
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		if apiKey.Group != nil {
+			groupExcluded = apiKey.Group.AffiliateRebateExcluded
+		}
+		affiliateRebateResult = s.affiliateRebatePricing.ApplyConsumptionRebate(ctx, AffiliateRebateInput{
+			UserID:         user.ID,
+			GroupID:        groupID,
+			GroupExcluded:  groupExcluded,
+			BillingType:    billingType,
+			SiteActualCost: cost.ActualCost,
+		})
+	}
+
 	// 创建使用日志
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
@@ -8594,6 +8623,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
 		MerchantOutbox:      merchantPricingResult.MerchantOutbox,
 		MerchantLedger:      merchantPricingResult.MerchantLedger,
+
+		// 邀请返利消费侧（migration 143）
+		AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {

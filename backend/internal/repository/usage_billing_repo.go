@@ -159,7 +159,31 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 	}
 
+	// 邀请返利消费侧 outbox（migration 143）—— 与 merchant 独立，可同时非 nil。
+	if cmd.AffiliateConsumeOutbox != nil {
+		if err := insertAffiliateConsumeOutboxTx(ctx, tx, cmd.AffiliateConsumeOutbox, dedupID); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// insertAffiliateConsumeOutboxTx 邀请返利消费侧 outbox 写入（同事务）。
+// idempotency_key = "aff_consume:{dedupID}"；ref_type=usage_billing_dedup；ref_id=dedupID。
+// ON CONFLICT DO NOTHING：与 merchant 一致，幂等重试时只插一次。
+func insertAffiliateConsumeOutboxTx(ctx context.Context, tx *sql.Tx, draft *service.AffiliateRebateOutboxDraft, dedupID int64) error {
+	if draft == nil {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO user_affiliate_consumption_outbox
+			(inviter_id, invitee_user_id, amount, ref_type, ref_id, idempotency_key)
+		VALUES ($1, $2, $3, 'usage_billing_dedup', $4, $5)
+		ON CONFLICT (idempotency_key) DO NOTHING
+	`, draft.InviterID, draft.InviteeUserID, draft.Amount, dedupID,
+		fmt.Sprintf("aff_consume:%d", dedupID))
+	return err
 }
 
 // insertMerchantOutboxTx sub_user 消费 markup 异步路径——写 outbox（RFC §5.2.1 Step 3）。
