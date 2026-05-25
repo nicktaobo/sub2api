@@ -746,6 +746,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/merchants/AdminWithdrawalsView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true, title: 'Withdraw Review', titleKey: 'merchant.admin.withdraw.title' }
   },
+  {
+    path: '/admin/profit',
+    name: 'AdminProfit',
+    component: () => import('@/views/admin/ProfitView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Profit Report',
+      titleKey: 'admin.profit.title',
+      descriptionKey: 'admin.profit.description'
+    }
+  },
   // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',

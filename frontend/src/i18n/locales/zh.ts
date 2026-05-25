@@ -411,6 +411,7 @@ export default {
     affiliateTransferRecords: '提取记录',
     merchantManagement: '分销管理',
     merchantWithdrawReview: '提现审核',
+    profitReport: '利润核算',
     merchantSubUsers: '用户管理',
     merchantLedger: '资金流水',
     merchantGroupPricing: '分组定价',
@@ -1541,6 +1542,29 @@ export default {
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
       failedToLoad: '加载仪表盘数据失败'
+    },
+
+    profit: {
+      title: '利润核算',
+      description: '按团队（分公司/销售）、客户、代理多维度自动核算毛利',
+      tabs: {
+        merchant: '代理',
+        user: '客户',
+        team: '团队'
+      },
+      colMerchant: '代理（商户）',
+      colUser: '客户',
+      colAttribute: '维度值',
+      totalRevenue: '总营收',
+      totalCost: '总成本',
+      totalProfit: '总毛利',
+      profitRate: '毛利率',
+      revenue: '营收',
+      cost: '成本',
+      profit: '毛利',
+      requests: '请求数',
+      unassigned: '未归属',
+      noAttributes: '请先在「系统设置 - 用户属性」配置分公司、销售等属性'
     },
 
     backup: {

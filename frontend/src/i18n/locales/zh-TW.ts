@@ -406,6 +406,7 @@ export default {
     affiliateTransferRecords: '提取記錄',
     merchantManagement: '分銷管理',
     merchantWithdrawReview: '提現稽核',
+    profitReport: '利潤核算',
     merchantSubUsers: '使用者管理',
     merchantLedger: '資金流水',
     merchantGroupPricing: '分組定價',
@@ -1492,6 +1493,29 @@ export default {
       systemSettings: '系統設定',
       configureSystem: '配置系統設定',
       failedToLoad: '載入儀表盤資料失敗'
+    },
+
+    profit: {
+      title: '利潤核算',
+      description: '按團隊（分公司/銷售）、客戶、代理多維度自動核算毛利',
+      tabs: {
+        merchant: '代理',
+        user: '客戶',
+        team: '團隊'
+      },
+      colMerchant: '代理（商戶）',
+      colUser: '客戶',
+      colAttribute: '維度值',
+      totalRevenue: '總營收',
+      totalCost: '總成本',
+      totalProfit: '總毛利',
+      profitRate: '毛利率',
+      revenue: '營收',
+      cost: '成本',
+      profit: '毛利',
+      requests: '請求數',
+      unassigned: '未歸屬',
+      noAttributes: '請先在「系統設定 - 使用者屬性」配置分公司、銷售等屬性'
     },
 
     backup: {

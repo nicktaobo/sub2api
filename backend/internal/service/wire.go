@@ -549,6 +549,9 @@ var ProviderSet = wire.NewSet(
 	NewMerchantService,
 	ProvideMerchantEarningsWorker,
 	ProvideMerchantReconcileJob,
+
+	// 利润自动化核算
+	NewProfitService,
 )
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named

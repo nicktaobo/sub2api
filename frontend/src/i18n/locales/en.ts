@@ -411,6 +411,7 @@ export default {
     affiliateTransferRecords: 'Transfer Records',
     merchantManagement: 'Resellers',
     merchantWithdrawReview: 'Withdraw Review',
+    profitReport: 'Profit Report',
     merchantSubUsers: 'Users',
     merchantLedger: 'Ledger',
     merchantGroupPricing: 'Group Pricing',
@@ -1520,6 +1521,29 @@ export default {
       requestsShort: 'Req',
       tokensShort: 'Tok',
       failedToLoad: 'Failed to load dashboard statistics'
+    },
+
+    profit: {
+      title: 'Profit Report',
+      description: 'Auto-calculated gross profit broken down by team (branch/sales), customer and reseller',
+      tabs: {
+        merchant: 'Reseller',
+        user: 'Customer',
+        team: 'Team'
+      },
+      colMerchant: 'Reseller',
+      colUser: 'Customer',
+      colAttribute: 'Dimension',
+      totalRevenue: 'Total Revenue',
+      totalCost: 'Total Cost',
+      totalProfit: 'Total Profit',
+      profitRate: 'Profit Rate',
+      revenue: 'Revenue',
+      cost: 'Cost',
+      profit: 'Profit',
+      requests: 'Requests',
+      unassigned: 'Unassigned',
+      noAttributes: 'Configure branch / sales attributes in System Settings - User Attributes first'
     },
 
     backup: {

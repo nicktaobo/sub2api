@@ -766,6 +766,7 @@ const adminNavItems = computed((): NavItem[] => {
     },
     { path: '/admin/merchants', label: t('nav.merchantManagement'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/merchant-withdrawals', label: t('nav.merchantWithdrawReview'), icon: CreditCardIcon, hideInSimpleMode: true },
+    { path: '/admin/profit', label: t('nav.profitReport'), icon: ChartIcon, hideInSimpleMode: true },
     {
       path: '/admin/orders',
       label: t('nav.orderManagement'),

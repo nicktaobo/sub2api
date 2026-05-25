@@ -100,6 +100,19 @@ func RegisterAdminRoutes(
 
 		// 商户系统（MERCHANT-SYSTEM v1.0）
 		registerMerchantAdminRoutes(admin, h)
+
+		// 利润自动化核算
+		registerProfitRoutes(admin, h)
+	}
+}
+
+func registerProfitRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.Profit == nil {
+		return
+	}
+	profit := admin.Group("/profit")
+	{
+		profit.GET("/summary", h.Admin.Profit.Summary)
 	}
 }
 
