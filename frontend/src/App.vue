@@ -5,7 +5,6 @@ import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import { resolveDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
-import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useMerchantStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 
@@ -145,7 +144,6 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <AnnouncementBanner v-if="authStore.isAuthenticated" />
   <RouterView />
   <Toast />
   <AnnouncementPopup />

@@ -1,57 +1,55 @@
 <template>
   <div
     v-if="visibleItems.length > 0"
-    class="relative z-20 w-full border-b border-blue-200/60 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:border-blue-900/40 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-purple-950/20"
+    class="flex h-9 w-full max-w-xl items-center gap-2.5 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-3 shadow-sm dark:border-blue-900/40 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-purple-950/20"
   >
-    <div class="mx-auto flex h-10 max-w-7xl items-center gap-3 px-4">
-      <!-- Megaphone icon -->
-      <span class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-        </svg>
-      </span>
+    <!-- Megaphone icon -->
+    <span class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+      </svg>
+    </span>
 
-      <!-- Scrolling title (cross-fade between items) -->
-      <button
-        type="button"
-        @click="openDetail(current)"
-        class="group relative flex min-w-0 flex-1 items-center text-left"
-        :aria-label="t('announcements.title')"
-      >
-        <Transition name="ann-banner-fade" mode="out-in">
-          <span
-            :key="current.id"
-            class="block min-w-0 truncate text-sm font-medium text-gray-800 transition-colors group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
-          >
-            {{ current.title }}
-          </span>
-        </Transition>
-      </button>
-
-      <!-- Pagination dots (only when multiple) -->
-      <div v-if="visibleItems.length > 1" class="flex flex-shrink-0 items-center gap-1">
+    <!-- Scrolling title (cross-fade between items) -->
+    <button
+      type="button"
+      @click="openDetail(current)"
+      class="group relative flex min-w-0 flex-1 items-center text-left"
+      :aria-label="t('announcements.title')"
+    >
+      <Transition name="ann-banner-fade" mode="out-in">
         <span
-          v-for="(item, idx) in visibleItems"
-          :key="item.id"
-          class="h-1.5 w-1.5 rounded-full transition-all"
-          :class="idx === currentIndex
-            ? 'w-3 bg-blue-600 dark:bg-blue-400'
-            : 'bg-gray-400/60 dark:bg-gray-500/60'"
-        ></span>
-      </div>
+          :key="current.id"
+          class="block min-w-0 truncate text-sm font-medium text-gray-800 transition-colors group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
+        >
+          {{ current.title }}
+        </span>
+      </Transition>
+    </button>
 
-      <!-- Dismiss current -->
-      <button
-        type="button"
-        @click="dismissCurrent"
-        class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/60 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-dark-700/60 dark:hover:text-gray-200"
-        :aria-label="t('common.close')"
-      >
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+    <!-- Pagination dots (only when multiple) -->
+    <div v-if="visibleItems.length > 1" class="flex flex-shrink-0 items-center gap-1">
+      <span
+        v-for="(item, idx) in visibleItems"
+        :key="item.id"
+        class="h-1.5 w-1.5 rounded-full transition-all"
+        :class="idx === currentIndex
+          ? 'w-3 bg-blue-600 dark:bg-blue-400'
+          : 'bg-gray-400/60 dark:bg-gray-500/60'"
+      ></span>
     </div>
+
+    <!-- Dismiss current -->
+    <button
+      type="button"
+      @click="dismissCurrent"
+      class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/60 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-dark-700/60 dark:hover:text-gray-200"
+      :aria-label="t('common.close')"
+    >
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
 
     <!-- Detail modal -->
     <Teleport to="body">
