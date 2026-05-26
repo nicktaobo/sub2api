@@ -136,6 +136,7 @@ func (User) Edges() []ent.Edge {
 		edge.To("auth_identities", AuthIdentity.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("pending_auth_sessions", PendingAuthSession.Type),
+		edge.To("platform_quotas", UserPlatformQuota.Type),
 
 		// MERCHANT-SYSTEM v1.0：sub_user → merchant（O2M 反向）
 		edge.From("parent_merchant", Merchant.Type).

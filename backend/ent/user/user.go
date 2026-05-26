@@ -87,6 +87,8 @@ const (
 	EdgeAuthIdentities = "auth_identities"
 	// EdgePendingAuthSessions holds the string denoting the pending_auth_sessions edge name in mutations.
 	EdgePendingAuthSessions = "pending_auth_sessions"
+	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
+	EdgePlatformQuotas = "platform_quotas"
 	// EdgeParentMerchant holds the string denoting the parent_merchant edge name in mutations.
 	EdgeParentMerchant = "parent_merchant"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
@@ -175,6 +177,13 @@ const (
 	PendingAuthSessionsInverseTable = "pending_auth_sessions"
 	// PendingAuthSessionsColumn is the table column denoting the pending_auth_sessions relation/edge.
 	PendingAuthSessionsColumn = "target_user_id"
+	// PlatformQuotasTable is the table that holds the platform_quotas relation/edge.
+	PlatformQuotasTable = "user_platform_quotas"
+	// PlatformQuotasInverseTable is the table name for the UserPlatformQuota entity.
+	// It exists in this package in order to avoid circular dependency with the "userplatformquota" package.
+	PlatformQuotasInverseTable = "user_platform_quotas"
+	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
+	PlatformQuotasColumn = "user_id"
 	// ParentMerchantTable is the table that holds the parent_merchant relation/edge.
 	ParentMerchantTable = "users"
 	// ParentMerchantInverseTable is the table name for the Merchant entity.
@@ -586,6 +595,20 @@ func ByPendingAuthSessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOpti
 	}
 }
 
+// ByPlatformQuotasCount orders the results by platform_quotas count.
+func ByPlatformQuotasCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPlatformQuotasStep(), opts...)
+	}
+}
+
+// ByPlatformQuotas orders the results by platform_quotas terms.
+func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPlatformQuotasStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByParentMerchantField orders the results by parent_merchant field.
 func ByParentMerchantField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -688,6 +711,13 @@ func newPendingAuthSessionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PendingAuthSessionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PendingAuthSessionsTable, PendingAuthSessionsColumn),
+	)
+}
+func newPlatformQuotasStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PlatformQuotasInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
 	)
 }
 func newParentMerchantStep() *sqlgraph.Step {

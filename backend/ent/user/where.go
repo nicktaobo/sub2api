@@ -1651,6 +1651,29 @@ func HasPendingAuthSessionsWith(preds ...predicate.PendingAuthSession) predicate
 	})
 }
 
+// HasPlatformQuotas applies the HasEdge predicate on the "platform_quotas" edge.
+func HasPlatformQuotas() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPlatformQuotasWith applies the HasEdge predicate on the "platform_quotas" edge with a given conditions (other predicates).
+func HasPlatformQuotasWith(preds ...predicate.UserPlatformQuota) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newPlatformQuotasStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasParentMerchant applies the HasEdge predicate on the "parent_merchant" edge.
 func HasParentMerchant() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

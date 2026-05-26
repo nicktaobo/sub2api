@@ -171,13 +171,15 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // tlsFPProfileService
 		nil, // channelService
 		nil, // resolver
-		nil, // balanceNotifyService,
-		nil,
+		nil, // balanceNotifyService
+		nil, // merchantPricing
+		nil, // affiliateRebatePricing
+		nil, // userPlatformQuotaRepo
 	)
 
 	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg)
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 
 	concurrencySvc := service.NewConcurrencyService(&fakeConcurrencyCache{})
 	concurrencyHelper := NewConcurrencyHelper(concurrencySvc, SSEPingFormatClaude, 0)
