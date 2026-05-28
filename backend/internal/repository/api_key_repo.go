@@ -183,6 +183,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldAllowMessagesDispatch,
 				group.FieldDefaultMappedModel,
 				group.FieldMessagesDispatchModelConfig,
+				group.FieldModelsListConfig,
 				group.FieldRpmLimit,
 				group.FieldAffiliateRebateExcluded,
 			)
@@ -729,6 +730,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		RequirePrivacySet:               g.RequirePrivacySet,
 		DefaultMappedModel:              g.DefaultMappedModel,
 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
+		ModelsListConfig:                g.ModelsListConfig,
 		RPMLimit:                        g.RpmLimit,
 		AffiliateRebateExcluded:         g.AffiliateRebateExcluded,
 		CreatedAt:                       g.CreatedAt,
