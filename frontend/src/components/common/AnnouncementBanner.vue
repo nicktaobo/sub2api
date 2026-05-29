@@ -10,21 +10,23 @@
       </svg>
     </span>
 
-    <!-- Scrolling title (cross-fade between items) -->
+    <!-- Scrolling title (manual cross-fade between items). Vue <Transition>
+         with :key swapping leaves enter-from/leave-active classes stuck on
+         the element across rotations, freezing opacity at 0 — verified with
+         live DOM inspection. We drive the fade ourselves: hide → swap text
+         on the next animation frame → show. -->
     <button
       type="button"
       @click="openDetail(current)"
       class="group relative flex min-w-0 flex-1 items-center text-left"
       :aria-label="t('announcements.title')"
     >
-      <Transition name="ann-banner-fade" mode="out-in">
-        <span
-          :key="current.id"
-          class="block min-w-0 truncate text-sm font-medium text-gray-800 transition-colors group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
-        >
-          {{ current.title }}
-        </span>
-      </Transition>
+      <span
+        class="block min-w-0 truncate text-sm font-medium text-gray-800 transition-opacity duration-300 group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
+        :class="titleFading ? 'opacity-0' : 'opacity-100'"
+      >
+        {{ displayedTitle }}
+      </span>
     </button>
 
     <!-- Pagination dots (only when multiple) -->
@@ -134,6 +136,37 @@ const current = computed<UserAnnouncement>(
   () => visibleItems.value[currentIndex.value] ?? visibleItems.value[0]
 )
 
+// Manual cross-fade: hold the displayed title for 300ms at opacity 0 while
+// swapping text, then fade back in. Replaces a buggy Vue <Transition> that
+// stranded enter-from/leave-active classes during keyed rotation.
+const displayedTitle = ref<string>('')
+const titleFading = ref<boolean>(false)
+const TITLE_FADE_MS = 300
+
+watch(
+  current,
+  (next, prev) => {
+    if (!next) {
+      displayedTitle.value = ''
+      titleFading.value = false
+      return
+    }
+    if (!prev || prev.id === next.id) {
+      // First render or same item (e.g. dismissals shrink the list but the
+      // active id is unchanged) — show immediately without a fade flicker.
+      displayedTitle.value = next.title
+      titleFading.value = false
+      return
+    }
+    titleFading.value = true
+    setTimeout(() => {
+      displayedTitle.value = next.title
+      titleFading.value = false
+    }, TITLE_FADE_MS)
+  },
+  { immediate: true }
+)
+
 // Rotation timer — only runs when there's more than one item.
 let rotateTimer: ReturnType<typeof setInterval> | null = null
 
@@ -191,21 +224,6 @@ function dismissCurrent() {
 </script>
 
 <style scoped>
-.ann-banner-fade-enter-active,
-.ann-banner-fade-leave-active {
-  transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-.ann-banner-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.ann-banner-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
 .ann-banner-detail-enter-active,
 .ann-banner-detail-leave-active {
   transition: opacity 0.2s ease;
