@@ -2,6 +2,8 @@
   <div
     v-if="visibleItems.length > 0"
     class="flex h-9 w-full max-w-xl items-center gap-2.5 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-3 shadow-sm dark:border-blue-900/40 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-purple-950/20"
+    @mouseenter="onPillEnter"
+    @mouseleave="onPillLeave"
   >
     <!-- Megaphone icon -->
     <span class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
@@ -14,16 +16,22 @@
          with :key swapping leaves enter-from/leave-active classes stuck on
          the element across rotations, freezing opacity at 0 — verified with
          live DOM inspection. We drive the fade ourselves: hide → swap text
-         on the next animation frame → show. -->
+         on the next animation frame → show.
+         When the title overflows, hovering the pill scrolls the text leftward
+         to reveal the rest; auto-rotation pauses while hovered. The title
+         attribute provides a native tooltip as a fallback. -->
     <button
       type="button"
       @click="openDetail(current)"
-      class="group relative flex min-w-0 flex-1 items-center text-left"
+      :title="displayedTitle"
+      class="ann-banner-title group relative flex min-w-0 flex-1 items-center overflow-hidden text-left"
       :aria-label="t('announcements.title')"
     >
       <span
-        class="block min-w-0 truncate text-sm font-medium text-gray-800 transition-opacity duration-300 group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
+        ref="titleEl"
+        class="block whitespace-nowrap text-sm font-medium text-gray-800 ease-linear group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-300"
         :class="titleFading ? 'opacity-0' : 'opacity-100'"
+        :style="titleStyle"
       >
         {{ displayedTitle }}
       </span>
@@ -167,8 +175,10 @@ watch(
   { immediate: true }
 )
 
-// Rotation timer — only runs when there's more than one item.
+// Rotation timer — only runs when there's more than one item, and pauses
+// while the user is hovering the pill so they can finish reading a marquee.
 let rotateTimer: ReturnType<typeof setInterval> | null = null
+const hovering = ref(false)
 
 function clearTimer() {
   if (rotateTimer !== null) {
@@ -180,6 +190,7 @@ function clearTimer() {
 function startTimer() {
   clearTimer()
   if (visibleItems.value.length <= 1) return
+  if (hovering.value) return
   rotateTimer = setInterval(() => {
     if (visibleItems.value.length <= 1) return
     currentIndex.value = (currentIndex.value + 1) % visibleItems.value.length
@@ -193,6 +204,52 @@ watch(
 )
 
 onBeforeUnmount(clearTimer)
+
+// Marquee on hover: when the title overflows its container, slide it leftward
+// so the rest is readable, then snap back when the cursor leaves. Pure JS
+// measurement so it always picks up the live displayed text width.
+const titleEl = ref<HTMLSpanElement | null>(null)
+const marqueeOffset = ref(0)
+const marqueeDurationMs = ref(0)
+
+const titleStyle = computed(() => ({
+  transform: `translateX(${marqueeOffset.value}px)`,
+  transition: `transform ${marqueeDurationMs.value}ms linear, opacity 300ms ease`,
+}))
+
+// 50ms per px of overflow → ~10s for a 200px overflow, comfortable reading.
+const MARQUEE_PX_PER_MS = 0.05
+const MARQUEE_TAIL_PADDING = 12
+const MARQUEE_RESET_MS = 250
+
+function onPillEnter() {
+  hovering.value = true
+  clearTimer()
+  const el = titleEl.value
+  const wrap = el?.parentElement
+  if (!el || !wrap) return
+  const overflow = el.scrollWidth - wrap.clientWidth
+  if (overflow <= 0) return
+  const distance = overflow + MARQUEE_TAIL_PADDING
+  marqueeDurationMs.value = Math.max(2000, Math.round(distance / MARQUEE_PX_PER_MS))
+  marqueeOffset.value = -distance
+}
+
+function onPillLeave() {
+  hovering.value = false
+  marqueeDurationMs.value = MARQUEE_RESET_MS
+  marqueeOffset.value = 0
+  startTimer()
+}
+
+// Reset marquee whenever the active title swaps — guards against the old
+// translate sticking around when the user wasn't hovering at swap time.
+watch(displayedTitle, () => {
+  if (!hovering.value) {
+    marqueeDurationMs.value = 0
+    marqueeOffset.value = 0
+  }
+})
 
 // Detail modal state
 const detail = ref<UserAnnouncement | null>(null)
@@ -224,6 +281,24 @@ function dismissCurrent() {
 </script>
 
 <style scoped>
+/* Right-edge fade so users see that the title is clipped (and thus
+   scrollable on hover). Uses mask-image so it composes with the existing
+   gradient background of the pill. */
+.ann-banner-title {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black 0,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    black 0,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+}
+
 .ann-banner-detail-enter-active,
 .ann-banner-detail-leave-active {
   transition: opacity 0.2s ease;
