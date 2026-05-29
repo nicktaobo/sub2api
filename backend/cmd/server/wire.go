@@ -101,6 +101,7 @@ func provideCleanup(
 	merchantEarningsWorker *service.MerchantEarningsWorker,
 	merchantReconcileJob *service.MerchantReconcileJob,
 	affiliateRebateWorker *service.AffiliateRebateWorker,
+	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -264,6 +265,12 @@ func provideCleanup(
 			{"AffiliateRebateWorker", func() error {
 				if affiliateRebateWorker != nil {
 					affiliateRebateWorker.Stop()
+				}
+				return nil
+			}},
+			{"UserPlatformQuotaUsageFlusher", func() error {
+				if quotaFlusher != nil {
+					quotaFlusher.Stop()
 				}
 				return nil
 			}},
