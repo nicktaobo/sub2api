@@ -38,7 +38,15 @@
               <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
-              <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
+              <p class="whitespace-pre-line text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
+              <div v-if="contactMethods.length > 0" class="mx-auto mt-6 w-fit space-y-2 text-sm">
+                <div v-for="item in contactMethods" :key="item.id || item.label + item.value" class="flex items-center justify-center gap-1.5">
+                  <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ contactLabel(item) }}：</span>
+                  <a v-if="contactHref(item)" :href="contactHref(item)" target="_blank" rel="noopener noreferrer"
+                    class="break-all font-medium text-primary-600 hover:underline dark:text-primary-400">{{ item.value }}</a>
+                  <span v-else class="break-all font-medium text-gray-700 dark:text-gray-200">{{ item.value }}</span>
+                </div>
+              </div>
             </div>
             <template v-else>
             <div class="card p-6">
@@ -275,19 +283,57 @@ import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, pl
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
+import type { ContactMethod } from '@/types'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
 
 const i18n = useI18n()
-const { t } = i18n
+const { t, te } = i18n
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const paymentStore = usePaymentStore()
 const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
+
+// Contact methods shown on the "recharge unavailable" card (label：address)
+const contactMethods = computed<ContactMethod[]>(() =>
+  [...(appStore.cachedPublicSettings?.contact_methods ?? [])]
+    .filter((m) => m && m.label && m.value)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+)
+
+function contactHref(item: ContactMethod): string {
+  const v = (item.value || '').trim()
+  if (!v) return ''
+  if (item.type === 'email') return v.startsWith('mailto:') ? v : `mailto:${v}`
+  if (item.type === 'telegram') return v.startsWith('http') ? v : `https://t.me/${v.replace(/^@/, '')}`
+  if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('mailto:')) return v
+  return ''
+}
+
+// Translate the admin-configured contact label by keyword, falling back to the
+// raw backend label when nothing matches. Platform prefix comes from `type`.
+const CONTACT_ROLE_KEYWORDS: { key: string; match: string[] }[] = [
+  { key: 'store', match: ['小店', '商店', '店鋪', '店铺', '店', 'shop', 'store'] },
+  { key: 'support', match: ['客服', '服務', '服务', 'support', 'service'] },
+  { key: 'community', match: ['社群', '群組', '群组', '群', 'community', 'group'] },
+  { key: 'channel', match: ['頻道', '频道', 'channel'] },
+  { key: 'company', match: ['公司', 'company'] },
+]
+
+function contactLabel(item: ContactMethod): string {
+  const raw = (item.label || '').trim()
+  const lower = raw.toLowerCase()
+  const role = CONTACT_ROLE_KEYWORDS.find((r) => r.match.some((m) => lower.includes(m.toLowerCase())))
+  if (!role) return raw
+  const roleText = t(`payment.contactRoles.${role.key}`)
+  const platformKey = `payment.contactPlatforms.${item.type}`
+  const platform = item.type && te(platformKey) ? t(platformKey) : ''
+  return platform ? `${platform} ${roleText}` : roleText
+}
 
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
