@@ -1579,7 +1579,8 @@ export default {
       profit: '毛利',
       requests: '请求数',
       unassigned: '未归属',
-      noAttributes: '请先在「系统设置 - 用户属性」配置分公司、销售等属性'
+      noAttributes: '请先在「系统设置 - 用户属性」配置分公司、销售等属性',
+      export: '导出 Excel'
     },
 
     backup: {

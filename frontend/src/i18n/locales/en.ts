@@ -1558,7 +1558,8 @@ export default {
       profit: 'Profit',
       requests: 'Requests',
       unassigned: 'Unassigned',
-      noAttributes: 'Configure branch / sales attributes in System Settings - User Attributes first'
+      noAttributes: 'Configure branch / sales attributes in System Settings - User Attributes first',
+      export: 'Export Excel'
     },
 
     backup: {

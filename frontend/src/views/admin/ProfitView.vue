@@ -18,6 +18,13 @@
             <button class="btn btn-secondary" :disabled="loading" @click="loadSummary">
               {{ t('common.refresh') }}
             </button>
+            <button
+              class="btn btn-secondary"
+              :disabled="loading || exporting || !summary?.rows.length"
+              @click="exportXlsx"
+            >
+              {{ exporting ? t('common.loading') : t('admin.profit.export') }}
+            </button>
           </div>
         </div>
       </div>
@@ -161,6 +168,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import StatCard from '@/components/common/StatCard.vue'
+import { saveAs } from 'file-saver'
 import { adminAPI } from '@/api/admin'
 import type { ProfitGroupBy, ProfitRow, ProfitSummaryResponse } from '@/api/admin/profit'
 import type { UserAttributeDefinition } from '@/types'
@@ -199,6 +207,7 @@ const selectedAttrId = ref<number | null>(null)
 const attributeDefs = ref<UserAttributeDefinition[]>([])
 const summary = ref<ProfitSummaryResponse | null>(null)
 const loading = ref(false)
+const exporting = ref(false)
 
 const overallProfitRateText = computed(() => {
   if (!summary.value || summary.value.total_revenue <= 0) return '—'
@@ -241,6 +250,62 @@ function selectAttribute(id: number) {
 function currentGroupBy(): ProfitGroupBy {
   if (activeDimension.value === 'team') return 'attribute'
   return activeDimension.value
+}
+
+async function exportXlsx() {
+  if (!summary.value || !summary.value.rows.length) return
+  exporting.value = true
+  try {
+    const XLSX = await import('xlsx')
+    const s = summary.value
+    const dimLabel =
+      activeDimension.value === 'merchant'
+        ? t('admin.profit.tabs.merchant')
+        : activeDimension.value === 'user'
+          ? t('admin.profit.tabs.user')
+          : `${t('admin.profit.tabs.team')} - ${
+              attributeDefs.value.find((d) => d.id === selectedAttrId.value)?.name ?? ''
+            }`
+
+    // 概要 5 行 + 空行 + 表头 + 数据
+    const aoa: (string | number)[][] = [
+      [t('admin.profit.title')],
+      [t('admin.profit.tabs.team') + ' / ' + t('admin.profit.tabs.user') + ' / ' + t('admin.profit.tabs.merchant'), dimLabel],
+      [t('admin.dashboard.timeRange'), `${startDate.value} ~ ${endDate.value}`],
+      [t('admin.profit.totalRevenue'), s.total_revenue],
+      [t('admin.profit.totalCost'), s.total_cost],
+      [t('admin.profit.totalProfit'), s.total_profit],
+      [t('admin.profit.profitRate'), s.total_revenue > 0 ? s.total_profit / s.total_revenue : 0],
+      [],
+      [
+        dimensionColumnLabel.value,
+        t('admin.profit.revenue'),
+        t('admin.profit.cost'),
+        t('admin.profit.profit'),
+        t('admin.profit.profitRate'),
+        t('admin.profit.requests'),
+      ],
+    ]
+    for (const row of s.rows) {
+      aoa.push([displayName(row), row.revenue, row.cost, row.profit, row.profit_rate, row.request_count])
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    // 列宽
+    ws['!cols'] = [{ wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Profit')
+    const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const dim =
+      activeDimension.value === 'team' ? `team-${selectedAttrId.value ?? ''}` : activeDimension.value
+    saveAs(blob, `profit_${dim}_${startDate.value}_to_${endDate.value}.xlsx`)
+  } catch (e) {
+    console.error('Failed to export profit summary:', e)
+  } finally {
+    exporting.value = false
+  }
 }
 
 async function loadSummary() {

@@ -1521,7 +1521,8 @@ export default {
       profit: '毛利',
       requests: '請求數',
       unassigned: '未歸屬',
-      noAttributes: '請先在「系統設定 - 使用者屬性」配置分公司、銷售等屬性'
+      noAttributes: '請先在「系統設定 - 使用者屬性」配置分公司、銷售等屬性',
+      export: '匯出 Excel'
     },
 
     backup: {
