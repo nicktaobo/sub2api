@@ -266,6 +266,20 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
+	// 模拟官方 Claude Code 客户端：OAuth 账号的测试请求必须与生产网关
+	// buildUpstreamRequest 的 mimic 路径保持一致，否则上游"客户端限制"会把测试
+	// 请求判为第三方而直接返回 403，进而被下方 SetError 标记为 error（账号被误封）。
+	// 这里对齐两处 body 级特征：
+	//   1) 给 system 注入 billing attribution block（非 haiku），还原真实 CLI 的
+	//      2-block system 形态——"有 Claude Code system prompt 但无 billing block"
+	//      正是上游判定第三方的关键信号之一。
+	//   2) 将 billing block 的 cch=00000 占位符替换为 xxHash64 签名。
+	isHaiku := strings.Contains(strings.ToLower(testModelID), "haiku")
+	if useBearer && !isHaiku {
+		payloadBytes = rewriteSystemForNonClaudeCode(payloadBytes, claudeCodeSystemPrompt)
+		payloadBytes = signBillingHeaderCCH(payloadBytes)
+	}
+
 	// Send test_start event
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
@@ -278,16 +292,24 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	// Apply Claude Code client headers
-	for key, value := range claude.DefaultHeaders {
-		req.Header.Set(key, value)
-	}
-
-	// Set authentication header
+	// Set authentication header + Claude Code client mimicry
 	if useBearer {
-		req.Header.Set("anthropic-beta", claude.DefaultBetaHeader)
-		req.Header.Set("Authorization", "Bearer "+authToken)
+		// OAuth：复用生产 mimic 逻辑，强制注入与真实 Claude Code CLI 一致的指纹头
+		// （User-Agent / x-app / x-stainless-* / Accept / x-stainless-helper-method /
+		// x-client-request-id），并使用完整 mimic beta 集合。缺失任何"官方 CLI 才带"
+		// 的 beta 或指纹头都会被上游判第三方。
+		setHeaderRaw(req.Header, "authorization", "Bearer "+authToken)
+		applyClaudeCodeMimicHeaders(req, true)
+		mimicBetas := claude.FullClaudeCodeMimicryBetas()
+		if isHaiku {
+			mimicBetas = []string{claude.BetaOAuth, claude.BetaInterleavedThinking}
+		}
+		setHeaderRaw(req.Header, "anthropic-beta", strings.Join(mimicBetas, ","))
 	} else {
+		// API Key：沿用 Claude Code 默认头 + API-key beta（不含 oauth）。
+		for key, value := range claude.DefaultHeaders {
+			req.Header.Set(key, value)
+		}
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
 		req.Header.Set("x-api-key", authToken)
 	}
@@ -590,6 +612,16 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		req.Header.Set("accept", "text/event-stream")
+		// 模拟官方 Codex CLI 客户端：与生产网关 buildUpstreamRequest 的 OAuth 路径一致，
+		// 注入 OpenAI-Beta / Originator / User-Agent 等官方客户端特征，避免 chatgpt.com
+		// 后端的"客户端限制"把测试请求判为非官方客户端而返回 403/拒绝。
+		req.Header.Set("OpenAI-Beta", "responses=experimental")
+		req.Header.Set("Originator", "codex_cli_rs")
+		if customUA := strings.TrimSpace(account.GetOpenAIUserAgent()); customUA != "" {
+			req.Header.Set("User-Agent", customUA)
+		} else {
+			req.Header.Set("User-Agent", codexCLIUserAgent)
+		}
 		if chatgptAccountID != "" {
 			req.Header.Set("chatgpt-account-id", chatgptAccountID)
 		}
