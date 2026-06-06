@@ -7229,15 +7229,14 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 
 	switch resp.StatusCode {
 	case 400:
-		c.Data(http.StatusBadRequest, "application/json", body)
-		summary := upstreamMsg
-		if summary == "" {
-			summary = truncateForLog(body, 512)
+		// 不再裸透传上游 400 原始 body（含上游请求指纹/可能的 url、key），
+		// 改为脱敏后的标准错误结构；保留对用户有用的报错语义（如不支持的参数/工具）。
+		statusCode = http.StatusBadRequest
+		errType = "invalid_request_error"
+		errMsg = upstreamMsg
+		if errMsg == "" {
+			errMsg = "Upstream rejected the request"
 		}
-		if summary == "" {
-			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, summary)
 	case 401:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"

@@ -1676,15 +1676,31 @@ func sleepGeminiBackoff(attempt int) {
 }
 
 var (
-	sensitiveQueryParamRegex = regexp.MustCompile(`(?i)([?&](?:key|client_secret|access_token|refresh_token)=)[^&"\s]+`)
+	sensitiveQueryParamRegex = regexp.MustCompile(`(?i)([?&](?:key|client_secret|access_token|refresh_token|api_key)=)[^&"\s]+`)
 	retryInRegex             = regexp.MustCompile(`Please retry in ([0-9.]+)s`)
+	// upstreamURLRegex 抹掉 scheme://host[:port]，保留 path 便于排障，避免暴露上游真实厂商/中转域名
+	upstreamURLRegex = regexp.MustCompile(`(?i)\bhttps?://[a-z0-9.\-]+(?::\d+)?`)
+	// bearerTokenRegex 抹掉 Authorization: Bearer xxx
+	bearerTokenRegex = regexp.MustCompile(`(?i)\bbearer\s+[a-z0-9._\-]+`)
+	// providerKeyRegex 抹掉常见厂商密钥格式（OpenAI/Anthropic sk-*、Google AIza*）
+	providerKeyRegex = regexp.MustCompile(`(?i)\b(?:sk-[a-z0-9_\-]{8,}|AIza[0-9a-z_\-]{20,})`)
+	// upstreamIPv4Regex 抹掉裸 IPv4
+	upstreamIPv4Regex = regexp.MustCompile(`\b\d{1,3}(?:\.\d{1,3}){3}\b`)
 )
 
+// sanitizeUpstreamErrorMessage 对要回显给客户端的上游错误信息做脱敏：
+// 去除上游主机/域名、URL 中的密钥、Authorization、厂商密钥、IP 等会暴露上游渠道身份的内容，
+// 但保留 "model not found / context length exceeded / rate limit" 等对用户有用的语义。
 func sanitizeUpstreamErrorMessage(msg string) string {
 	if msg == "" {
 		return msg
 	}
-	return sensitiveQueryParamRegex.ReplaceAllString(msg, `$1***`)
+	msg = sensitiveQueryParamRegex.ReplaceAllString(msg, `$1***`)
+	msg = upstreamURLRegex.ReplaceAllString(msg, "upstream")
+	msg = bearerTokenRegex.ReplaceAllString(msg, "Bearer ***")
+	msg = providerKeyRegex.ReplaceAllString(msg, "***")
+	msg = upstreamIPv4Regex.ReplaceAllString(msg, "***")
+	return msg
 }
 
 func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
