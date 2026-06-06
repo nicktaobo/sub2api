@@ -26,6 +26,11 @@ const (
 	ContextKeyForcePlatform ContextKey = "force_platform"
 	// ContextKeyMerchant MERCHANT-SYSTEM v1.0：当前请求所属商户（DomainDetect 中间件注入）
 	ContextKeyMerchant ContextKey = "merchant"
+	// ContextKeyOpsFallbackAPIKey 运维错误日志专用回退键。
+	// 鉴权早退（分组停用/删除、Key 停用/过期/额度、用户停用、IP 限制等）时，
+	// apiKey 已加载但尚未写入 ContextKeyAPIKey；该键让 Ops 错误日志仍能取到
+	// user/group/platform。仅供 Ops 错误日志读取，不代表请求已通过鉴权。
+	ContextKeyOpsFallbackAPIKey ContextKey = "ops_fallback_api_key"
 )
 
 // ForcePlatform 返回设置强制平台的中间件
