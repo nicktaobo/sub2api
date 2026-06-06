@@ -675,6 +675,15 @@ func writeUpstreamResponse(c *gin.Context, res *service.UpstreamHTTPResult) {
 		googleError(c, http.StatusBadGateway, "Empty upstream response")
 		return
 	}
+	if res.StatusCode >= 400 {
+		// 错误响应不裸透传上游 body/响应头，改为脱敏后的 Gemini 原生错误结构
+		msg := service.SanitizeUpstreamErrorMessage(strings.TrimSpace(service.ExtractUpstreamErrorMessage(res.Body)))
+		if msg == "" {
+			msg = "Upstream request failed"
+		}
+		googleError(c, res.StatusCode, msg)
+		return
+	}
 	for k, vv := range res.Headers {
 		// Avoid overriding content-length and hop-by-hop headers.
 		if strings.EqualFold(k, "Content-Length") || strings.EqualFold(k, "Transfer-Encoding") || strings.EqualFold(k, "Connection") {

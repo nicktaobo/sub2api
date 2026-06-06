@@ -1445,11 +1445,12 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 			switch s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody) {
 			case ErrorPolicySkipped:
 				respBody = unwrapIfNeeded(isOAuth, respBody)
-				contentType := resp.Header.Get("Content-Type")
-				if contentType == "" {
-					contentType = "application/json"
+				// 错误响应不裸透传上游 body，改为脱敏后的标准 Claude 错误结构
+				skipMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+				if skipMsg == "" {
+					skipMsg = "Upstream request failed"
 				}
-				c.Data(http.StatusInternalServerError, contentType, respBody)
+				_ = s.writeClaudeError(c, http.StatusInternalServerError, "upstream_error", skipMsg)
 				return nil, fmt.Errorf("gemini upstream error: %d (skipped by error policy)", resp.StatusCode)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
 				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
@@ -1557,11 +1558,12 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 			Detail:             upstreamDetail,
 		})
 
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
+		// 错误响应不裸透传上游 body，改为脱敏后的标准 Claude 错误结构
+		errMsg := upstreamMsg
+		if errMsg == "" {
+			errMsg = "Upstream request failed"
 		}
-		c.Data(resp.StatusCode, contentType, respBody)
+		_ = s.writeClaudeError(c, resp.StatusCode, "upstream_error", errMsg)
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("gemini upstream error: %d", resp.StatusCode)
 		}
@@ -1713,6 +1715,11 @@ func sanitizeUpstreamErrorMessage(msg string) string {
 	msg = providerKeyRegex.ReplaceAllString(msg, "***")
 	msg = upstreamIPv4Regex.ReplaceAllString(msg, "***")
 	return msg
+}
+
+// SanitizeUpstreamErrorMessage 是 sanitizeUpstreamErrorMessage 的导出版本，供 handler 层复用。
+func SanitizeUpstreamErrorMessage(msg string) string {
+	return sanitizeUpstreamErrorMessage(msg)
 }
 
 func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {

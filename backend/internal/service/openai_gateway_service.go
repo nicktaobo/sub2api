@@ -3620,7 +3620,8 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	if contentType == "" {
 		contentType = "application/json"
 	}
-	c.Data(resp.StatusCode, contentType, body)
+	// 透传模式：保留上游错误 JSON 结构，但对 body 脱敏，去除上游渠道身份(host/url/key/IP)
+	c.Data(resp.StatusCode, contentType, []byte(sanitizeUpstreamErrorMessage(string(body))))
 
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", resp.StatusCode)
