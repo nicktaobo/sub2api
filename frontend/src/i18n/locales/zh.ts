@@ -7762,7 +7762,17 @@ export default {
     empty: '当前暂无公开分组。',
     loadErrorTitle: '加载失败',
     loadErrorDescription: '请稍后刷新页面再试。',
-    footnote: '专属/订阅型分组不在此页展示；最终可用模型、价格与权限以控制台为准。'
+    footnote: '专属/订阅型分组不在此页展示；最终可用模型、价格与权限以控制台为准。',
+    statGroups: '分组',
+    statModels: '模型',
+    statPlatforms: '平台',
+    searchPlaceholder: '搜索分组、平台或模型名称…',
+    searchEmpty: '没有匹配的分组或模型。',
+    refresh: '刷新',
+    copyModelHint: '点击复制模型名称',
+    apiBaseTitle: 'API 接入地址',
+    apiBaseHint: '在客户端 Base URL 填入此地址，鉴权使用控制台创建的密钥。',
+    copyApiBase: '复制'
   },
 
   apiDocs: {

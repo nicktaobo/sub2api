@@ -31,21 +31,87 @@
     </header>
 
     <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
-      <div class="mb-8 border-b border-gray-200 pb-6 dark:border-dark-700">
-        <div class="flex items-start gap-4">
-          <span class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
-            <Icon name="grid" size="md" />
-          </span>
+      <!-- Hero banner with live stats -->
+      <section class="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 via-primary-600 to-primary-800 px-6 py-7 text-white shadow-sm sm:mb-8 sm:px-9 sm:py-9">
+        <div aria-hidden="true" class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl"></div>
+        <div aria-hidden="true" class="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-primary-300/20 blur-3xl"></div>
+        <div class="relative flex flex-col gap-7 sm:flex-row sm:items-center sm:justify-between">
           <div class="min-w-0">
-            <p class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('publicModels.badge') }}</p>
-            <h1 class="mt-2 break-words text-2xl font-bold tracking-normal text-gray-950 dark:text-white sm:text-3xl">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium ring-1 ring-white/20 backdrop-blur">
+              <Icon name="grid" size="xs" />
+              {{ t('publicModels.badge') }}
+            </span>
+            <h1 class="mt-3 break-words text-2xl font-bold tracking-tight sm:text-4xl">
               {{ t('publicModels.title') }}
             </h1>
-            <p class="mt-3 text-sm text-gray-600 dark:text-dark-300">
+            <p class="mt-2.5 max-w-xl text-sm text-white/80">
               {{ t('publicModels.subtitle') }}
             </p>
           </div>
+          <div class="flex shrink-0 items-center gap-5 sm:gap-9">
+            <div class="text-center">
+              <div class="text-3xl font-bold tabular-nums sm:text-4xl">{{ groups.length }}</div>
+              <p class="mt-1 text-xs text-white/70">{{ t('publicModels.statGroups') }}</p>
+            </div>
+            <div class="h-10 w-px bg-white/20"></div>
+            <div class="text-center">
+              <div class="text-3xl font-bold tabular-nums sm:text-4xl">{{ totalModelCount }}</div>
+              <p class="mt-1 text-xs text-white/70">{{ t('publicModels.statModels') }}</p>
+            </div>
+            <div class="h-10 w-px bg-white/20"></div>
+            <div class="text-center">
+              <div class="text-3xl font-bold tabular-nums sm:text-4xl">{{ platformOptions.length }}</div>
+              <p class="mt-1 text-xs text-white/70">{{ t('publicModels.statPlatforms') }}</p>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <!-- API base URL -->
+      <div
+        v-if="apiBaseUrl"
+        class="mb-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-dark-700 dark:bg-dark-800/40"
+      >
+        <div class="flex items-start gap-3">
+          <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
+            <Icon name="link" size="md" />
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-950 dark:text-white">{{ t('publicModels.apiBaseTitle') }}</p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('publicModels.apiBaseHint') }}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="inline-flex min-w-0 items-center gap-3 self-start rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 transition hover:border-primary-300 sm:self-auto dark:border-dark-700 dark:bg-dark-900/60 dark:hover:border-primary-500/40"
+          :title="t('publicModels.copyApiBase')"
+          @click="copyApiBase"
+        >
+          <code class="truncate font-mono text-sm text-gray-800 dark:text-dark-100">{{ apiBaseUrl }}/v1</code>
+          <span class="flex-shrink-0 text-xs font-medium text-primary-600 dark:text-primary-300">{{ t('publicModels.copyApiBase') }}</span>
+        </button>
+      </div>
+
+      <!-- Search + refresh -->
+      <div class="mb-4 flex items-center gap-2">
+        <div class="relative min-w-0 flex-1">
+          <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
+          <input
+            v-model="searchQuery"
+            type="search"
+            :placeholder="t('publicModels.searchPlaceholder')"
+            class="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-700 dark:bg-dark-800/60 dark:text-white dark:placeholder:text-dark-400"
+          />
+        </div>
+        <button
+          type="button"
+          class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:border-primary-300 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-dark-700 dark:bg-dark-800/40 dark:text-dark-200 dark:hover:border-primary-500/40"
+          :disabled="loading"
+          @click="reload"
+        >
+          <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+          <span class="hidden sm:inline">{{ t('publicModels.refresh') }}</span>
+        </button>
       </div>
 
       <div class="mb-6 flex flex-wrap items-center gap-2">
@@ -89,7 +155,7 @@
         v-else-if="!filteredGroups.length"
         class="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-14 text-center text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-400"
       >
-        {{ t('publicModels.empty') }}
+        {{ searchQuery.trim() ? t('publicModels.searchEmpty') : t('publicModels.empty') }}
       </div>
 
       <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -118,12 +184,15 @@
           </div>
 
           <ul class="mt-3 flex flex-wrap gap-1.5">
-            <li
-              v-for="m in displayedModels(group)"
-              :key="m.name"
-              class="model-chip"
-            >
-              {{ m.name }}
+            <li v-for="m in displayedModels(group)" :key="m.name">
+              <button
+                type="button"
+                class="model-chip"
+                :title="t('publicModels.copyModelHint')"
+                @click="copyModel(m.name)"
+              >
+                {{ m.name }}
+              </button>
             </li>
             <li
               v-if="group.models.length > MAX_MODELS_PER_CARD"
@@ -151,12 +220,14 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import userChannelsAPI, { type UserPricingGroup } from '@/api/channels'
 import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
+import { useClipboard } from '@/composables/useClipboard'
 import type { GroupPlatform } from '@/types'
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const merchantStore = useMerchantStore()
+const { copyToClipboard } = useClipboard()
 
 const MAX_MODELS_PER_CARD = 12
 
@@ -164,6 +235,7 @@ const groups = ref<UserPricingGroup[]>([])
 const loading = ref(false)
 const loadError = ref(false)
 const platformFilter = ref<string>('')
+const searchQuery = ref('')
 
 const platformOptions = computed(() => {
   const counts = new Map<string, number>()
@@ -175,14 +247,53 @@ const platformOptions = computed(() => {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 })
 
-const filteredGroups = computed(() =>
-  platformFilter.value
+const totalModelCount = computed(() => {
+  const names = new Set<string>()
+  for (const g of groups.value) {
+    for (const m of g.models) names.add(m.name)
+  }
+  return names.size
+})
+
+const filteredGroups = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  let result = platformFilter.value
     ? groups.value.filter((g) => g.platform === platformFilter.value)
-    : groups.value,
-)
+    : groups.value
+  if (q) {
+    result = result.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        g.platform.toLowerCase().includes(q) ||
+        g.models.some((m) => m.name.toLowerCase().includes(q)),
+    )
+  }
+  return result
+})
 
 function displayedModels(group: UserPricingGroup) {
-  return group.models.slice(0, MAX_MODELS_PER_CARD)
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return group.models.slice(0, MAX_MODELS_PER_CARD)
+  // Surface models that match the search first so the hit is visible on the card.
+  const matched = group.models.filter((m) => m.name.toLowerCase().includes(q))
+  const rest = group.models.filter((m) => !m.name.toLowerCase().includes(q))
+  return [...matched, ...rest].slice(0, MAX_MODELS_PER_CARD)
+}
+
+function copyModel(name: string) {
+  copyToClipboard(name)
+}
+
+// API 接入域名：优先后台配置的 api_base_url，否则回退当前站点 origin（与首页示例一致）
+const apiBaseUrl = computed(() => {
+  const configured = (appStore.cachedPublicSettings?.api_base_url || '').trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin
+  return ''
+})
+
+function copyApiBase() {
+  if (apiBaseUrl.value) copyToClipboard(`${apiBaseUrl.value}/v1`)
 }
 
 function formatRate(rate: number): string {
@@ -259,6 +370,10 @@ onMounted(() => {
 .model-chip {
   @apply inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-[12px] text-gray-700
          dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200;
+}
+button.model-chip {
+  @apply cursor-pointer transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700
+         dark:hover:border-primary-500/40 dark:hover:bg-primary-500/10 dark:hover:text-primary-200;
 }
 .model-chip-more {
   @apply border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200;

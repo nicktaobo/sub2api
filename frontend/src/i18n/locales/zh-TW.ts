@@ -7425,7 +7425,17 @@ export default {
     empty: '目前尚無公開分組。',
     loadErrorTitle: '載入失敗',
     loadErrorDescription: '請稍後重新整理頁面再試。',
-    footnote: '專屬/訂閱型分組不在此頁展示；最終可用模型、價格與權限以控制台為準。'
+    footnote: '專屬/訂閱型分組不在此頁展示；最終可用模型、價格與權限以控制台為準。',
+    statGroups: '分組',
+    statModels: '模型',
+    statPlatforms: '平台',
+    searchPlaceholder: '搜尋分組、平台或模型名稱…',
+    searchEmpty: '沒有符合的分組或模型。',
+    refresh: '重新整理',
+    copyModelHint: '點擊複製模型名稱',
+    apiBaseTitle: 'API 接入地址',
+    apiBaseHint: '在用戶端 Base URL 填入此地址，驗證使用控制台建立的金鑰。',
+    copyApiBase: '複製'
   },
 
   apiDocs: {

@@ -7583,7 +7583,17 @@ export default {
     empty: 'No public groups available right now.',
     loadErrorTitle: 'Failed to load',
     loadErrorDescription: 'Please refresh the page and try again later.',
-    footnote: 'Exclusive and subscription-only groups are not listed here; final availability, pricing, and permissions follow your console.'
+    footnote: 'Exclusive and subscription-only groups are not listed here; final availability, pricing, and permissions follow your console.',
+    statGroups: 'Groups',
+    statModels: 'Models',
+    statPlatforms: 'Platforms',
+    searchPlaceholder: 'Search groups, platforms, or model names…',
+    searchEmpty: 'No matching groups or models.',
+    refresh: 'Refresh',
+    copyModelHint: 'Click to copy model name',
+    apiBaseTitle: 'API Base URL',
+    apiBaseHint: 'Use this as the Base URL in your client; authenticate with a key created in the console.',
+    copyApiBase: 'Copy'
   },
 
   apiDocs: {
