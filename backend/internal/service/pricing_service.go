@@ -51,6 +51,18 @@ var (
 		Mode:                    "chat",
 		SupportsPromptCaching:   true,
 	}
+	// Claude Fable 5 官方定价（$10/$50 per MTok，缓存写 1.25x / 1h 写 2x / 读 0.1x）。
+	// 远程定价库尚未收录该模型时的静态兜底，避免同步覆盖本地条目后计费归零。
+	claudeFable5FallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:                   1e-05,
+		OutputCostPerToken:                  5e-05,
+		CacheCreationInputTokenCost:         1.25e-05,
+		CacheCreationInputTokenCostAbove1hr: 2e-05,
+		CacheReadInputTokenCost:             1e-06,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	}
 )
 
 // LiteLLMModelPricing LiteLLM价格数据结构
@@ -671,6 +683,7 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	// 因子串关系误匹配 "claude-opus-4-7"（opus-4.7 系列）。
 	// 注意：原 map 实现存在 Go map 迭代随机性导致的同类 bug，此处改为有序切片修复。
 	families := []modelFamily{
+		{name: "fable-5", match: []string{"claude-fable-5", "claude-fable"}},
 		{name: "opus-4.7", match: []string{"claude-opus-4-7", "claude-opus-4.7"}, pricing: []string{"claude-opus-4-7", "claude-opus-4.7", "claude-opus-4-6"}},
 		{name: "opus-4.6", match: []string{"claude-opus-4-6", "claude-opus-4.6"}},
 		{name: "opus-4.5", match: []string{"claude-opus-4-5", "claude-opus-4.5"}},
@@ -701,6 +714,8 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	if matched == nil {
 		var fallbackName string
 		switch {
+		case strings.Contains(model, "fable"):
+			fallbackName = "fable-5"
 		case strings.Contains(model, "opus"):
 			switch {
 			case strings.Contains(model, "4.7") || strings.Contains(model, "4-7"):
@@ -756,6 +771,12 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 				return pricing
 			}
 		}
+	}
+
+	// Fable 5 系列：定价数据未收录时按官方静态价计费，避免返回 $0
+	if matched.name == "fable-5" {
+		logger.LegacyPrintf("service.pricing", "[Pricing] Fable fallback matched %s -> claude-fable-5(static)", model)
+		return claudeFable5FallbackPricing
 	}
 
 	return nil

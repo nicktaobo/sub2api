@@ -40,6 +40,10 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('antigravity')).toContain('claude-opus-4-8')
   })
 
+  it('Claude 模型列表包含 Fable 5', () => {
+    expect(getModelsByPlatform('claude')).toContain('claude-fable-5')
+  })
+
   it('gemini 模型列表包含原生生图模型', () => {
     const models = getModelsByPlatform('gemini')
 

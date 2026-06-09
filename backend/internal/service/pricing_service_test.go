@@ -291,3 +291,33 @@ func TestListModelNamesByProvider_EmptyCatalog(t *testing.T) {
 	require.NotNil(t, got)
 	require.Empty(t, got)
 }
+
+func TestGetModelPricing_Fable5ExactMatchPrefersPricingData(t *testing.T) {
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"claude-fable-5": {LiteLLMProvider: "anthropic", InputCostPerToken: 1e-05, OutputCostPerToken: 5e-05},
+		},
+	}
+
+	got := svc.GetModelPricing("claude-fable-5")
+	require.NotNil(t, got)
+	require.Same(t, svc.pricingData["claude-fable-5"], got)
+}
+
+func TestGetModelPricing_Fable5StaticFallbackWhenDataMissing(t *testing.T) {
+	// 远程定价库尚未收录 claude-fable-5 时，按官方静态价兜底（$10/$50 per MTok），避免计费为 $0。
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{},
+	}
+
+	for _, name := range []string{"claude-fable-5", "claude-fable-5-20260610", "claude-fable-5[1m]"} {
+		got := svc.GetModelPricing(name)
+		require.NotNilf(t, got, "expected pricing for %q", name)
+		require.InDelta(t, 1e-05, got.InputCostPerToken, 1e-15)
+		require.InDelta(t, 5e-05, got.OutputCostPerToken, 1e-15)
+		require.InDelta(t, 1.25e-05, got.CacheCreationInputTokenCost, 1e-15)
+		require.InDelta(t, 1e-06, got.CacheReadInputTokenCost, 1e-15)
+		require.Equal(t, "anthropic", got.LiteLLMProvider)
+		require.True(t, got.SupportsPromptCaching)
+	}
+}
