@@ -477,12 +477,17 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 				}
-				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
+				upstreamErrorAlreadyCommunicated := forwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, streamStarted, err)
+				wroteFallback := false
+				if !upstreamErrorAlreadyCommunicated {
+					wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
+				}
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
 					zap.String("account_name", account.Name),
 					zap.String("account_platform", account.Platform),
 					zap.Bool("fallback_error_response_written", wroteFallback),
+					zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 					zap.Error(err),
 				}
 				if account.Proxy != nil {
@@ -874,12 +879,17 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 				}
-				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
+				upstreamErrorAlreadyCommunicated := forwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, streamStarted, err)
+				wroteFallback := false
+				if !upstreamErrorAlreadyCommunicated {
+					wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
+				}
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
 					zap.String("account_name", account.Name),
 					zap.String("account_platform", account.Platform),
 					zap.Bool("fallback_error_response_written", wroteFallback),
+					zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 					zap.Error(err),
 				}
 				if account.Proxy != nil {
@@ -1595,6 +1605,42 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 
 	// Normal case: return JSON response with proper status code
 	h.errorResponse(c, status, errType, message)
+}
+
+// forwardErrorAlreadyCommunicated 判断 Forward 返回的错误是否已由 service 层
+// 写回完整错误响应（如错误透传规则命中、上游错误映射后的 c.JSON）。
+// 此时 handler 不能再补写兜底响应，否则会在已写入的 JSON 后追加 SSE error 帧，
+// 拼出非法 JSON 响应体，下游网关解析失败后只能展示裸 400（丢失透传的真实原因）。
+// 前缀清单只收录 service 层"必定先写响应再返回"的错误：
+//   - gateway_service handleUpstreamError / handleRetryExhaustedError → "upstream error: ..."
+//   - gemini_messages_compat_service writeGeminiMappedError / 错误策略分支 → "(gemini) upstream error: ..."
+//   - antigravity_gateway_service writeMappedClaudeError / writeClaudeError 分支 → "(antigravity) upstream error: ..."
+//
+// streamStarted（ping 已 flush）时 SSE 流已开始，service 写入的 JSON 无法构成
+// 合法终止事件，仍需让 ensureForwardErrorResponse 补发 SSE error 帧。
+// Writer 在 Forward 期间无增长说明 service 层没写过响应，同样需要兜底。
+func forwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForward int, streamStarted bool, err error) bool {
+	if err == nil || c == nil || c.Writer == nil {
+		return false
+	}
+	if streamStarted {
+		return false
+	}
+	if c.Writer.Size() == writerSizeBeforeForward {
+		return false
+	}
+
+	msg := strings.TrimSpace(err.Error())
+	for _, prefix := range []string{
+		"upstream error: ",
+		"gemini upstream error: ",
+		"antigravity upstream error: ",
+	} {
+		if strings.HasPrefix(msg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
