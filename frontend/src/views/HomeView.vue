@@ -331,7 +331,7 @@
             <span>{{ siteName }}</span>
           </div>
           <div class="hd-footer-meta">
-            <span>&copy; {{ currentYear }} SouiCore AI INC. {{ t('home.footer.allRightsReserved') }}</span>
+            <span>&copy; {{ currentYear }} SoulCore AI INC. {{ t('home.footer.allRightsReserved') }}</span>
             <a
               v-if="docUrl"
               :href="docUrl"
