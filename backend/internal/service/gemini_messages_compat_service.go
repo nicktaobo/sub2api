@@ -832,15 +832,18 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 
 				var strippedClaudeBody []byte
 				stageName := ""
+				// 路径说明：本处上游是 Gemini，但被剥离的 body 是 Anthropic 格式。传 originalModel
+				// （客户端原 Anthropic model）而非 mappedModel（上游 Gemini model），让剥离逻辑按
+				// 客户端请求的 Anthropic 子协议族判定（详见 ResolveThinkingProtocol 文档）。
 				switch signatureRetryStage {
 				case 0:
 					// Stage 1: disable thinking + thinking->text
-					strippedClaudeBody = FilterThinkingBlocksForRetry(originalClaudeBody)
+					strippedClaudeBody = FilterThinkingBlocksForRetry(originalClaudeBody, originalModel)
 					stageName = "thinking-only"
 					signatureRetryStage = 1
 				default:
 					// Stage 2: additionally downgrade tool_use/tool_result blocks to text
-					strippedClaudeBody = FilterSignatureSensitiveBlocksForRetry(originalClaudeBody)
+					strippedClaudeBody = FilterSignatureSensitiveBlocksForRetry(originalClaudeBody, originalModel)
 					stageName = "thinking+tools"
 					signatureRetryStage = 2
 				}
@@ -1723,6 +1726,7 @@ func SanitizeUpstreamErrorMessage(msg string) string {
 }
 
 func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
+	MarkResponseCommitted(c)
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 	upstreamDetail := ""
@@ -2266,6 +2270,7 @@ func randomHex(nBytes int) string {
 }
 
 func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
+	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
 		"error": gin.H{"type": errType, "message": message},
@@ -2274,6 +2279,7 @@ func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status in
 }
 
 func (s *GeminiMessagesCompatService) writeGoogleError(c *gin.Context, status int, message string) error {
+	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,

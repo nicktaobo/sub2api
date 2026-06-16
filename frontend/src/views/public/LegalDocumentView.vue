@@ -59,7 +59,7 @@
               <Icon :name="documentIcon" size="md" />
             </span>
             <div class="min-w-0">
-              <p class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('legal.badge') }}</p>
+              <p class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ documentTypeLabel }}</p>
               <h1 class="mt-2 break-words text-2xl font-bold tracking-normal text-gray-950 dark:text-white sm:text-3xl">
                 {{ resolvedTitle }}
               </h1>
@@ -96,9 +96,12 @@ import DOMPurify from 'dompurify'
 import Icon from '@/components/icons/Icon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { getPublicSettings } from '@/api/auth'
+import { getLocale } from '@/i18n'
 import { sanitizeUrl } from '@/utils/url'
 import { resolveLoginAgreementDocumentIcon, resolveLoginAgreementDocumentLocale } from '@/utils/loginAgreement'
 import type { LoginAgreementDocument, PublicSettings } from '@/types'
+import zhAdminCompliance from '../../../../docs/legal/admin-compliance.zh.md?raw'
+import enAdminCompliance from '../../../../docs/legal/admin-compliance.en.md?raw'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -112,15 +115,28 @@ marked.setOptions({
 })
 
 const documentId = computed(() => String(route.params.documentId || ''))
+const isAdminComplianceDocument = computed(() => documentId.value === 'admin-compliance')
 const documents = computed(() => settings.value?.login_agreement_documents ?? [])
 const siteName = computed(() => settings.value?.site_name || 'Sub2API')
 const siteLogo = computed(() => sanitizeUrl(settings.value?.site_logo || '', {
   allowRelative: true,
   allowDataUrl: true,
 }))
-const updatedAt = computed(() => settings.value?.login_agreement_updated_at || '')
+const updatedAt = computed(() =>
+  isAdminComplianceDocument.value ? '' : settings.value?.login_agreement_updated_at || ''
+)
+const documentTypeLabel = computed(() =>
+  isAdminComplianceDocument.value ? t('legal.adminCompliance') : t('legal.loginAgreement')
+)
 
 const currentDocument = computed<LoginAgreementDocument | null>(() => {
+  if (isAdminComplianceDocument.value) {
+    return {
+      id: 'admin-compliance',
+      title: t('adminCompliance.title'),
+      content_md: getLocale() === 'zh' ? zhAdminCompliance : enAdminCompliance
+    }
+  }
   const id = documentId.value
   if (!id) {
     return null

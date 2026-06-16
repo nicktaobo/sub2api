@@ -38,6 +38,7 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Merchant               *admin.MerchantHandler // MERCHANT-SYSTEM v1.0
 	Profit                 *admin.ProfitHandler   // 利润自动化核算
+	Compliance             *admin.ComplianceHandler
 }
 
 // Handlers contains all HTTP handlers

@@ -41,6 +41,7 @@ func ProvideAdminHandlers(
 	affiliateHandler *admin.AffiliateHandler,
 	merchantHandler *admin.MerchantHandler,
 	profitHandler *admin.ProfitHandler,
+	complianceHandler *admin.ComplianceHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
@@ -75,6 +76,7 @@ func ProvideAdminHandlers(
 		Affiliate:              affiliateHandler,
 		Merchant:               merchantHandler,
 		Profit:                 profitHandler,
+		Compliance:             complianceHandler,
 	}
 }
 
@@ -199,6 +201,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAffiliateHandler,
 	admin.NewMerchantHandler, // MERCHANT-SYSTEM v1.0
 	admin.NewProfitHandler,   // 利润自动化核算
+	admin.NewComplianceHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,
