@@ -398,6 +398,23 @@ export default {
     }
   },
 
+  adminCompliance: {
+    title: '部署與運營合規確認',
+    blockingNotice: '繼續使用控制台前，須完成部署與運營合規確認。',
+    riskNotice: '本確認用於以清晰、顯著、可留痕的方式提示自部署實例的合規義務與運營風險。',
+    version: '協議版本',
+    openDocument: '在 GitHub 檢視協議文件',
+    documentSource: '協議正文來自本專案倉庫中的 Markdown 檔案。修改協議內容時必須同步遞增協議版本；已確認的舊版本將失效，控制台使用者須重新確認。',
+    inputLabel: '請逐字輸入以下確認短語',
+    inputPlaceholder: '輸入確認短語以繼續',
+    inputMismatch: '確認短語不匹配，請逐字輸入提示內容。',
+    legalNote: '本確認用於明確自部署實例與開源專案、著作權人、貢獻者及維護者之間的非關聯關係和責任邊界；部署、運營或控制相關實例的主體應獨立承擔其適用義務。',
+    logout: '登出',
+    accept: '確認並繼續',
+    accepted: '合規確認已記錄',
+    acceptFailed: '提交確認失敗'
+  },
+
   // Navigation
   nav: {
     dashboard: '儀表盤',

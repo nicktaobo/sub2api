@@ -16,8 +16,10 @@ export const useAdminComplianceStore = defineStore('adminCompliance', () => {
   const required = computed(() => status.value?.required === true)
   const shouldShow = computed(() => required.value || forceVisible.value)
   const currentLocale = computed(() => getLocale())
+  // 后端 normalizeAdminComplianceLanguage 用 HasPrefix(raw, "zh") 归一，
+  // zh / zh-TW 都视为中文；前端须与之对齐，否则繁中下展示英文短语却被后端按中文校验。
   const expectedPhrase = computed(() => {
-    if (currentLocale.value === 'zh') {
+    if (currentLocale.value.startsWith('zh')) {
       return status.value?.ack_phrase_zh || FALLBACK_ZH_PHRASE
     }
     return status.value?.ack_phrase_en || FALLBACK_EN_PHRASE

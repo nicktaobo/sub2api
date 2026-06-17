@@ -124,9 +124,10 @@ marked.setOptions({
 const visible = computed(() => authStore.isAuthenticated && authStore.isAdmin && complianceStore.shouldShow)
 const expectedPhrase = computed(() => complianceStore.expectedPhrase)
 const canSubmit = computed(() => typedPhrase.value.trim() === expectedPhrase.value)
-const currentDocument = computed(() => getLocale() === 'zh' ? zhDocument : enDocument)
+const isChineseLocale = computed(() => getLocale().startsWith('zh'))
+const currentDocument = computed(() => isChineseLocale.value ? zhDocument : enDocument)
 const documentUrl = computed(() => {
-  if (getLocale() === 'zh') {
+  if (isChineseLocale.value) {
     return complianceStore.status?.document_url_zh || 'https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.zh.md'
   }
   return complianceStore.status?.document_url_en || 'https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.en.md'
