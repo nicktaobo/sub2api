@@ -170,6 +170,75 @@ type BillingService struct {
 	fallbackPrices map[string]*ModelPricing // 硬编码回退价格
 }
 
+// outputCapMargin: 仅当上报 output 超过 模型物理上限×该余量 时才封顶。
+// 留余量避免误伤合法的略超读数;gegemini 事故为 ~18× 上限,1.25× 仍能决定性命中。
+const outputCapMargin = 1.25
+
+// CapOutputTokens 把上游上报的 output token 封顶到模型物理上限(×余量),用于计费前
+// 防伪造灌水(2026-06 gegemini:号池把 output 报到上限 18 倍定向掺水)。返回
+// (应计费的 output 总数, 是否发生封顶)。reported<=上限 时原样返回、不动。
+//
+// 只封顶"文本"output:图生模型上游会把 image token 计入 output 总数,而 max_output 是
+// 文本上限;直接封总数会让 textOutput=output-image 变负、污染计费与日志。故拆出文本部分
+// 封顶后再加回 image token,保证 返回值 >= imageOutput、computeTokenBreakdown 不变号。
+func (s *BillingService) CapOutputTokens(model string, reported, imageOutput int) (int, bool) {
+	if reported <= 0 {
+		return reported, false
+	}
+	if imageOutput < 0 {
+		imageOutput = 0
+	}
+	textReported := reported - imageOutput
+	if textReported < 0 {
+		textReported = 0
+	}
+	maxOut, ok := s.GetModelMaxOutputTokens(model)
+	if !ok || maxOut <= 0 {
+		maxOut = familyFallbackMaxOutput(model) // 价目文件缺该模型上限时按家族兜底
+	}
+	if maxOut <= 0 {
+		return reported, false
+	}
+	ceiling := int(float64(maxOut) * outputCapMargin)
+	if textReported <= ceiling {
+		return reported, false
+	}
+	return ceiling + imageOutput, true
+}
+
+// GetModelMaxOutputTokens 代理到 PricingService(价目文件 max_output_tokens)。
+func (s *BillingService) GetModelMaxOutputTokens(model string) (int, bool) {
+	if s.pricingService == nil {
+		return 0, false
+	}
+	return s.pricingService.GetModelMaxOutputTokens(model)
+}
+
+// familyFallbackMaxOutput: 价目文件无该模型上限(约 13/192)或完全未知模型时的兜底。
+// 取各家族文档上限;未知模型给宽松全局上限(200k),宁可不封顶也绝不少计费合法长输出。
+func familyFallbackMaxOutput(model string) int {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "opus"):
+		return 32000
+	case strings.Contains(m, "claude"): // sonnet / haiku
+		return 64000
+	case strings.Contains(m, "gemini"):
+		return 65536
+	case strings.Contains(m, "gpt-4o"):
+		return 16384
+	case strings.Contains(m, "gpt"), strings.Contains(m, "o1"),
+		strings.Contains(m, "o3"), strings.Contains(m, "o4"):
+		return 128000
+	case strings.Contains(m, "deepseek"), strings.Contains(m, "qwen"):
+		return 65536
+	case strings.Contains(m, "grok"):
+		return 131072
+	default:
+		return 200000
+	}
+}
+
 // NewBillingService 创建计费服务实例
 func NewBillingService(cfg *config.Config, pricingService *PricingService) *BillingService {
 	s := &BillingService{

@@ -9340,6 +9340,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
 
+	// 捕获 ForceCacheBilling 改写前的原始 input(下方粘性会话切换会把 InputTokens 清零),
+	// 供 L2 上报 guard 时如实反映 prompt 体量。
+	reportedPromptTokens := result.Usage.InputTokens
+
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
 	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {
@@ -9375,6 +9379,17 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
 		billingModel = input.OriginalModel
+	}
+
+	// L3 防伪造:计费前把上游上报的 output 封顶到模型物理上限(2026-06 gegemini:号池
+	// 伪造 output 计费、超上限 18×)。封顶后 cost / usage_log / account-stats 口径一致;
+	// 原始(封顶前)值留审计 + L2 随样本上报 guard 以检测伪造。
+	reportedOutputTokens := result.Usage.OutputTokens
+	if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
+		logger.LegacyPrintf("service.gateway.output_cap",
+			"output capped before billing: model=%s account=%d request=%s reported=%d capped=%d",
+			billingModel, account.ID, result.RequestID, result.Usage.OutputTokens, capped)
+		result.Usage.OutputTokens = capped
 	}
 
 	// 确定 RequestedModel（渠道映射前的原始模型）
@@ -9496,6 +9511,28 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+
+	// L2:真实流量样本异步上报 guard(本函数已在后台 usage-record 任务中执行,不占热路径,
+	// 错误全吞)。completion_tokens 送封顶前的原始 output,使 guard 能检测 output 伪造。
+	if gr := GuardReporterFromConfig(s.cfg.Gateway.GuardReport); gr != nil {
+		billed := 0.0
+		if cost != nil {
+			billed = cost.TotalCost
+		}
+		gr.Enqueue(GuardSample{
+			Sub2apiAccountID: account.ID,
+			Model:            billingModel,
+			RequestedModel:   requestedModel,
+			ResponseModel:    result.UpstreamModel,
+			RequestID:        result.RequestID,
+			IsStream:         result.Stream,
+			StreamCompleted:  result.Stream && !result.ClientDisconnect,
+			PromptTokens:     reportedPromptTokens,
+			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output:伪造检测对齐 L3,排除图生 image token
+			TotalTokens:      reportedPromptTokens + reportedOutputTokens,
+			BilledAmount:     billed,
+		})
+	}
 
 	return nil
 }

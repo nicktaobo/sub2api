@@ -804,6 +804,10 @@ type GatewayConfig struct {
 	// UsageRecord: 使用量记录异步队列配置（有界队列 + 固定 worker）
 	UsageRecord GatewayUsageRecordConfig `mapstructure:"usage_record"`
 
+	// GuardReport: 真实流量样本上报上游质检平台(guard/upstream-monitor)的配置。
+	// 默认关闭(opt-in);开启后在 RecordUsage 后异步 fire-and-forget 上报,绝不阻塞计费。
+	GuardReport GatewayGuardReportConfig `mapstructure:"guard_report"`
+
 	// UserGroupRateCacheTTLSeconds: 用户分组倍率热路径缓存 TTL（秒）
 	UserGroupRateCacheTTLSeconds int `mapstructure:"user_group_rate_cache_ttl_seconds"`
 	// ModelsListCacheTTLSeconds: /v1/models 模型列表短缓存 TTL（秒）
@@ -980,6 +984,16 @@ type GatewayOpenAISchedulerConfig struct {
 	StickyEscapeTTFTMs int `mapstructure:"sticky_escape_ttft_ms"`
 	// StickyEscapeErrorRate: 错误率 EWMA 超过该阈值时跳过 sticky
 	StickyEscapeErrorRate float64 `mapstructure:"sticky_escape_error_rate"`
+}
+
+// GatewayGuardReportConfig 真实流量样本上报 guard(upstream-monitor)配置。
+// 仅做异步 fire-and-forget 上报,错误全吞,不影响计费/响应。
+type GatewayGuardReportConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`         // 总开关,默认 false
+	BaseURL        string `mapstructure:"base_url"`        // guard 基址,如 https://guard.modelboxs.net
+	AgentToken     string `mapstructure:"agent_token"`     // X-Agent-Token 头,日志中不打印
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"` // 单次上报超时,默认 2s
+	SampleRate     int    `mapstructure:"sample_rate"`     // 抽样百分比 1-100,默认 100
 }
 
 // GatewayUsageRecordConfig 使用量记录异步队列配置
@@ -1933,6 +1947,9 @@ func setDefaults() {
 	viper.SetDefault("gateway.scheduling.outbox_lag_rebuild_failures", 3)
 	viper.SetDefault("gateway.scheduling.outbox_backlog_rebuild_rows", 10000)
 	viper.SetDefault("gateway.scheduling.full_rebuild_interval_seconds", 300)
+	viper.SetDefault("gateway.guard_report.enabled", false)
+	viper.SetDefault("gateway.guard_report.timeout_seconds", 2)
+	viper.SetDefault("gateway.guard_report.sample_rate", 100)
 	viper.SetDefault("gateway.usage_record.worker_count", 128)
 	viper.SetDefault("gateway.usage_record.queue_size", 16384)
 	viper.SetDefault("gateway.usage_record.task_timeout_seconds", 5)

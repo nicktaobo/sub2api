@@ -5966,6 +5966,20 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		result.UpstreamModel,
 		result.Model,
 	)
+	// L3 防伪造:计费前把上游上报 output 封顶到模型物理上限(2026-06 gegemini 事件)。
+	// 同步 result.Usage(写 usage_log)与 tokens(算 cost),口径一致;原始(封顶前)值
+	// 留审计 + L2 上报 guard 检测伪造。
+	reportedOutputTokens := result.Usage.OutputTokens
+	if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
+		logger.L().With(
+			zap.String("component", "service.openai_gateway.output_cap"),
+			zap.String("billing_model", billingModel),
+			zap.Int("reported_output", result.Usage.OutputTokens),
+			zap.Int("capped_output", capped),
+		).Warn("output_tokens.capped_before_billing")
+		result.Usage.OutputTokens = capped
+		tokens.OutputTokens = capped
+	}
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
@@ -6172,6 +6186,27 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+
+	// L2:真实流量样本异步上报 guard(off 热路径,错误全吞)。completion_tokens 送封顶前原始 output。
+	if gr := GuardReporterFromConfig(s.cfg.Gateway.GuardReport); gr != nil {
+		billed := 0.0
+		if cost != nil {
+			billed = cost.TotalCost
+		}
+		gr.Enqueue(GuardSample{
+			Sub2apiAccountID: account.ID,
+			Model:            billingModel,
+			RequestedModel:   requestedModel,
+			ResponseModel:    result.UpstreamModel,
+			RequestID:        result.RequestID,
+			IsStream:         result.Stream,
+			StreamCompleted:  result.Stream && !result.ClientDisconnect,
+			PromptTokens:     result.Usage.InputTokens,
+			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output
+			TotalTokens:      result.Usage.InputTokens + reportedOutputTokens,
+			BilledAmount:     billed,
+		})
+	}
 
 	return nil
 }

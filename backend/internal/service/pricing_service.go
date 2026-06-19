@@ -85,6 +85,7 @@ type LiteLLMModelPricing struct {
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
 	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
 	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
+	MaxOutputTokens                     int     `json:"max_output_tokens"`           // 模型 output token 物理上限(计费前封顶防上游伪造,2026-06 gegemini 事件)
 }
 
 // PricingRemoteClient 远程价格数据获取接口
@@ -109,6 +110,7 @@ type LiteLLMRawEntry struct {
 	SupportsPromptCaching               bool     `json:"supports_prompt_caching"`
 	OutputCostPerImage                  *float64 `json:"output_cost_per_image"`
 	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
+	MaxOutputTokens                     *int     `json:"max_output_tokens"`
 }
 
 // PricingService 动态价格服务
@@ -396,6 +398,10 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 			SupportsServiceTier:   entry.SupportsServiceTier,
 		}
 
+		if entry.MaxOutputTokens != nil {
+			pricing.MaxOutputTokens = *entry.MaxOutputTokens
+		}
+
 		if entry.InputCostPerToken != nil {
 			pricing.InputCostPerToken = *entry.InputCostPerToken
 		}
@@ -532,6 +538,17 @@ func (s *PricingService) validatePricingURL(raw string) (string, error) {
 		return "", fmt.Errorf("invalid pricing url: %w", err)
 	}
 	return normalized, nil
+}
+
+// GetModelMaxOutputTokens 返回模型 output token 物理上限(来自 LiteLLM 价目文件,
+// 复用 GetModelPricing 的归一化/别名/快照匹配)。无上限数据返回 (0,false)。
+// 用于计费前对上游上报 output 封顶,防伪造灌水(2026-06 gegemini 事件)。
+func (s *PricingService) GetModelMaxOutputTokens(modelName string) (int, bool) {
+	p := s.GetModelPricing(modelName)
+	if p == nil || p.MaxOutputTokens <= 0 {
+		return 0, false
+	}
+	return p.MaxOutputTokens, true
 }
 
 // GetModelPricing 获取模型价格（带模糊匹配）
