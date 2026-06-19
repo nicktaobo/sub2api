@@ -9385,11 +9385,13 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	// 伪造 output 计费、超上限 18×)。封顶后 cost / usage_log / account-stats 口径一致;
 	// 原始(封顶前)值留审计 + L2 随样本上报 guard 以检测伪造。
 	reportedOutputTokens := result.Usage.OutputTokens
-	if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
-		logger.LegacyPrintf("service.gateway.output_cap",
-			"output capped before billing: model=%s account=%d request=%s reported=%d capped=%d",
-			billingModel, account.ID, result.RequestID, result.Usage.OutputTokens, capped)
-		result.Usage.OutputTokens = capped
+	if s.cfg != nil && s.cfg.Gateway.OutputCap.Enabled {
+		if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
+			logger.LegacyPrintf("service.gateway.output_cap",
+				"output capped before billing: model=%s account=%d request=%s reported=%d capped=%d",
+				billingModel, account.ID, result.RequestID, result.Usage.OutputTokens, capped)
+			result.Usage.OutputTokens = capped
+		}
 	}
 
 	// 确定 RequestedModel（渠道映射前的原始模型）

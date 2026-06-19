@@ -808,6 +808,10 @@ type GatewayConfig struct {
 	// 默认关闭(opt-in);开启后在 RecordUsage 后异步 fire-and-forget 上报,绝不阻塞计费。
 	GuardReport GatewayGuardReportConfig `mapstructure:"guard_report"`
 
+	// OutputCap: 计费前把上游上报 output token 封顶到模型物理上限(防上游伪造计费,
+	// 2026-06 gegemini 事件)。默认关闭;上线后在生产按需开启,可秒级回滚。
+	OutputCap GatewayOutputCapConfig `mapstructure:"output_cap"`
+
 	// UserGroupRateCacheTTLSeconds: 用户分组倍率热路径缓存 TTL（秒）
 	UserGroupRateCacheTTLSeconds int `mapstructure:"user_group_rate_cache_ttl_seconds"`
 	// ModelsListCacheTTLSeconds: /v1/models 模型列表短缓存 TTL（秒）
@@ -994,6 +998,12 @@ type GatewayGuardReportConfig struct {
 	AgentToken     string `mapstructure:"agent_token"`     // X-Agent-Token 头,日志中不打印
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"` // 单次上报超时,默认 2s
 	SampleRate     int    `mapstructure:"sample_rate"`     // 抽样百分比 1-100,默认 100
+}
+
+// GatewayOutputCapConfig 计费前 output token 物理上限封顶开关
+type GatewayOutputCapConfig struct {
+	// Enabled: 默认 false;开启后超过 模型 max_output×1.25 的(文本)output 计费前被截断到上限。
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // GatewayUsageRecordConfig 使用量记录异步队列配置
@@ -1950,6 +1960,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.guard_report.enabled", false)
 	viper.SetDefault("gateway.guard_report.timeout_seconds", 2)
 	viper.SetDefault("gateway.guard_report.sample_rate", 100)
+	viper.SetDefault("gateway.output_cap.enabled", false)
 	viper.SetDefault("gateway.usage_record.worker_count", 128)
 	viper.SetDefault("gateway.usage_record.queue_size", 16384)
 	viper.SetDefault("gateway.usage_record.task_timeout_seconds", 5)

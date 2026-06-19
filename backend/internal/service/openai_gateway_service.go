@@ -5970,15 +5970,17 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// 同步 result.Usage(写 usage_log)与 tokens(算 cost),口径一致;原始(封顶前)值
 	// 留审计 + L2 上报 guard 检测伪造。
 	reportedOutputTokens := result.Usage.OutputTokens
-	if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
-		logger.L().With(
-			zap.String("component", "service.openai_gateway.output_cap"),
-			zap.String("billing_model", billingModel),
-			zap.Int("reported_output", result.Usage.OutputTokens),
-			zap.Int("capped_output", capped),
-		).Warn("output_tokens.capped_before_billing")
-		result.Usage.OutputTokens = capped
-		tokens.OutputTokens = capped
+	if s.cfg != nil && s.cfg.Gateway.OutputCap.Enabled {
+		if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
+			logger.L().With(
+				zap.String("component", "service.openai_gateway.output_cap"),
+				zap.String("billing_model", billingModel),
+				zap.Int("reported_output", result.Usage.OutputTokens),
+				zap.Int("capped_output", capped),
+			).Warn("output_tokens.capped_before_billing")
+			result.Usage.OutputTokens = capped
+			tokens.OutputTokens = capped
+		}
 	}
 	serviceTier := ""
 	if result.ServiceTier != nil {
