@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { resolveDocumentTitle, resolveRouteDocumentTitle } from '@/router/title'
+import { useMerchantStore } from '@/stores/merchant'
 
 describe('resolveDocumentTitle', () => {
   it('路由存在标题时，使用“路由标题 - 站点名”格式', () => {
@@ -45,5 +47,34 @@ describe('resolveRouteDocumentTitle', () => {
         sort_order: 0
       }
     ])).toBe('账号调度器 - EzouAPI')
+  })
+})
+
+describe('resolveRouteDocumentTitle - 商户品牌站', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  const route = { name: 'Home', params: {}, meta: { title: 'Dashboard' } }
+
+  it('商户站且有 seoTitle 时，页签标题固定为 seoTitle（覆盖路由标题）', () => {
+    const merchant = useMerchantStore()
+    merchant.brand = { is_merchant_site: true, seo_title: 'BrandCo - AI Gateway' }
+
+    expect(resolveRouteDocumentTitle(route, 'EzouAPI')).toBe('BrandCo - AI Gateway')
+  })
+
+  it('非商户站时仍走默认“路由标题 - 站点名”', () => {
+    const merchant = useMerchantStore()
+    merchant.brand = { is_merchant_site: false }
+
+    expect(resolveRouteDocumentTitle(route, 'EzouAPI')).toBe('Dashboard - EzouAPI')
+  })
+
+  it('商户站但 seoTitle 为空时，回退默认路由标题', () => {
+    const merchant = useMerchantStore()
+    merchant.brand = { is_merchant_site: true }
+
+    expect(resolveRouteDocumentTitle(route, 'EzouAPI')).toBe('Dashboard - EzouAPI')
   })
 })
