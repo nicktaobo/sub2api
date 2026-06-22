@@ -49,6 +49,13 @@ const (
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
+	// kimiCodingUserAgent 是 Kimi For Coding（api.kimi.com）放行所需的 Coding Agent UA。
+	// Kimi 服务端对客户端做白名单校验：仅放行 Kimi CLI / Claude Code / Roo Code 等。
+	// 实测（2026-06-18）：匹配规则为大小写敏感的前缀 "claude-cli/"，版本号与 "(external, cli)"
+	// 后缀均不参与判定；旧值 "claude-code/1.0" 不在白名单内，Kimi 收紧校验后返回 403。
+	// 此处直接对齐真实 Claude Code 的 User-Agent 结构。
+	kimiCodingUserAgent = "claude-cli/2.1.162 (external, cli)"
+
 	// OpenAI WS Mode 失败后的重连次数上限（不含首次尝试）。
 	// 与 Codex 客户端保持一致：失败后最多重连 5 次。
 	openAIWSReconnectRetryLimit = 5
@@ -1326,7 +1333,7 @@ func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool)
 // openAICompactSupportTier classifies an OpenAI account by compact capability.
 // 0 = explicitly unsupported, 1 = unknown / not yet probed, 2 = explicitly supported.
 func openAICompactSupportTier(account *Account) int {
-	if account == nil || !account.IsOpenAI() {
+	if account == nil || !account.IsOpenAICompatible() {
 		return 0
 	}
 	supported, known := account.OpenAICompactSupportKnown()
@@ -1342,7 +1349,7 @@ func openAICompactSupportTier(account *Account) int {
 // isOpenAIAccountEligibleForRequest centralises the schedulable / OpenAI / model /
 // compact-support checks used during account selection.
 func isOpenAIAccountEligibleForRequest(ctx context.Context, account *Account, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
-	if account == nil || !account.IsOpenAI() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
+	if account == nil || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
 		return false
 	}
 	if paused, reason := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
@@ -1375,7 +1382,7 @@ type openAIQuotaAutoPauseDecision struct {
 }
 
 func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) (bool, openAIQuotaAutoPauseDecision) {
-	if account == nil || !account.IsOpenAI() {
+	if account == nil || !account.IsOpenAICompatible() {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
 	// Per-account explicit-disable flags must take precedence over the global default.
@@ -2147,19 +2154,30 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	return nil, ErrNoAvailableAccounts
 }
 
+// openAICompatPlatforms 是经 OpenAI 兼容派发层（账号调度 / token / 模型放行）的全部平台名单，
+// 含 OpenAI 与五个国产平台（含 Seedance）。
+var openAICompatPlatforms = []string{PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen, PlatformSeedance}
+
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64) ([]Account, error) {
 	if s.schedulerSnapshot != nil {
-		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, PlatformOpenAI, false)
-		return accounts, err
+		var allAccounts []Account
+		for _, platform := range openAICompatPlatforms {
+			accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, true)
+			if err != nil {
+				return nil, err
+			}
+			allAccounts = append(allAccounts, accounts...)
+		}
+		return allAccounts, nil
 	}
 	var accounts []Account
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByPlatforms(ctx, openAICompatPlatforms)
 	} else if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, openAICompatPlatforms)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, openAICompatPlatforms)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
@@ -2288,6 +2306,24 @@ func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
+	// OpenAI 兼容的国产平台（DeepSeek / Moonshot / GLM / Qwen / Seedance）只用 API Key。
+	if account.IsOpenAICompatible() && !account.IsOpenAI() {
+		tp := s.resolveTokenProviderForPlatform(account.Platform)
+		if tp != nil {
+			token, err := tp.GetAccessToken(ctx, account)
+			if err != nil {
+				return "", "", err
+			}
+			return token, "apikey", nil
+		}
+		// fallback: 直接从凭据读取 api_key
+		apiKey := account.GetCredential("api_key")
+		if apiKey == "" {
+			return "", "", fmt.Errorf("api_key not found in credentials for platform %s", account.Platform)
+		}
+		return apiKey, "apikey", nil
+	}
+
 	switch account.Type {
 	case AccountTypeOAuth:
 		// 使用 TokenProvider 获取缓存的 token
@@ -2312,6 +2348,30 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 		return apiKey, "apikey", nil
 	default:
 		return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
+	}
+}
+
+// platformTokenProvider is a common interface for platform-specific token providers.
+type platformTokenProvider interface {
+	GetAccessToken(ctx context.Context, account *Account) (string, error)
+}
+
+// resolveTokenProviderForPlatform returns the stateless token provider for the
+// given OpenAI-compatible platform. Returns nil for unknown platforms.
+func (s *OpenAIGatewayService) resolveTokenProviderForPlatform(platform string) platformTokenProvider {
+	switch platform {
+	case PlatformDeepSeek:
+		return NewDeepSeekTokenProvider()
+	case PlatformMoonshot:
+		return NewMoonshotTokenProvider()
+	case PlatformGLM:
+		return NewGLMTokenProvider()
+	case PlatformQwen:
+		return NewQwenTokenProvider()
+	case PlatformSeedance:
+		return NewSeedanceTokenProvider()
+	default:
+		return nil
 	}
 }
 
@@ -4243,6 +4303,14 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	customUA := account.GetOpenAIUserAgent()
 	if customUA != "" {
 		req.Header.Set("user-agent", customUA)
+	}
+
+	// Kimi For Coding 对客户端做白名单校验，需为 Coding Agent UA（前缀 claude-cli/）。
+	// 当 Moonshot 平台账号使用 api.kimi.com 端点且未自定义 UA 时，自动设置。
+	if account.Platform == PlatformMoonshot && customUA == "" {
+		if baseURL := account.GetCredential("base_url"); strings.Contains(baseURL, "api.kimi.com") {
+			req.Header.Set("user-agent", kimiCodingUserAgent)
+		}
 	}
 
 	// 若开启 ForceCodexCLI，则强制将上游 User-Agent 伪装为 Codex CLI。

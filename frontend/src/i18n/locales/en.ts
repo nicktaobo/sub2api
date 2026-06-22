@@ -448,6 +448,7 @@ export default {
     channels: 'Channels',
     availableChannels: 'Available Channels',
     modelPricing: 'Model Pricing',
+    adminModelPricing: 'Pricing Overrides',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',
@@ -2349,6 +2350,11 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        deepseek: 'DeepSeek',
+        moonshot: 'Kimi',
+        glm: 'GLM',
+        qwen: 'Qwen',
+        seedance: 'Seedance',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -2639,6 +2645,28 @@ export default {
          syncModelsError: 'Failed to sync models'
        }
      },
+
+    modelPricing: {
+      title: 'Model Pricing',
+      description: 'Global model price overrides (take precedence over built-in and synced prices; effective immediately)',
+      addRow: 'Add Model',
+      save: 'Save',
+      saveSuccess: 'Saved',
+      loadFailed: 'Failed to load',
+      saveFailed: 'Failed to save',
+      empty: 'No overrides yet. Click "Add Model" to start.',
+      hint: 'Prices are per 1M tokens. Exact match first, otherwise longest-prefix fallback (e.g. qwen-plus matches qwen-plus-2025-xx, glm matches glm-*).',
+      columns: {
+        model: 'Model',
+        currency: 'Currency',
+        input: 'Input (per 1M)',
+        output: 'Output (per 1M)',
+        cache: 'Cache read (per 1M)',
+        hasCache: 'Cache',
+        enabled: 'Enabled',
+        actions: 'Actions'
+      }
+    },
 
     riskControl: {
       title: 'Risk Control',
@@ -3258,6 +3286,11 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        deepseek: 'DeepSeek',
+        moonshot: 'Kimi',
+        glm: 'GLM',
+        qwen: 'Qwen',
+        seedance: 'Seedance',
       },
       types: {
         oauth: 'OAuth',
@@ -4164,6 +4197,31 @@ export default {
           limited: 'Rate limited {time}',
           now: 'now'
         }
+      },
+      // DeepSeek specific
+      deepseek: {
+        baseUrlHint: 'Leave default for official DeepSeek API (api.deepseek.com)',
+        apiKeyHint: 'Your DeepSeek API Key'
+      },
+      // Moonshot (Kimi) specific
+      moonshot: {
+        baseUrlHint: 'Leave default for official Kimi Code API (api.kimi.com/coding/v1)',
+        apiKeyHint: 'Your Kimi Code API Key'
+      },
+      // GLM (Zhipu AI) specific
+      glm: {
+        baseUrlHint: 'Leave default for official Zhipu GLM API (open.bigmodel.cn)',
+        apiKeyHint: 'Your Zhipu GLM API Key'
+      },
+      // Qwen (Tongyi Qianwen / Alibaba DashScope) specific
+      qwen: {
+        baseUrlHint: 'Leave default for official Tongyi Qwen DashScope API (dashscope.aliyuncs.com)',
+        apiKeyHint: 'Your Tongyi Qwen DashScope API Key (sk-...)'
+      },
+      // Seedance (ByteDance) specific
+      seedance: {
+        baseUrlHint: 'Leave default for Volcano Ark API (ark.cn-beijing.volces.com)',
+        apiKeyHint: 'Your Volcano Ark API Key'
       },
       // Re-Auth Modal
       reAuthorizeAccount: 'Re-Authorize Account',

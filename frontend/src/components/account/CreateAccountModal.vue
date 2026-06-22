@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.createAccount')"
-    width="wide"
+    width="extra-wide"
     @close="handleClose"
   >
     <!-- Step Indicator for OAuth accounts -->
@@ -146,6 +146,95 @@
           >
             <Icon name="cloud" size="sm" />
             Antigravity
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'deepseek'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'deepseek'
+                ? 'bg-white text-cyan-600 shadow-sm dark:bg-dark-600 dark:text-cyan-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+            DeepSeek
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'moonshot'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'moonshot'
+                ? 'bg-white text-purple-600 shadow-sm dark:bg-dark-600 dark:text-purple-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"
+              />
+            </svg>
+            Kimi
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'glm'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'glm'
+                ? 'bg-white text-rose-600 shadow-sm dark:bg-dark-600 dark:text-rose-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">G</span>
+            GLM
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'qwen'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'qwen'
+                ? 'bg-white text-violet-600 shadow-sm dark:bg-dark-600 dark:text-violet-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">Q</span>
+            Qwen
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'seedance'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'seedance'
+                ? 'bg-white text-amber-600 shadow-sm dark:bg-dark-600 dark:text-amber-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">S</span>
+            Seedance
           </button>
         </div>
       </div>
@@ -1021,7 +1110,17 @@
                 ? 'https://api.openai.com'
                 : form.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
-                  : 'https://api.anthropic.com'
+                  : form.platform === 'deepseek'
+                    ? 'https://api.deepseek.com'
+                    : form.platform === 'moonshot'
+                      ? 'https://api.kimi.com/coding/v1'
+                      : form.platform === 'glm'
+                        ? 'https://open.bigmodel.cn'
+                        : form.platform === 'qwen'
+                          ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                          : form.platform === 'seedance'
+                            ? 'https://ark.cn-beijing.volces.com'
+                            : 'https://api.anthropic.com'
             "
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
@@ -1038,7 +1137,17 @@
                 ? 'sk-proj-...'
                 : form.platform === 'gemini'
                   ? 'AIza...'
-                  : 'sk-ant-...'
+                  : form.platform === 'deepseek'
+                    ? 'sk-...'
+                    : form.platform === 'moonshot'
+                      ? 'sk-...'
+                      : form.platform === 'glm'
+                        ? 'sk-...'
+                        : form.platform === 'qwen'
+                          ? 'sk-...'
+                          : form.platform === 'seedance'
+                            ? 'sk-...'
+                            : 'sk-ant-...'
             "
           />
           <p class="input-hint">{{ apiKeyHint }}</p>
@@ -3280,12 +3389,22 @@ const oauthStepTitle = computed(() => {
 const baseUrlHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
+  if (form.platform === 'deepseek') return t('admin.accounts.deepseek.baseUrlHint')
+  if (form.platform === 'moonshot') return t('admin.accounts.moonshot.baseUrlHint')
+  if (form.platform === 'glm') return t('admin.accounts.glm.baseUrlHint')
+  if (form.platform === 'qwen') return t('admin.accounts.qwen.baseUrlHint')
+  if (form.platform === 'seedance') return t('admin.accounts.seedance.baseUrlHint')
   return t('admin.accounts.baseUrlHint')
 })
 
 const apiKeyHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
+  if (form.platform === 'deepseek') return t('admin.accounts.deepseek.apiKeyHint')
+  if (form.platform === 'moonshot') return t('admin.accounts.moonshot.apiKeyHint')
+  if (form.platform === 'glm') return t('admin.accounts.glm.apiKeyHint')
+  if (form.platform === 'qwen') return t('admin.accounts.qwen.apiKeyHint')
+  if (form.platform === 'seedance') return t('admin.accounts.seedance.apiKeyHint')
   return t('admin.accounts.apiKeyHint')
 })
 
@@ -3706,6 +3825,10 @@ const isOAuthFlow = computed(() => {
   if (form.platform === 'anthropic' && accountCategory.value === 'bedrock') {
     return false
   }
+  // DeepSeek / Moonshot / GLM / Qwen / Seedance 仅支持 API Key，不需要 OAuth 流程
+  if (form.platform === 'deepseek' || form.platform === 'moonshot' || form.platform === 'glm' || form.platform === 'qwen' || form.platform === 'seedance') {
+    return false
+  }
   return accountCategory.value === 'oauth-based'
 })
 
@@ -3777,6 +3900,11 @@ watch(
       form.type = 'bedrock' as AccountType
       return
     }
+    // DeepSeek / Moonshot / GLM / Qwen / Seedance 仅支持 API Key
+    if (form.platform === 'deepseek' || form.platform === 'moonshot' || form.platform === 'glm' || form.platform === 'qwen' || form.platform === 'seedance') {
+      form.type = 'apikey'
+      return
+    }
     if ((form.platform === 'gemini' || form.platform === 'anthropic') && category === 'service_account') {
       form.type = 'service_account' as AccountType
     } else if (category === 'oauth-based') {
@@ -3798,7 +3926,17 @@ watch(
         ? 'https://api.openai.com'
         : newPlatform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
-          : 'https://api.anthropic.com'
+          : newPlatform === 'deepseek'
+            ? 'https://api.deepseek.com'
+            : newPlatform === 'moonshot'
+              ? 'https://api.kimi.com/coding/v1'
+              : newPlatform === 'glm'
+                ? 'https://open.bigmodel.cn'
+                : newPlatform === 'qwen'
+                  ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                  : newPlatform === 'seedance'
+                    ? 'https://ark.cn-beijing.volces.com'
+                    : 'https://api.anthropic.com'
     // Clear model-related settings
     allowedModels.value = []
     modelMappings.value = []
@@ -3816,6 +3954,10 @@ watch(
       antigravityWhitelistModels.value = []
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
+    }
+    // DeepSeek / Moonshot / GLM / Qwen / Seedance 仅支持 API Key
+    if (newPlatform === 'deepseek' || newPlatform === 'moonshot' || newPlatform === 'glm' || newPlatform === 'qwen' || newPlatform === 'seedance') {
+      accountCategory.value = 'apikey'
     }
     if (newPlatform !== 'gemini' && newPlatform !== 'anthropic' && accountCategory.value === 'service_account') {
       accountCategory.value = 'oauth-based'
@@ -4617,7 +4759,17 @@ const handleSubmit = async () => {
       ? 'https://api.openai.com'
       : form.platform === 'gemini'
         ? 'https://generativelanguage.googleapis.com'
-        : 'https://api.anthropic.com'
+        : form.platform === 'deepseek'
+          ? 'https://api.deepseek.com'
+          : form.platform === 'moonshot'
+            ? 'https://api.kimi.com/coding/v1'
+            : form.platform === 'glm'
+              ? 'https://open.bigmodel.cn'
+              : form.platform === 'qwen'
+                ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                : form.platform === 'seedance'
+                  ? 'https://ark.cn-beijing.volces.com'
+                  : 'https://api.anthropic.com'
 
   // Build credentials with optional model mapping
   const credentials: Record<string, unknown> = {

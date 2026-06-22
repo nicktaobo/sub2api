@@ -192,7 +192,62 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	// OpenAI-compatible platforms: DeepSeek, Moonshot (Kimi), GLM, Qwen, Seedance
+	if account.IsDeepSeek() || account.IsMoonshot() || account.IsGLM() || account.IsQwen() || account.IsSeedance() {
+		return s.testOpenAICompatPlatformConnection(c, account, modelID, prompt)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID)
+}
+
+// testOpenAICompatPlatformConnection tests an OpenAI-compatible national platform
+// (DeepSeek / Moonshot / GLM / Qwen / Seedance) account through /v1/chat/completions.
+func (s *AccountTestService) testOpenAICompatPlatformConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	testModelID := modelID
+	if testModelID == "" {
+		switch account.Platform {
+		case PlatformDeepSeek:
+			testModelID = "deepseek-chat"
+		case PlatformMoonshot:
+			testModelID = "kimi-k2"
+		case PlatformGLM:
+			testModelID = "GLM-5.1"
+		case PlatformQwen:
+			testModelID = "qwen-plus"
+		case PlatformSeedance:
+			testModelID = "doubao-1-5-pro-32k"
+		default:
+			testModelID = "gpt-4o-mini"
+		}
+	}
+	testModelID = account.GetMappedModel(testModelID)
+
+	authToken := account.GetCredential("api_key")
+	if authToken == "" {
+		return s.sendErrorAndEnd(c, "No API key available")
+	}
+
+	var baseURL string
+	switch account.Platform {
+	case PlatformDeepSeek:
+		baseURL = account.GetDeepSeekBaseURL()
+	case PlatformMoonshot:
+		baseURL = account.GetMoonshotBaseURL()
+	case PlatformGLM:
+		baseURL = account.GetGLMBaseURL()
+	case PlatformQwen:
+		baseURL = account.GetQwenBaseURL()
+	case PlatformSeedance:
+		baseURL = account.GetSeedanceBaseURL()
+	}
+	if baseURL == "" {
+		return s.sendErrorAndEnd(c, "No base URL configured")
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+	}
+	return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
@@ -695,6 +750,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	if account.IsMoonshot() {
+		req.Header.Set("User-Agent", kimiCodingUserAgent)
+	}
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

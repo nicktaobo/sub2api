@@ -1008,6 +1008,9 @@ pricing:
   # Hash check interval in minutes
   # 哈希检查间隔（分钟）
   hash_check_interval_minutes: 10
+  # 人民币→美元汇率：把以人民币计价的模型（如 Kimi / Moonshot）折算成系统统一美元单价。
+  # 系统采用 1:1 充值（¥1 = $1 余额），默认 1.0 表示不换算。Env var: PRICING_CNY_TO_USD_RATE
+  cny_to_usd_rate: 1.0
 
 # =============================================================================
 # Billing Configuration

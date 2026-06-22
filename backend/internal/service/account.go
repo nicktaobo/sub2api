@@ -1052,8 +1052,119 @@ func (a *Account) IsOpenAI() bool {
 	return a.Platform == PlatformOpenAI
 }
 
+// IsOpenAICompatible returns true for OpenAI, DeepSeek, Moonshot, GLM, Qwen, Seedance.
+func (a *Account) IsOpenAICompatible() bool {
+	switch a.Platform {
+	case PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen, PlatformSeedance:
+		return true
+	}
+	return false
+}
+
 func (a *Account) IsAnthropic() bool {
 	return a.Platform == PlatformAnthropic
+}
+
+func (a *Account) IsDeepSeek() bool {
+	return a.Platform == PlatformDeepSeek
+}
+
+func (a *Account) IsDeepSeekAPIKey() bool {
+	return a.IsDeepSeek() && a.Type == AccountTypeAPIKey
+}
+
+func (a *Account) GetDeepSeekAPIKey() string {
+	if !a.IsDeepSeekAPIKey() {
+		return ""
+	}
+	return a.GetCredential("api_key")
+}
+
+func (a *Account) GetDeepSeekBaseURL() string {
+	if !a.IsDeepSeek() {
+		return ""
+	}
+	if a.Type == AccountTypeAPIKey {
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+	}
+	return "https://api.deepseek.com"
+}
+
+func (a *Account) IsMoonshot() bool {
+	return a.Platform == PlatformMoonshot
+}
+
+func (a *Account) IsMoonshotAPIKey() bool {
+	return a.IsMoonshot() && a.Type == AccountTypeAPIKey
+}
+
+func (a *Account) GetMoonshotAPIKey() string {
+	if !a.IsMoonshotAPIKey() {
+		return ""
+	}
+	return a.GetCredential("api_key")
+}
+
+func (a *Account) GetMoonshotBaseURL() string {
+	if !a.IsMoonshot() {
+		return ""
+	}
+	if a.Type == AccountTypeAPIKey {
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+	}
+	return "https://api.kimi.com/coding/v1"
+}
+
+func (a *Account) IsGLM() bool {
+	return a.Platform == PlatformGLM
+}
+
+func (a *Account) GetGLMBaseURL() string {
+	if !a.IsGLM() {
+		return ""
+	}
+	if a.Type == AccountTypeAPIKey {
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+	}
+	return "https://open.bigmodel.cn"
+}
+
+func (a *Account) IsQwen() bool {
+	return a.Platform == PlatformQwen
+}
+
+func (a *Account) GetQwenBaseURL() string {
+	if !a.IsQwen() {
+		return ""
+	}
+	if a.Type == AccountTypeAPIKey {
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+	}
+	return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+}
+
+func (a *Account) IsSeedance() bool {
+	return a.Platform == PlatformSeedance
+}
+
+func (a *Account) GetSeedanceBaseURL() string {
+	if !a.IsSeedance() {
+		return ""
+	}
+	if a.Type == AccountTypeAPIKey {
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+	}
+	return "https://ark.cn-beijing.volces.com"
 }
 
 func (a *Account) IsOpenAIOAuth() bool {
@@ -1065,7 +1176,7 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
@@ -1074,7 +1185,20 @@ func (a *Account) GetOpenAIBaseURL() string {
 			return baseURL
 		}
 	}
-	return "https://api.openai.com"
+	switch a.Platform {
+	case PlatformDeepSeek:
+		return "https://api.deepseek.com"
+	case PlatformMoonshot:
+		return "https://api.kimi.com/coding/v1"
+	case PlatformGLM:
+		return "https://open.bigmodel.cn"
+	case PlatformQwen:
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	case PlatformSeedance:
+		return "https://ark.cn-beijing.volces.com"
+	default:
+		return "https://api.openai.com"
+	}
 }
 
 func (a *Account) GetOpenAIAccessToken() string {
@@ -1099,14 +1223,14 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
-		return ""
+	if a.IsOpenAICompatible() && a.Type == AccountTypeAPIKey {
+		return a.GetCredential("api_key")
 	}
-	return a.GetCredential("api_key")
+	return ""
 }
 
 func (a *Account) GetOpenAIUserAgent() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return ""
 	}
 	return a.GetCredential("user_agent")
@@ -1140,7 +1264,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	if capability == "" {
 		return true
 	}
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return false
 	}
 	switch capability {
@@ -1208,13 +1332,15 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 }
 
 func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
-	if !a.IsOpenAI() {
-		return false
-	}
 	switch capability {
 	case OpenAIImagesCapabilityBasic, OpenAIImagesCapabilityNative:
+		// 仅 OpenAI 平台支持 image 功能
+		if !a.IsOpenAI() {
+			return false
+		}
 		return a.Type == AccountTypeOAuth || a.Type == AccountTypeAPIKey
 	default:
+		// 空 capability（非 image 请求）对所有平台开放
 		return true
 	}
 }

@@ -1,4 +1,4 @@
-import type { OpenAIMessagesDispatchModelConfig } from "@/types";
+import type { GroupPlatform, OpenAIMessagesDispatchModelConfig } from "@/types";
 
 export interface MessagesDispatchMappingRow {
   claude_model: string;
@@ -13,20 +13,52 @@ export interface MessagesDispatchFormState {
   exact_model_mappings: MessagesDispatchMappingRow[];
 }
 
-export function createDefaultMessagesDispatchFormState(): MessagesDispatchFormState {
+function getDefaultModelsForPlatform(platform?: GroupPlatform | null): {
+  opus: string;
+  sonnet: string;
+  haiku: string;
+} {
+  switch (platform) {
+    case "deepseek":
+      return { opus: "deepseek-v4-pro", sonnet: "deepseek-v4-pro", haiku: "deepseek-v4-flash" };
+    case "moonshot":
+      return { opus: "kimi-k2.6", sonnet: "kimi-k2.6", haiku: "kimi-k2.6" };
+    case "glm":
+      return { opus: "glm-4.6", sonnet: "glm-4.6", haiku: "glm-4.5-air" };
+    case "qwen":
+      return { opus: "qwen3-coder-plus", sonnet: "qwen3-coder-plus", haiku: "qwen-plus" };
+    default:
+      return { opus: "gpt-5.4", sonnet: "gpt-5.3-codex", haiku: "gpt-5.4-mini" };
+  }
+}
+
+// 支持 Anthropic Messages API 调度（/v1/messages 派发）的平台白名单。
+// 必须与后端 service.sanitizeGroupMessagesDispatchFields / defaultMessagesDispatchModels
+// 的平台名单一致（注意：openAICompatPlatforms 另含 seedance，不在派发白名单内）。
+const MESSAGES_DISPATCH_PLATFORMS: GroupPlatform[] = ["openai", "deepseek", "moonshot", "glm", "qwen"];
+
+export function groupSupportsMessagesDispatch(platform?: GroupPlatform | null): boolean {
+  return !!platform && MESSAGES_DISPATCH_PLATFORMS.includes(platform);
+}
+
+export function createDefaultMessagesDispatchFormState(
+  platform?: GroupPlatform | null,
+): MessagesDispatchFormState {
+  const models = getDefaultModelsForPlatform(platform);
   return {
     allow_messages_dispatch: false,
-    opus_mapped_model: "gpt-5.4",
-    sonnet_mapped_model: "gpt-5.3-codex",
-    haiku_mapped_model: "gpt-5.4-mini",
+    opus_mapped_model: models.opus,
+    sonnet_mapped_model: models.sonnet,
+    haiku_mapped_model: models.haiku,
     exact_model_mappings: [],
   };
 }
 
 export function messagesDispatchConfigToFormState(
   config?: OpenAIMessagesDispatchModelConfig | null,
+  platform?: GroupPlatform | null,
 ): MessagesDispatchFormState {
-  const defaults = createDefaultMessagesDispatchFormState();
+  const defaults = createDefaultMessagesDispatchFormState(platform);
   const exactMappings = Object.entries(config?.exact_model_mappings || {})
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([claude_model, target_model]) => ({ claude_model, target_model }));
@@ -62,8 +94,9 @@ export function messagesDispatchFormStateToConfig(
 
 export function resetMessagesDispatchFormState(
   target: MessagesDispatchFormState,
+  platform?: GroupPlatform | null,
 ): void {
-  const defaults = createDefaultMessagesDispatchFormState();
+  const defaults = createDefaultMessagesDispatchFormState(platform);
   target.allow_messages_dispatch = defaults.allow_messages_dispatch;
   target.opus_mapped_model = defaults.opus_mapped_model;
   target.sonnet_mapped_model = defaults.sonnet_mapped_model;

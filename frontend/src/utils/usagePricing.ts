@@ -4,6 +4,17 @@ interface TokenPriceFormatOptions {
   fractionDigits?: number
   withCurrencySymbol?: boolean
   emptyValue?: string
+  /** 货币符号，默认 '$'。国产人民币计价模型传 '¥'。 */
+  currencySymbol?: string
+}
+
+/**
+ * costSymbol 返回某条用量记录应展示的货币符号。
+ * 后端 price_currency==='CNY' → '¥'，其余 → '$'。
+ * 依赖 pricing.cny_to_usd_rate=1.0（1¥=1 余额单位），此时存储金额即官方人民币数。
+ */
+export function costSymbol(currency?: string | null): string {
+  return currency === 'CNY' ? '¥' : '$'
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -45,5 +56,6 @@ export function formatTokenPricePerMillion(
 
   const fractionDigits = options.fractionDigits ?? 4
   const formatted = pricePerMillion.toFixed(fractionDigits)
-  return options.withCurrencySymbol == false ? formatted : `$${formatted}`
+  const symbol = options.currencySymbol ?? '$'
+  return options.withCurrencySymbol == false ? formatted : `${symbol}${formatted}`
 }

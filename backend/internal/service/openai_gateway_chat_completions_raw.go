@@ -164,6 +164,14 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		upstreamReq.Header.Set("user-agent", customUA)
 	}
 
+	// Kimi For Coding 对客户端做白名单校验，需为 Coding Agent UA（前缀 claude-cli/）。
+	// 当 Moonshot 平台账号使用 api.kimi.com 端点且未自定义 UA 时，自动设置。
+	if account.Platform == PlatformMoonshot && customUA == "" {
+		if kimiBase := account.GetCredential("base_url"); strings.Contains(kimiBase, "api.kimi.com") {
+			upstreamReq.Header.Set("user-agent", kimiCodingUserAgent)
+		}
+	}
+
 	// 6. Send request
 	proxyURL := ""
 	if account.Proxy != nil {
@@ -445,6 +453,17 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		return nil, fmt.Errorf("read upstream body: %w", err)
 	}
 
+	// 部分国产模型/中转（如 op.aancn.cn 的 GLM-5.2）对 stream=false 仍返回 SSE。
+	// 直接透传 SSE 会让非流式客户端解析失败，且 json 解析 usage 失败导致零计费。
+	// 检测到 SSE 时聚合成单个 Chat Completions JSON 响应（含 content/reasoning/usage）。
+	respContentType := resp.Header.Get("Content-Type")
+	if isSSEResponseBody(respContentType, respBody) {
+		if assembled, ok := aggregateChatCompletionsSSEToJSON(respBody, originalModel); ok {
+			respBody = assembled
+			respContentType = "application/json"
+		}
+	}
+
 	var ccResp apicompat.ChatCompletionsResponse
 	var usage OpenAIUsage
 	if err := json.Unmarshal(respBody, &ccResp); err == nil && ccResp.Usage != nil {
@@ -460,8 +479,8 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		c.Writer.Header().Set("Content-Type", ct)
+	if respContentType != "" {
+		c.Writer.Header().Set("Content-Type", respContentType)
 	} else {
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
@@ -479,6 +498,100 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		Stream:          false,
 		Duration:        time.Since(startTime),
 	}, nil
+}
+
+// isSSEResponseBody reports whether an upstream response is an SSE stream
+// (text/event-stream content-type, or a body that begins with an SSE "data:" line),
+// even though the client requested a non-stream (stream=false) response.
+func isSSEResponseBody(contentType string, body []byte) bool {
+	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+		return true
+	}
+	return bytes.HasPrefix(bytes.TrimLeft(body, " \r\n\t"), []byte("data:"))
+}
+
+// aggregateChatCompletionsSSEToJSON collapses a buffered Chat Completions SSE
+// stream into a single non-streaming ChatCompletionsResponse JSON, accumulating
+// content / reasoning_content deltas, finish_reason and usage (incl. cached
+// tokens). Returns (nil, false) when the body holds no parseable chunk.
+func aggregateChatCompletionsSSEToJSON(body []byte, fallbackModel string) ([]byte, bool) {
+	var contentSB, reasoningSB strings.Builder
+	var chatUsage *apicompat.ChatUsage
+	var finishReason, id, model string
+	var created int64
+	sawChunk := false
+
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 0, 64*1024), defaultMaxLineSize)
+	for scanner.Scan() {
+		payload, ok := extractOpenAISSEDataLine(scanner.Text())
+		if !ok || strings.TrimSpace(payload) == "[DONE]" {
+			continue
+		}
+		var chunk apicompat.ChatCompletionsChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			continue
+		}
+		sawChunk = true
+		if chunk.ID != "" {
+			id = chunk.ID
+		}
+		if chunk.Model != "" {
+			model = chunk.Model
+		}
+		if chunk.Created != 0 {
+			created = chunk.Created
+		}
+		for _, ch := range chunk.Choices {
+			if ch.Delta.Content != nil {
+				contentSB.WriteString(*ch.Delta.Content)
+			}
+			if ch.Delta.ReasoningContent != nil {
+				reasoningSB.WriteString(*ch.Delta.ReasoningContent)
+			}
+			if ch.FinishReason != nil && *ch.FinishReason != "" {
+				finishReason = *ch.FinishReason
+			}
+		}
+		if chunk.Usage != nil {
+			chatUsage = chunk.Usage
+		}
+	}
+	if !sawChunk {
+		return nil, false
+	}
+	if model == "" {
+		model = fallbackModel
+	}
+	if finishReason == "" {
+		finishReason = "stop"
+	}
+
+	contentJSON, err := json.Marshal(contentSB.String())
+	if err != nil {
+		return nil, false
+	}
+	out := apicompat.ChatCompletionsResponse{
+		ID:      id,
+		Object:  "chat.completion",
+		Created: created,
+		Model:   model,
+		Choices: []apicompat.ChatChoice{{
+			Index: 0,
+			Message: apicompat.ChatMessage{
+				Role:             "assistant",
+				Content:          json.RawMessage(contentJSON),
+				ReasoningContent: reasoningSB.String(),
+			},
+			FinishReason: finishReason,
+		}},
+		Usage: chatUsage,
+	}
+	assembled, err := json.Marshal(out)
+	if err != nil {
+		return nil, false
+	}
+	return assembled, true
 }
 
 // buildOpenAIChatCompletionsURL 拼接上游 Chat Completions 端点 URL。

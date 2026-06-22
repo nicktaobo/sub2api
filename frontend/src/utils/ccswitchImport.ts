@@ -1,8 +1,10 @@
 import type { GroupPlatform } from '@/types'
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+export const DEEPSEEK_CC_SWITCH_CODEX_MODEL = 'deepseek-v4-flash'
+export const MOONSHOT_CC_SWITCH_CODEX_MODEL = 'kimi-for-coding'
 
-export type CcSwitchClientType = 'claude' | 'gemini'
+export type CcSwitchClientType = 'claude' | 'gemini' | 'codex'
 
 export interface CcSwitchImportConfig {
   app: string
@@ -31,11 +33,20 @@ export function resolveCcSwitchImportConfig(
         endpoint: `${baseUrl}/antigravity`
       }
     case 'openai':
-      return {
-        app: 'codex',
-        endpoint: baseUrl,
-        model: OPENAI_CC_SWITCH_CODEX_MODEL
+      if (clientType === 'codex') {
+        return { app: 'codex', endpoint: baseUrl, model: OPENAI_CC_SWITCH_CODEX_MODEL }
       }
+      return { app: 'claude', endpoint: baseUrl }
+    case 'deepseek':
+      if (clientType === 'codex') {
+        return { app: 'codex', endpoint: baseUrl, model: DEEPSEEK_CC_SWITCH_CODEX_MODEL }
+      }
+      return { app: 'claude', endpoint: baseUrl }
+    case 'moonshot':
+      if (clientType === 'codex') {
+        return { app: 'codex', endpoint: baseUrl, model: MOONSHOT_CC_SWITCH_CODEX_MODEL }
+      }
+      return { app: 'claude', endpoint: baseUrl }
     case 'gemini':
       return {
         app: 'gemini',

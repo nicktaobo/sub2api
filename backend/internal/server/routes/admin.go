@@ -101,6 +101,9 @@ func RegisterAdminRoutes(
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
+		// 通用模型价格覆盖
+		registerAdminModelPricingRoutes(admin, h)
+
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
@@ -173,6 +176,15 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		risk.POST("/users/:user_id/unban", h.Admin.ContentModeration.UnbanUser)
 		risk.DELETE("/hashes", h.Admin.ContentModeration.DeleteFlaggedHash)
 		risk.DELETE("/hashes/all", h.Admin.ContentModeration.ClearFlaggedHashes)
+	}
+}
+
+// registerAdminModelPricingRoutes 注册通用模型价格覆盖表的读写路由。
+func registerAdminModelPricingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	g := admin.Group("/model-pricing")
+	{
+		g.GET("", h.Admin.ModelPricing.List)
+		g.PUT("", h.Admin.ModelPricing.Update)
 	}
 }
 

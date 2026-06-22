@@ -69,32 +69,56 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 		return mappedModel
 	}
 
+	defaultOpus, defaultSonnet, defaultHaiku := g.defaultMessagesDispatchModels()
+
 	switch claudeMessagesDispatchFamily(requestedModel) {
 	case "opus":
 		if mappedModel := strings.TrimSpace(cfg.OpusMappedModel); mappedModel != "" {
 			return mappedModel
 		}
-		return defaultOpenAIMessagesDispatchOpusMappedModel
+		return defaultOpus
 	case "sonnet":
 		if mappedModel := strings.TrimSpace(cfg.SonnetMappedModel); mappedModel != "" {
 			return mappedModel
 		}
-		return defaultOpenAIMessagesDispatchSonnetMappedModel
+		return defaultSonnet
 	case "haiku":
 		if mappedModel := strings.TrimSpace(cfg.HaikuMappedModel); mappedModel != "" {
 			return mappedModel
 		}
-		return defaultOpenAIMessagesDispatchHaikuMappedModel
+		return defaultHaiku
 	default:
 		return ""
 	}
 }
 
+func (g *Group) defaultMessagesDispatchModels() (opus, sonnet, haiku string) {
+	switch g.Platform {
+	case PlatformDeepSeek:
+		return "deepseek-v4-pro", "deepseek-v4-pro", "deepseek-v4-flash"
+	case PlatformMoonshot:
+		return "kimi-k2.6", "kimi-k2.6", "kimi-k2.6"
+	case PlatformGLM:
+		return "glm-4.6", "glm-4.6", "glm-4.5-air"
+	case PlatformQwen:
+		return "qwen3-coder-plus", "qwen3-coder-plus", "qwen-plus"
+	default:
+		return defaultOpenAIMessagesDispatchOpusMappedModel,
+			defaultOpenAIMessagesDispatchSonnetMappedModel,
+			defaultOpenAIMessagesDispatchHaikuMappedModel
+	}
+}
+
 func sanitizeGroupMessagesDispatchFields(g *Group) {
-	if g == nil || g.Platform == PlatformOpenAI {
+	if g == nil {
 		return
 	}
-	g.AllowMessagesDispatch = false
-	g.DefaultMappedModel = ""
-	g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
+	switch g.Platform {
+	case PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen:
+		return
+	default:
+		g.AllowMessagesDispatch = false
+		g.DefaultMappedModel = ""
+		g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
+	}
 }

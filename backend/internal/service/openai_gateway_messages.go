@@ -49,6 +49,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// 2. Model mapping
 	billingModel := resolveOpenAIForwardModel(account, normalizedModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+
+	// 2b. 原生 Anthropic 端点的平台（DeepSeek/Kimi/GLM/Qwen）直转，不转 OpenAI Responses 格式。
+	if account.Type == AccountTypeAPIKey && (account.IsDeepSeek() || account.IsMoonshot() || account.IsGLM() || account.IsQwen()) {
+		return s.forwardAnthropicDirect(ctx, c, account, body, originalModel, billingModel, upstreamModel, clientStream, startTime)
+	}
+
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	apiKeyID := getAPIKeyIDFromContext(c)
 	anthropicDigestChain := ""

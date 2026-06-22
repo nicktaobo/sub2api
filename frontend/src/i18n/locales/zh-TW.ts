@@ -443,6 +443,7 @@ export default {
     channels: '渠道管理',
     availableChannels: '可用渠道',
     modelPricing: '模型列表',
+    adminModelPricing: '模型定價',
     subscriptions: '訂閱管理',
     accounts: '帳號管理',
     proxies: 'IP管理',
@@ -2235,6 +2236,11 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        deepseek: 'DeepSeek',
+        moonshot: 'Kimi',
+        glm: 'GLM',
+        qwen: 'Qwen',
+        seedance: 'Seedance',
       },
       saving: '儲存中...',
       noGroups: '暫無分組',
@@ -2559,6 +2565,28 @@ export default {
         ruleModelPricing: '模型定價',
         noGroupsInChannel: '上方平台標籤頁中未選擇分組',
         unnamed: '未命名'
+      }
+    },
+
+    modelPricing: {
+      title: '模型定價',
+      description: '通用模型價格覆寫表（優先於內建 ¥ 表與同步價，改完即時生效）',
+      addRow: '新增模型',
+      save: '儲存',
+      saveSuccess: '已儲存',
+      loadFailed: '載入失敗',
+      saveFailed: '儲存失敗',
+      empty: '暫無覆寫，點「新增模型」開始',
+      hint: '價格單位：每百萬 token。精確匹配優先，無則按最長前綴回退（如 qwen-plus 命中 qwen-plus-2025-xx，glm 命中 glm-*）。',
+      columns: {
+        model: '模型名',
+        currency: '幣種',
+        input: '輸入價(每百萬)',
+        output: '輸出價(每百萬)',
+        cache: '快取讀取價(每百萬)',
+        hasCache: '支援快取',
+        enabled: '啟用',
+        actions: '操作'
       }
     },
 
@@ -3213,6 +3241,11 @@ export default {
         anthropic: 'Anthropic',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        deepseek: 'DeepSeek',
+        moonshot: 'Kimi',
+        glm: 'GLM',
+        qwen: 'Qwen',
+        seedance: 'Seedance',
       },
       types: {
         oauth: 'OAuth',
@@ -4015,6 +4048,31 @@ export default {
           limited: '限流 {time}',
           now: '現在'
         }
+      },
+      // DeepSeek specific
+      deepseek: {
+        baseUrlHint: '留空使用官方 DeepSeek API（api.deepseek.com）',
+        apiKeyHint: '您的 DeepSeek API Key'
+      },
+      // Moonshot (Kimi) specific
+      moonshot: {
+        baseUrlHint: '留空使用官方 Kimi Code API（api.kimi.com/coding/v1）',
+        apiKeyHint: '您的 Kimi Code API Key'
+      },
+      // GLM (Zhipu AI) specific
+      glm: {
+        baseUrlHint: '留空使用官方智譜 API（open.bigmodel.cn）',
+        apiKeyHint: '您的智譜 GLM API Key'
+      },
+      // Qwen (通義千問 / Alibaba DashScope) specific
+      qwen: {
+        baseUrlHint: '留空使用官方通義千問 DashScope API（dashscope.aliyuncs.com）',
+        apiKeyHint: '您的通義千問 DashScope API Key（sk-...）'
+      },
+      // Seedance (ByteDance) specific
+      seedance: {
+        baseUrlHint: '留空使用火山方舟 API（ark.cn-beijing.volces.com）',
+        apiKeyHint: '您的火山方舟 API Key'
       },
       // Re-Auth Modal
       reAuthorizeAccount: '重新授權帳號',

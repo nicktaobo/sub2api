@@ -590,3 +590,42 @@ func largeRawChatCompletionsBody() []byte {
 		strings.Repeat("x", openAISilentRefusalMinRequestBodyBytes) +
 		`"}],"stream":true}`)
 }
+
+func TestAggregateChatCompletionsSSEToJSON(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":123,"model":"GLM-5.2","choices":[{"index":0,"delta":{"role":"assistant","content":"你好"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":123,"model":"GLM-5.2","choices":[{"index":0,"delta":{"content":"世界"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":123,"model":"GLM-5.2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		`data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":123,"model":"GLM-5.2","choices":[],"usage":{"prompt_tokens":250,"completion_tokens":5,"total_tokens":255,"prompt_tokens_details":{"cached_tokens":192}}}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+
+	assembled, ok := aggregateChatCompletionsSSEToJSON([]byte(sse), "fallback")
+	require.True(t, ok)
+	s := string(assembled)
+	require.Contains(t, s, `"object":"chat.completion"`)
+	require.Contains(t, s, `你好世界`) // content 增量已拼接
+	require.Contains(t, s, `"finish_reason":"stop"`)
+	require.Contains(t, s, `"prompt_tokens":250`)
+	require.Contains(t, s, `"completion_tokens":5`)
+	require.Contains(t, s, `"cached_tokens":192`) // 缓存命中保留
+	require.NotContains(t, s, "data:")            // 不再是 SSE 原文
+
+	// fallback model 生效（chunk 无 model 时）
+	noModel := "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}\n\n"
+	a2, ok2 := aggregateChatCompletionsSSEToJSON([]byte(noModel), "fallback-model")
+	require.True(t, ok2)
+	require.Contains(t, string(a2), `"model":"fallback-model"`)
+
+	// 非 SSE / 无可解析 chunk → ok=false
+	_, ok3 := aggregateChatCompletionsSSEToJSON([]byte("garbage not sse"), "m")
+	require.False(t, ok3)
+}
+
+func TestIsSSEResponseBody(t *testing.T) {
+	require.True(t, isSSEResponseBody("text/event-stream", []byte("data: {}")))
+	require.True(t, isSSEResponseBody("text/event-stream; charset=utf-8", []byte("{}")))
+	require.True(t, isSSEResponseBody("application/json", []byte("\n\ndata: {\"x\":1}"))) // 按 body 嗅探
+	require.False(t, isSSEResponseBody("application/json", []byte(`{"object":"chat.completion"}`)))
+}
