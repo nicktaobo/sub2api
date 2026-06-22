@@ -269,15 +269,14 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	// 模拟官方 Claude Code 客户端：OAuth 账号的测试请求必须与生产网关
 	// buildUpstreamRequest 的 mimic 路径保持一致，否则上游"客户端限制"会把测试
 	// 请求判为第三方而直接返回 403，进而被下方 SetError 标记为 error（账号被误封）。
-	// 这里对齐两处 body 级特征：
-	//   1) 给 system 注入 billing attribution block（非 haiku），还原真实 CLI 的
-	//      2-block system 形态——"有 Claude Code system prompt 但无 billing block"
-	//      正是上游判定第三方的关键信号之一。
-	//   2) 将 billing block 的 cch=00000 占位符替换为 xxHash64 签名。
+	// 这里对齐 body 级特征：给 system 注入 billing attribution block（非 haiku），
+	// 还原真实 CLI 的 2-block system 形态——"有 Claude Code system prompt 但无 billing
+	// block"正是上游判定第三方的关键信号之一。
+	// 注：新版 Claude Code CLI 已取消 cch=... 签名字段，生产 buildUpstreamRequest 随之
+	// 不再注入/签名 cch（见 gateway_billing_block.go / issue #3358），故此处也不再签名。
 	isHaiku := strings.Contains(strings.ToLower(testModelID), "haiku")
 	if useBearer && !isHaiku {
 		payloadBytes = rewriteSystemForNonClaudeCode(payloadBytes, claudeCodeSystemPrompt)
-		payloadBytes = signBillingHeaderCCH(payloadBytes)
 	}
 
 	// Send test_start event
