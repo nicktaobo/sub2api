@@ -76,13 +76,12 @@ func TestAccountTestService_TestClaudeOAuth_MimicsOfficialClient(t *testing.T) {
 	require.NotContains(t, betaHeader, claude.BetaFineGrainedToolStreaming)
 
 	// body：system 被还原为真实 CLI 的 2-block 形态——[billing block, CC prompt]，
-	// 且 billing block 的 cch=00000 占位符已被 xxHash64 签名替换。
+	// 且 billing block 不再携带 cch 字段（新版 CLI 已取消 cch 签名）。
 	system := gjson.GetBytes(upstream.lastBody, "system")
 	require.True(t, system.IsArray())
 	billingText := system.Get("0.text").String()
 	require.True(t, strings.HasPrefix(billingText, "x-anthropic-billing-header"),
 		"first system block should be billing header, got: %s", billingText)
-	require.Contains(t, billingText, "cch=")
-	require.NotContains(t, billingText, "cch=00000")
+	require.NotContains(t, billingText, "cch=")
 	require.Equal(t, claudeCodeSystemPrompt, system.Get("1.text").String())
 }
