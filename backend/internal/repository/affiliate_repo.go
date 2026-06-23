@@ -140,19 +140,55 @@ func (r *affiliateRepository) AccrueQuota(ctx context.Context, inviterID, invite
 
 		if freezeHours > 0 {
 			if _, err = txClient.ExecContext(txCtx, `
-INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, source_order_id, frozen_until, created_at, updated_at)
-VALUES ($1, 'accrue', $2, $3, $4, NOW() + make_interval(hours => $5), NOW(), NOW())`,
+INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, source_order_id, source_type, frozen_until, created_at, updated_at)
+VALUES ($1, 'accrue', $2, $3, $4, 'recharge', NOW() + make_interval(hours => $5), NOW(), NOW())`,
 				inviterID, amount, inviteeUserID, nullableInt64Arg(sourceOrderID), freezeHours); err != nil {
 				return fmt.Errorf("insert affiliate accrue ledger: %w", err)
 			}
 		} else {
 			if _, err = txClient.ExecContext(txCtx, `
-INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, source_order_id, created_at, updated_at)
-VALUES ($1, 'accrue', $2, $3, $4, NOW(), NOW())`, inviterID, amount, inviteeUserID, nullableInt64Arg(sourceOrderID)); err != nil {
+INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, source_order_id, source_type, created_at, updated_at)
+VALUES ($1, 'accrue', $2, $3, $4, 'recharge', NOW(), NOW())`, inviterID, amount, inviteeUserID, nullableInt64Arg(sourceOrderID)); err != nil {
 				return fmt.Errorf("insert affiliate accrue ledger: %w", err)
 			}
 		}
 
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return applied, nil
+}
+
+// AccrueConsumptionQuota 消费返利入账：直接进可用额度（不冻结），source_type='consume'，无 order 关联。
+// 与 AccrueQuota 共享 tx 上下文与表结构，但语义上是独立 path。
+func (r *affiliateRepository) AccrueConsumptionQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64) (bool, error) {
+	if amount <= 0 {
+		return false, nil
+	}
+	var applied bool
+	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		res, err := txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET aff_quota = aff_quota + $1,
+    aff_history_quota = aff_history_quota + $1,
+    updated_at = NOW()
+WHERE user_id = $2`, amount, inviterID)
+		if err != nil {
+			return err
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			applied = false
+			return nil
+		}
+		if _, err = txClient.ExecContext(txCtx, `
+INSERT INTO user_affiliate_ledger (user_id, action, amount, source_user_id, source_order_id, source_type, created_at, updated_at)
+VALUES ($1, 'accrue', $2, $3, NULL, 'consume', NOW(), NOW())`, inviterID, amount, inviteeUserID); err != nil {
+			return fmt.Errorf("insert affiliate consume accrue ledger: %w", err)
+		}
 		applied = true
 		return nil
 	})

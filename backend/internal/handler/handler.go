@@ -33,8 +33,13 @@ type AdminHandlers struct {
 	Channel                *admin.ChannelHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
+	ContentModeration      *admin.ContentModerationHandler
+	ModelPricing           *admin.ModelPricingHandler
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
+	Merchant               *admin.MerchantHandler // MERCHANT-SYSTEM v1.0
+	Profit                 *admin.ProfitHandler   // 利润自动化核算
+	Compliance             *admin.ComplianceHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -55,6 +60,11 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
+
+	// MERCHANT-SYSTEM v1.0
+	MerchantBrand *MerchantBrandHandler
+	Merchant      *MerchantHandler
+	MerchantLogo  *MerchantLogoHandler
 }
 
 // BuildInfo contains build-time information

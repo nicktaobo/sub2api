@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"sort"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -21,9 +23,12 @@ import (
 //  4. 字段白名单：仅返回用户需要的字段（省略 BillingModelSource / RestrictModels
 //     / 内部 ID / Status 等管理字段）。
 type AvailableChannelHandler struct {
-	channelService *service.ChannelService
-	apiKeyService  *service.APIKeyService
-	settingService *service.SettingService
+	channelService  *service.ChannelService
+	apiKeyService   *service.APIKeyService
+	settingService  *service.SettingService
+	billingService  *service.BillingService
+	merchantPricing *service.MerchantPricingService
+	accountService  *service.AccountService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -31,11 +36,17 @@ func NewAvailableChannelHandler(
 	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
+	billingService *service.BillingService,
+	merchantPricing *service.MerchantPricingService,
+	accountService *service.AccountService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
-		channelService: channelService,
-		apiKeyService:  apiKeyService,
-		settingService: settingService,
+		channelService:  channelService,
+		apiKeyService:   apiKeyService,
+		settingService:  settingService,
+		billingService:  billingService,
+		merchantPricing: merchantPricing,
+		accountService:  accountService,
 	}
 }
 
@@ -62,15 +73,22 @@ type userAvailableGroup struct {
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
+//
+// official_* 字段来自 LiteLLM 价格表（单位 USD / per token），用于前端做"本站价
+// vs 官方价"对比展示。当模型在 LiteLLM 列表中未找到或价格为 0 时为 nil。
 type userSupportedModelPricing struct {
-	BillingMode      string                   `json:"billing_mode"`
-	InputPrice       *float64                 `json:"input_price"`
-	OutputPrice      *float64                 `json:"output_price"`
-	CacheWritePrice  *float64                 `json:"cache_write_price"`
-	CacheReadPrice   *float64                 `json:"cache_read_price"`
-	ImageOutputPrice *float64                 `json:"image_output_price"`
-	PerRequestPrice  *float64                 `json:"per_request_price"`
-	Intervals        []userPricingIntervalDTO `json:"intervals"`
+	BillingMode             string                   `json:"billing_mode"`
+	InputPrice              *float64                 `json:"input_price"`
+	OutputPrice             *float64                 `json:"output_price"`
+	CacheWritePrice         *float64                 `json:"cache_write_price"`
+	CacheReadPrice          *float64                 `json:"cache_read_price"`
+	ImageOutputPrice        *float64                 `json:"image_output_price"`
+	PerRequestPrice         *float64                 `json:"per_request_price"`
+	Intervals               []userPricingIntervalDTO `json:"intervals"`
+	OfficialInputPrice      *float64                 `json:"official_input_price,omitempty"`
+	OfficialOutputPrice     *float64                 `json:"official_output_price,omitempty"`
+	OfficialCacheWritePrice *float64                 `json:"official_cache_write_price,omitempty"`
+	OfficialCacheReadPrice  *float64                 `json:"official_cache_read_price,omitempty"`
 }
 
 // userPricingIntervalDTO 定价区间白名单（去掉内部 ID、SortOrder 等前端不渲染的字段）。
@@ -111,26 +129,13 @@ type userAvailableChannel struct {
 	Platforms   []userChannelPlatformSection `json:"platforms"`
 }
 
-// List 列出当前用户可见的「可用渠道」。
-// GET /api/v1/channels/available
-func (h *AvailableChannelHandler) List(c *gin.Context) {
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
-	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
-	if !h.featureEnabled(c) {
-		response.Success(c, []userAvailableChannel{})
-		return
-	}
-
-	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+// buildVisibleChannels 共享构建逻辑：拉用户可见 groups → 过滤 channels 的 groups
+// → 过滤 supported_models（防跨平台泄漏）→ enrich 官方价。
+// 不做 feature flag 检查、不做 owner 视角的 sell_rate 替换（调用方按需做）。
+func (h *AvailableChannelHandler) buildVisibleChannels(c *gin.Context, userID int64) ([]userAvailableChannel, error) {
+	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), userID)
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return nil, err
 	}
 	allowedGroupIDs := make(map[int64]struct{}, len(userGroups))
 	for i := range userGroups {
@@ -139,8 +144,7 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 
 	channels, err := h.channelService.ListAvailable(c.Request.Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return nil, err
 	}
 
 	out := make([]userAvailableChannel, 0, len(channels))
@@ -163,7 +167,447 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		})
 	}
 
+	h.enrichOfficialPricing(out)
+	return out, nil
+}
+
+// List 列出当前用户可见的「可用渠道」。
+// GET /api/v1/channels/available
+func (h *AvailableChannelHandler) List(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
+	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
+	if !h.featureEnabled(c) {
+		response.Success(c, []userAvailableChannel{})
+		return
+	}
+
+	out, err := h.buildVisibleChannels(c, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	h.applyMerchantSellRate(c, subject.UserID, out)
+
 	response.Success(c, out)
+}
+
+// userPricingModel 端点（group）下的单条模型。
+//
+// 价格字段两套：
+//   - input_price / output_price / cache_write_price / cache_read_price：
+//     渠道（channel）管理员显式配置的基础单价（per token, USD）。nil 表示该
+//     字段未在 channel 上配置，前端回退到 official_* 字段。
+//   - official_*：LiteLLM 官方价（per token, USD）。
+//
+// 两套都是"基础单价"语义：前端在 site 模式下仍然按 (group.rate_multiplier /
+// fx_rate) 乘出本站价，和实际计费链路 `actualCost = totalCost × RateMultiplier`
+// 保持一致 —— 渠道价覆盖只是替换 token 单价数据源，不绕过分组倍率。
+//
+// billing_mode / intervals 用于非 token 模式（per_request / image）的模型：
+//   - billing_mode 为空或 "token" 时，前端按 token 列展示（input/output/cache）；
+//   - billing_mode 为 "per_request" / "image" 时，前端按 intervals 列表渲染
+//     tier 分层定价（tier_label 含分隔符 "-" 时进一步 pivot 成二维矩阵）。
+type userPricingModel struct {
+	Name                    string                   `json:"name"`
+	BillingMode             string                   `json:"billing_mode,omitempty"`
+	InputPrice              *float64                 `json:"input_price,omitempty"`
+	OutputPrice             *float64                 `json:"output_price,omitempty"`
+	CacheWritePrice         *float64                 `json:"cache_write_price,omitempty"`
+	CacheReadPrice          *float64                 `json:"cache_read_price,omitempty"`
+	PerRequestPrice         *float64                 `json:"per_request_price,omitempty"`
+	Intervals               []userPricingIntervalDTO `json:"intervals,omitempty"`
+	OfficialInputPrice      *float64                 `json:"official_input_price,omitempty"`
+	OfficialOutputPrice     *float64                 `json:"official_output_price,omitempty"`
+	OfficialCacheWritePrice *float64                 `json:"official_cache_write_price,omitempty"`
+	OfficialCacheReadPrice  *float64                 `json:"official_cache_read_price,omitempty"`
+}
+
+// userPricingGroup 「模型定价」展示页的端点 = 一个 group。
+// 每个端点的"折扣"由 rate_multiplier 自己决定，跟具体上游 channel 无关。
+type userPricingGroup struct {
+	ID             int64              `json:"id"`
+	Name           string             `json:"name"`
+	Platform       string             `json:"platform"`
+	RateMultiplier float64            `json:"rate_multiplier"`
+	IsExclusive    bool               `json:"is_exclusive"`
+	Models         []userPricingModel `json:"models"`
+}
+
+// PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group。
+//
+// 模型集合算法（admin 不用额外配，全自动）：
+//  1. 拉该 group 下所有 active account（account_groups 多对多）
+//  2. 每个 account 的"支持模型"= account.credentials.model_mapping 的非通配
+//     符 from key 集合：
+//     - 空 mapping 或只有通配符 → 视为"透传/不限制"，不参与交集
+//     - 有非通配符 mapping → 这些 key 就是该账号显式支持的模型
+//  3. 所有参与交集的 account 之间取交集 → 该 group 的模型列表
+//  4. 没有 account / 全部透传 → 用 LiteLLM 按 group.platform 过滤的 chat
+//     模型作为兜底
+//
+// 不受 available_channels_enabled 开关限制。商户 sub_user 视角下，rate_multiplier
+// 替换为商户配置的 sell_rate（与计费路径一致）。
+//
+// GET /api/v1/pricing/groups
+func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	ctx := c.Request.Context()
+	userGroups, err := h.apiKeyService.GetAvailableGroups(ctx, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if len(userGroups) == 0 {
+		response.Success(c, []userPricingGroup{})
+		return
+	}
+
+	// 官方价 lookup 缓存
+	priceCache := make(map[string]*service.ModelPricing, 32)
+	lookupOfficial := func(model string) *service.ModelPricing {
+		if p, ok := priceCache[model]; ok {
+			return p
+		}
+		if h.billingService == nil {
+			priceCache[model] = nil
+			return nil
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			priceCache[model] = nil
+			return nil
+		}
+		priceCache[model] = p
+		return p
+	}
+
+	// LiteLLM 兜底：每个 platform 一次拉全表缓存。
+	litellmByPlatform := map[string][]string{}
+	getLiteLLMModels := func(platform string) []string {
+		if v, ok := litellmByPlatform[platform]; ok {
+			return v
+		}
+		var out []string
+		if h.billingService != nil {
+			for _, e := range h.billingService.ListAllModelPricings(platform) {
+				out = append(out, e.Model)
+			}
+		}
+		litellmByPlatform[platform] = out
+		return out
+	}
+
+	out := make([]userPricingGroup, 0, len(userGroups))
+	for i := range userGroups {
+		g := userGroups[i]
+		// 商户 sub_user 视角下的 rate 替换
+		rate := g.RateMultiplier
+		if h.merchantPricing != nil {
+			if sell, ok := h.merchantPricing.LookupSellRateForUser(ctx, subject.UserID, g.ID); ok {
+				rate = sell
+			}
+		}
+
+		// 计算模型集合：取该 group 下所有 account.model_mapping 的非通配 from key 交集
+		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
+
+		item := userPricingGroup{
+			ID:             g.ID,
+			Name:           g.Name,
+			Platform:       g.Platform,
+			RateMultiplier: rate,
+			IsExclusive:    g.IsExclusive,
+			Models:         []userPricingModel{},
+		}
+		for _, name := range modelNames {
+			item.Models = append(item.Models, h.buildPricingModel(ctx, g.ID, name, lookupOfficial))
+		}
+		out = append(out, item)
+	}
+
+	response.Success(c, out)
+}
+
+// PricingGroupListPublic 返回所有公开（非专属、非订阅）的活跃分组，用于未登录访客
+// 的"模型广场"展示。和 PricingGroupList 共享同一份模型解析与官方价 lookup 逻辑，但
+// 不应用任何用户/商户上下文。
+//
+// GET /api/v1/pricing/public/groups
+func (h *AvailableChannelHandler) PricingGroupListPublic(c *gin.Context) {
+	ctx := c.Request.Context()
+	groups, err := h.apiKeyService.ListPublicGroups(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if len(groups) == 0 {
+		response.Success(c, []userPricingGroup{})
+		return
+	}
+
+	priceCache := make(map[string]*service.ModelPricing, 32)
+	lookupOfficial := func(model string) *service.ModelPricing {
+		if p, ok := priceCache[model]; ok {
+			return p
+		}
+		if h.billingService == nil {
+			priceCache[model] = nil
+			return nil
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			priceCache[model] = nil
+			return nil
+		}
+		priceCache[model] = p
+		return p
+	}
+
+	litellmByPlatform := map[string][]string{}
+	getLiteLLMModels := func(platform string) []string {
+		if v, ok := litellmByPlatform[platform]; ok {
+			return v
+		}
+		var out []string
+		if h.billingService != nil {
+			for _, e := range h.billingService.ListAllModelPricings(platform) {
+				out = append(out, e.Model)
+			}
+		}
+		litellmByPlatform[platform] = out
+		return out
+	}
+
+	out := make([]userPricingGroup, 0, len(groups))
+	for i := range groups {
+		g := groups[i]
+		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
+		item := userPricingGroup{
+			ID:             g.ID,
+			Name:           g.Name,
+			Platform:       g.Platform,
+			RateMultiplier: g.RateMultiplier,
+			IsExclusive:    g.IsExclusive,
+			Models:         []userPricingModel{},
+		}
+		for _, name := range modelNames {
+			item.Models = append(item.Models, h.buildPricingModel(ctx, g.ID, name, lookupOfficial))
+		}
+		out = append(out, item)
+	}
+
+	response.Success(c, out)
+}
+
+// buildPricingModel 拼装单条模型的定价 DTO：渠道配置的基础单价（input/output/
+// cache_write/cache_read）覆盖到独立字段，LiteLLM 官方价填到 official_*。
+// 两套字段都保持"基础单价"语义，前端按 group.rate_multiplier / fx_rate 算本站价。
+//
+// channelService 未注入或 group 未绑定 channel 时，channel 价部分留空。
+func (h *AvailableChannelHandler) buildPricingModel(
+	ctx context.Context,
+	groupID int64,
+	name string,
+	lookupOfficial func(string) *service.ModelPricing,
+) userPricingModel {
+	m := userPricingModel{Name: name}
+	if p := lookupOfficial(name); p != nil {
+		m.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+		m.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+		m.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+		m.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+	}
+	if h.channelService != nil {
+		if cp := h.channelService.GetChannelModelPricing(ctx, groupID, name); cp != nil {
+			m.BillingMode = string(cp.BillingMode)
+			m.InputPrice = cp.InputPrice
+			m.OutputPrice = cp.OutputPrice
+			m.CacheWritePrice = cp.CacheWritePrice
+			m.CacheReadPrice = cp.CacheReadPrice
+			m.PerRequestPrice = cp.PerRequestPrice
+			if len(cp.Intervals) > 0 {
+				m.Intervals = make([]userPricingIntervalDTO, 0, len(cp.Intervals))
+				for _, iv := range cp.Intervals {
+					m.Intervals = append(m.Intervals, userPricingIntervalDTO{
+						MinTokens:       iv.MinTokens,
+						MaxTokens:       iv.MaxTokens,
+						TierLabel:       iv.TierLabel,
+						InputPrice:      iv.InputPrice,
+						OutputPrice:     iv.OutputPrice,
+						CacheWritePrice: iv.CacheWritePrice,
+						CacheReadPrice:  iv.CacheReadPrice,
+						PerRequestPrice: iv.PerRequestPrice,
+					})
+				}
+			}
+		}
+	}
+	return m
+}
+
+// resolveGroupModelsByAccount 按"account 交集 + LiteLLM 兜底"算法计算 group 的模型列表。
+//
+//   - 拉该 group 下所有 active account（accountService.ListByGroup）
+//   - 对每个 account 取 GetModelMapping()：
+//   - 空 mapping → 透传，不参与交集
+//   - 全是通配符 from（如 `gpt-*`）→ 透传，不参与交集
+//   - 含非通配符 from → 这些 from 就是该 account 显式支持的模型
+//   - 所有参与的 account 之间取交集
+//   - 无参与 / 无 account → LiteLLM 按 platform 兜底
+func (h *AvailableChannelHandler) resolveGroupModelsByAccount(
+	ctx context.Context,
+	groupID int64,
+	platform string,
+	getLiteLLMModels func(platform string) []string,
+) []string {
+	var intersect map[string]struct{} // nil 表示还没遇到任何"显式列模型"的账号
+
+	if h.accountService != nil {
+		accounts, err := h.accountService.ListByGroup(ctx, groupID)
+		if err == nil {
+			for i := range accounts {
+				acc := accounts[i]
+				if acc.Status != service.StatusActive {
+					continue
+				}
+				if acc.Platform != platform {
+					// 防御性：理论上 account.platform 跟 group.platform 应该一致
+					continue
+				}
+				mapping := acc.GetModelMapping()
+				if len(mapping) == 0 {
+					// 透传，不参与交集
+					continue
+				}
+				cur := map[string]struct{}{}
+				for from := range mapping {
+					if strings.HasSuffix(from, "*") {
+						continue // 通配符 from 不算具体模型
+					}
+					cur[from] = struct{}{}
+				}
+				if len(cur) == 0 {
+					// 只有通配符 → 视为透传，不参与交集
+					continue
+				}
+				if intersect == nil {
+					intersect = cur
+					continue
+				}
+				next := map[string]struct{}{}
+				for k := range intersect {
+					if _, ok := cur[k]; ok {
+						next[k] = struct{}{}
+					}
+				}
+				intersect = next
+			}
+		}
+	}
+
+	if intersect == nil {
+		return append([]string(nil), getLiteLLMModels(platform)...)
+	}
+	out := make([]string, 0, len(intersect))
+	for k := range intersect {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// applyMerchantSellRate 商户 sub_user 视角下，把每个 group 的 RateMultiplier
+// 替换成商户配置的 sell_rate（商户没配的 group 维持主站价）。
+// 这保证前端展示的"我看到的倍率"和实际计费时 sub_user 余额扣的钱一致。
+func (h *AvailableChannelHandler) applyMerchantSellRate(c *gin.Context, userID int64, out []userAvailableChannel) {
+	if h.merchantPricing == nil || userID <= 0 {
+		return
+	}
+	ctx := c.Request.Context()
+	cache := make(map[int64]float64, 8)
+	miss := make(map[int64]struct{}, 8)
+	lookup := func(groupID int64) (float64, bool) {
+		if v, ok := cache[groupID]; ok {
+			return v, true
+		}
+		if _, hit := miss[groupID]; hit {
+			return 0, false
+		}
+		v, ok := h.merchantPricing.LookupSellRateForUser(ctx, userID, groupID)
+		if ok {
+			cache[groupID] = v
+		} else {
+			miss[groupID] = struct{}{}
+		}
+		return v, ok
+	}
+	for ci := range out {
+		for si := range out[ci].Platforms {
+			groups := out[ci].Platforms[si].Groups
+			for gi := range groups {
+				if v, ok := lookup(groups[gi].ID); ok {
+					groups[gi].RateMultiplier = v
+				}
+			}
+		}
+	}
+}
+
+// enrichOfficialPricing 为每个模型补充官方价（来自 LiteLLM 价格表，USD/per token）。
+// 查不到或价格为 0 时静默跳过，前端按 nil 展示为"-"。
+func (h *AvailableChannelHandler) enrichOfficialPricing(out []userAvailableChannel) {
+	if h.billingService == nil {
+		return
+	}
+	cache := make(map[string]*service.ModelPricing, 32)
+	lookup := func(model string) *service.ModelPricing {
+		if p, ok := cache[model]; ok {
+			return p
+		}
+		p, err := h.billingService.GetModelPricing(model)
+		if err != nil {
+			cache[model] = nil
+			return nil
+		}
+		cache[model] = p
+		return p
+	}
+	for ci := range out {
+		for si := range out[ci].Platforms {
+			models := out[ci].Platforms[si].SupportedModels
+			for mi := range models {
+				if models[mi].Pricing == nil {
+					continue
+				}
+				p := lookup(models[mi].Name)
+				if p == nil {
+					continue
+				}
+				models[mi].Pricing.OfficialInputPrice = positiveFloatPtr(p.InputPricePerToken)
+				models[mi].Pricing.OfficialOutputPrice = positiveFloatPtr(p.OutputPricePerToken)
+				models[mi].Pricing.OfficialCacheWritePrice = positiveFloatPtr(p.CacheCreationPricePerToken)
+				models[mi].Pricing.OfficialCacheReadPrice = positiveFloatPtr(p.CacheReadPricePerToken)
+			}
+		}
+	}
+}
+
+func positiveFloatPtr(v float64) *float64 {
+	if v <= 0 {
+		return nil
+	}
+	return &v
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：

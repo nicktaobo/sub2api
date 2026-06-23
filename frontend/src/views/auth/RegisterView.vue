@@ -11,35 +11,6 @@
         </p>
       </div>
 
-      <div v-if="linuxdoOAuthEnabled || wechatOAuthEnabled || oidcOAuthEnabled" class="space-y-4">
-        <LinuxDoOAuthSection
-          v-if="linuxdoOAuthEnabled"
-          :disabled="isLoading"
-          :aff-code="formData.aff_code"
-          :show-divider="false"
-        />
-        <WechatOAuthSection
-          v-if="wechatOAuthEnabled"
-          :disabled="isLoading"
-          :aff-code="formData.aff_code"
-          :show-divider="false"
-        />
-        <OidcOAuthSection
-          v-if="oidcOAuthEnabled"
-          :disabled="isLoading"
-          :provider-name="oidcOAuthProviderName"
-          :aff-code="formData.aff_code"
-          :show-divider="false"
-        />
-        <div class="flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          <span class="text-xs text-gray-500 dark:text-dark-400">
-            {{ t('auth.oauthOrContinue') }}
-          </span>
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-        </div>
-      </div>
-
       <!-- Registration Disabled Message -->
       <div
         v-if="!registrationEnabled && settingsLoaded"
@@ -73,7 +44,7 @@
               required
               autofocus
               autocomplete="email"
-              :disabled="isLoading"
+              :disabled="registrationActionDisabled"
               class="input pl-11"
               :class="{ 'input-error': errors.email }"
               :placeholder="t('auth.emailPlaceholder')"
@@ -96,13 +67,14 @@
               :type="showPassword ? 'text' : 'password'"
               required
               autocomplete="new-password"
-              :disabled="isLoading"
+              :disabled="registrationActionDisabled"
               class="input pl-11 pr-11"
               :class="{ 'input-error': errors.password }"
               :placeholder="t('auth.createPasswordPlaceholder')"
             />
             <button
               type="button"
+              :disabled="registrationActionDisabled"
               @click="showPassword = !showPassword"
               class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
             >
@@ -128,7 +100,7 @@
               id="invitation_code"
               v-model="formData.invitation_code"
               type="text"
-              :disabled="isLoading"
+              :disabled="registrationActionDisabled"
               class="input pl-11 pr-10"
               :class="{
                 'border-green-500 focus:border-green-500 focus:ring-green-500': invitationValidation.valid,
@@ -176,7 +148,7 @@
               id="promo_code"
               v-model="formData.promo_code"
               type="text"
-              :disabled="isLoading"
+              :disabled="registrationActionDisabled"
               class="input pl-11 pr-10"
               :class="{
                 'border-green-500 focus:border-green-500 focus:ring-green-500': promoValidation.valid,
@@ -221,10 +193,52 @@
           />
         </div>
 
+        <!-- 协议勾选框：勾选时弹出阅读窗，用户在弹窗内确认才算同意 -->
+        <div
+          v-if="loginAgreementDocuments.length > 0"
+          class="px-0.5"
+        >
+          <div class="flex items-start gap-2">
+            <input
+              id="register-agreement-consent"
+              type="checkbox"
+              :checked="agreementAccepted"
+              :disabled="isLoading"
+              class="mt-[2px] h-4 w-4 flex-shrink-0 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
+              @change="handleAgreementCheckboxChange"
+            />
+            <p class="min-w-0 flex-1 text-[13px] leading-5 text-gray-600 dark:text-dark-300">
+              <label
+                for="register-agreement-consent"
+                class="cursor-pointer text-gray-700 dark:text-dark-200"
+              >
+                {{ t('legal.agreement.consent') }}
+              </label>
+              <template v-for="(doc, index) in agreementDocLabels" :key="doc.key">
+                <button
+                  type="button"
+                  class="font-medium text-primary-600 underline-offset-4 transition hover:text-primary-700 hover:underline dark:text-primary-300 dark:hover:text-primary-200"
+                  @click="showAgreementModal = true"
+                >
+                  {{ doc.title }}
+                </button>
+                <span v-if="index < agreementDocLabels.length - 1">{{ t('legal.agreement.separator') }}</span>
+              </template>
+            </p>
+          </div>
+        </div>
+
+        <RegisterAgreementModal
+          :visible="showAgreementModal"
+          :documents="loginAgreementDocuments"
+          @accept="acceptLoginAgreement"
+          @decline="declineLoginAgreement"
+        />
+
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
+          :disabled="registrationActionDisabled || (turnstileEnabled && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -256,7 +270,46 @@
                 : t('auth.createAccount')
           }}
         </button>
+
       </form>
+
+      <div v-if="showOAuthLogin" class="space-y-3 pt-1">
+        <div class="flex items-center gap-3">
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+          <span class="text-xs text-gray-500 dark:text-dark-400">
+            {{ t('auth.oauthOrContinue') }}
+          </span>
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+        </div>
+
+        <EmailOAuthButtons
+          :disabled="oauthActionDisabled"
+          :aff-code="formData.aff_code"
+          :github-enabled="githubOAuthEnabled"
+          :google-enabled="googleOAuthEnabled"
+          :show-divider="false"
+        />
+
+        <LinuxDoOAuthSection
+          v-if="linuxdoOAuthEnabled"
+          :disabled="oauthActionDisabled"
+          :aff-code="formData.aff_code"
+          :show-divider="false"
+        />
+        <WechatOAuthSection
+          v-if="wechatOAuthEnabled"
+          :disabled="oauthActionDisabled"
+          :aff-code="formData.aff_code"
+          :show-divider="false"
+        />
+        <OidcOAuthSection
+          v-if="oidcOAuthEnabled"
+          :disabled="oauthActionDisabled"
+          :provider-name="oidcOAuthProviderName"
+          :aff-code="formData.aff_code"
+          :show-divider="false"
+        />
+      </div>
     </div>
 
     <!-- Footer -->
@@ -282,6 +335,8 @@ import { AuthLayout } from '@/components/layout'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
+import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
+import RegisterAgreementModal from '@/components/auth/RegisterAgreementModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -293,6 +348,7 @@ import {
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
+  formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
   normalizeRegistrationEmailSuffixWhitelist
 } from '@/utils/registrationEmailPolicy'
@@ -301,6 +357,12 @@ import {
   loadAffiliateReferralCode,
   resolveAffiliateReferralCode
 } from '@/utils/oauthAffiliate'
+import {
+  hasAnyLoginAgreementTitle,
+  hasLoginAgreementTitle,
+  resolveLoginAgreementDocumentLocale,
+} from '@/utils/loginAgreement'
+import type { LoginAgreementDocument } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -330,7 +392,12 @@ const linuxdoOAuthEnabled = ref<boolean>(false)
 const wechatOAuthEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
 const oidcOAuthProviderName = ref<string>('OIDC')
+const githubOAuthEnabled = ref<boolean>(false)
+const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
+const agreementAccepted = ref<boolean>(false)
+const showAgreementModal = ref<boolean>(false)
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -380,6 +447,28 @@ const validationToastMessage = computed(() =>
   ''
 )
 
+const showOAuthLogin = computed(
+  () =>
+    linuxdoOAuthEnabled.value ||
+    wechatOAuthEnabled.value ||
+    oidcOAuthEnabled.value ||
+    githubOAuthEnabled.value ||
+    googleOAuthEnabled.value
+)
+
+const agreementGateActive = computed(() => !agreementAccepted.value)
+
+// 邮箱/密码输入和邮箱注册按钮：不受勾选状态影响——
+// 用户可以先填表单，提交时再由 validateForm 弹出协议窗。
+const registrationActionDisabled = computed(
+  () => isLoading.value || !settingsLoaded.value
+)
+
+// OAuth 一旦点击就会跳走，必须先勾过协议才能继续。
+const oauthActionDisabled = computed(
+  () => registrationActionDisabled.value || agreementGateActive.value
+)
+
 watch(validationToastMessage, (value, previousValue) => {
   if (value && value !== previousValue) {
     appStore.showError(value)
@@ -412,9 +501,14 @@ onMounted(async () => {
     wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
     oidcOAuthEnabled.value = settings.oidc_oauth_enabled
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
+    githubOAuthEnabled.value = settings.github_oauth_enabled
+    googleOAuthEnabled.value = settings.google_oauth_enabled
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    loginAgreementDocuments.value = Array.isArray(settings.login_agreement_documents)
+      ? settings.login_agreement_documents.filter(hasAnyLoginAgreementTitle)
+      : []
 
     // Read promo code from URL parameter only if promo code is enabled
     if (promoCodeEnabled.value) {
@@ -428,6 +522,7 @@ onMounted(async () => {
     syncAffiliateReferralCode()
   } catch (error) {
     console.error('Failed to load public settings:', error)
+    loginAgreementDocuments.value = []
   } finally {
     settingsLoaded.value = true
   }
@@ -448,6 +543,39 @@ onUnmounted(() => {
     clearTimeout(invitationValidateTimeout)
   }
 })
+
+// ==================== Register Agreement ====================
+
+const agreementDocLabels = computed(() =>
+  loginAgreementDocuments.value
+    .filter((doc) => hasLoginAgreementTitle(doc, locale.value))
+    .map((doc) => ({
+      key: doc.id || doc.title,
+      title: resolveLoginAgreementDocumentLocale(doc, locale.value).title,
+    })),
+)
+
+function handleAgreementCheckboxChange(event: Event): void {
+  const checked = (event.target as HTMLInputElement).checked
+  if (checked) {
+    // 勾选时强制弹出条款窗，让用户阅读后再确认
+    showAgreementModal.value = true
+  } else {
+    agreementAccepted.value = false
+    showAgreementModal.value = false
+  }
+}
+
+function acceptLoginAgreement(): void {
+  agreementAccepted.value = true
+  showAgreementModal.value = false
+}
+
+function declineLoginAgreement(): void {
+  agreementAccepted.value = false
+  showAgreementModal.value = false
+  appStore.showWarning(t('auth.registerAgreement.declineHint'))
+}
 
 // ==================== Promo Code Validation ====================
 
@@ -619,7 +747,10 @@ function buildEmailSuffixNotAllowedMessage(): string {
   }
   const separator = String(locale.value || '').toLowerCase().startsWith('zh') ? '、' : ', '
   return t('auth.emailSuffixNotAllowedWithAllowed', {
-    suffixes: normalizedWhitelist.join(separator)
+    suffixes: formatRegistrationEmailSuffixWhitelistForMessage(normalizedWhitelist, {
+      separator,
+      more: (count) => t('auth.emailSuffixAllowedMore', { count })
+    })
   })
 }
 
@@ -631,6 +762,12 @@ function validateForm(): boolean {
   errors.invitation_code = ''
 
   let isValid = true
+
+  if (agreementGateActive.value) {
+    appStore.showWarning(t('auth.registerAgreement.declineHint'))
+    showAgreementModal.value = true
+    return false
+  }
 
   // Email validation
   if (!formData.email.trim()) {

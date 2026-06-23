@@ -77,6 +77,14 @@ func jwtAuth(authService *service.AuthService, userService jwtUserReader, activi
 			return
 		}
 
+		// MERCHANT-SYSTEM v3.0：每个携带 JWT 的请求都校验 user 与当前请求域名的归属，
+		// 防止已签发的 token 被跨域名复用（子用户 token 拿到主站、跨商户访问等）。
+		// 触发时返回 401 让前端清 token 并重新登录到正确域名。
+		if err := service.ValidateUserDomainScope(c.Request.Context(), user, authService.MerchantEnabled()); err != nil {
+			AbortWithError(c, 401, "USER_DOMAIN_MISMATCH", "user does not belong to this site; please login from the correct domain")
+			return
+		}
+
 		c.Set(string(ContextKeyUser), AuthSubject{
 			UserID:      user.ID,
 			Concurrency: user.Concurrency,

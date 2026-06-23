@@ -63,11 +63,20 @@ func (RedeemCode) Fields() []ent.Field {
 			Immutable().
 			Default(time.Now).
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Time("expires_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
 		field.Int("validity_days").
 			Default(30),
+
+		// MERCHANT-SYSTEM v1.0：商户 owner 出资生成的兑换码记录商户 id（admin 生成时为 NULL）
+		field.Int64("created_by_merchant_id").
+			Optional().
+			Nillable(),
 	}
 }
 
@@ -90,5 +99,6 @@ func (RedeemCode) Indexes() []ent.Index {
 		index.Fields("status"),
 		index.Fields("used_by"),
 		index.Fields("group_id"),
+		index.Fields("expires_at"),
 	}
 }

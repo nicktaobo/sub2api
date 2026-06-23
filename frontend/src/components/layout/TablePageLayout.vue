@@ -92,6 +92,11 @@ onUnmounted(() => {
 }
 
 /* 移动端：恢复正常滚动 */
+.table-page-layout.mobile-mode {
+  /* 高度自适应内容，避免固定高度裁剪卡片列表导致内容溢出、与底部联系方式页脚重叠 */
+  height: auto;
+}
+
 .table-page-layout.mobile-mode .table-scroll-container {
   @apply h-auto overflow-visible border-none shadow-none bg-transparent;
 }

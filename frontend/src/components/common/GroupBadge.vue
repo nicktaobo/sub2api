@@ -8,7 +8,7 @@
     <!-- Platform logo -->
     <PlatformIcon v-if="platform" :platform="platform" size="sm" />
     <!-- Group name -->
-    <span class="truncate">{{ name }}</span>
+    <span>{{ name }}</span>
     <!-- Right side label -->
     <span v-if="showLabel" :class="labelClass">
       <template v-if="hasCustomRate">
@@ -115,39 +115,35 @@ const labelClass = computed(() => {
   }
 
   // 正常状态或无天数：根据平台显示主题色
-  if (props.platform === 'anthropic') {
-    return `${base} bg-orange-200/60 text-orange-800 dark:bg-orange-800/40 dark:text-orange-300`
+  const labelColors: Record<string, string> = {
+    anthropic: 'bg-orange-200/60 text-orange-800 dark:bg-orange-800/40 dark:text-orange-300',
+    openai: 'bg-emerald-200/60 text-emerald-800 dark:bg-emerald-800/40 dark:text-emerald-300',
+    gemini: 'bg-blue-200/60 text-blue-800 dark:bg-blue-800/40 dark:text-blue-300',
+    antigravity: 'bg-purple-200/60 text-purple-800 dark:bg-purple-800/40 dark:text-purple-300',
+    deepseek: 'bg-cyan-200/60 text-cyan-800 dark:bg-cyan-800/40 dark:text-cyan-300',
+    moonshot: 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-300',
+    glm: 'bg-rose-200/60 text-rose-800 dark:bg-rose-800/40 dark:text-rose-300',
+    qwen: 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300',
+    seedance: 'bg-amber-200/60 text-amber-800 dark:bg-amber-800/40 dark:text-amber-300',
   }
-  if (props.platform === 'openai') {
-    return `${base} bg-emerald-200/60 text-emerald-800 dark:bg-emerald-800/40 dark:text-emerald-300`
-  }
-  if (props.platform === 'gemini') {
-    return `${base} bg-blue-200/60 text-blue-800 dark:bg-blue-800/40 dark:text-blue-300`
-  }
-  return `${base} bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300`
+  return `${base} ${labelColors[props.platform || ''] || 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300'}`
 })
 
 // Badge color based on platform and subscription type
+const BADGE_COLORS: Record<string, { sub: string; std: string }> = {
+  anthropic:   { sub: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',    std: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  openai:      { sub: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', std: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+  gemini:      { sub: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',            std: 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400' },
+  antigravity: { sub: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',    std: 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
+  deepseek:    { sub: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',            std: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-400' },
+  moonshot:    { sub: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',     std: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400' },
+  glm:         { sub: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', std: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400' },
+  qwen:        { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
+  seedance:    { sub: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',        std: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+}
+const BADGE_DEFAULT = { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400' }
 const badgeClass = computed(() => {
-  if (props.platform === 'anthropic') {
-    // Claude: orange theme
-    return isSubscription.value
-      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-      : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
-  } else if (props.platform === 'openai') {
-    // OpenAI: green theme
-    return isSubscription.value
-      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-      : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-  }
-  if (props.platform === 'gemini') {
-    return isSubscription.value
-      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-      : 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400'
-  }
-  // Fallback: original colors
-  return isSubscription.value
-    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+  const colors = BADGE_COLORS[props.platform || ''] || BADGE_DEFAULT
+  return isSubscription.value ? colors.sub : colors.std
 })
 </script>

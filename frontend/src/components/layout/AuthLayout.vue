@@ -24,6 +24,11 @@
       ></div>
     </div>
 
+    <!-- Top-right: Language Switcher -->
+    <div class="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+      <LocaleSwitcher />
+    </div>
+
     <!-- Content Container -->
     <div class="relative z-10 w-full max-w-md">
       <!-- Logo/Brand -->
@@ -56,7 +61,7 @@
 
       <!-- Copyright -->
       <div class="mt-8 text-center text-xs text-gray-400 dark:text-dark-500">
-        &copy; {{ currentYear }} {{ siteName }}. All rights reserved.
+        &copy; {{ currentYear }} SoulCore AI INC. All rights reserved.
       </div>
     </div>
   </div>
@@ -64,14 +69,24 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { useAppStore } from '@/stores'
 import { sanitizeUrl } from '@/utils/url'
+import { resolveLocalizedText } from '@/utils/localizedText'
 
 const appStore = useAppStore()
+const { t, locale } = useI18n()
 
 const siteName = computed(() => appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'Subscription to API Conversion Platform')
+const siteSubtitle = computed(() =>
+  resolveLocalizedText(
+    appStore.cachedPublicSettings?.site_subtitle,
+    locale.value,
+    t('auth.siteSubtitleDefault'),
+  ),
+)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 const currentYear = computed(() => new Date().getFullYear())

@@ -14,6 +14,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 )
@@ -83,6 +84,7 @@ type CreateOrderRequest struct {
 	PaymentSource   string
 	OrderType       string
 	PlanID          int64
+	Locale          string
 }
 
 type CreateOrderResponse struct {
@@ -97,6 +99,10 @@ type CreateOrderResponse struct {
 	PayURL       string                          `json:"pay_url,omitempty"`
 	QRCode       string                          `json:"qr_code,omitempty"`
 	ClientSecret string                          `json:"client_secret,omitempty"`
+	IntentID     string                          `json:"intent_id,omitempty"`
+	Currency     string                          `json:"currency,omitempty"`
+	CountryCode  string                          `json:"country_code,omitempty"`
+	PaymentEnv   string                          `json:"payment_env,omitempty"`
 	OAuth        *payment.WechatOAuthInfo        `json:"oauth,omitempty"`
 	JSAPI        *payment.WechatJSAPIPayload     `json:"jsapi,omitempty"`
 	JSAPIPayload *payment.WechatJSAPIPayload     `json:"jsapi_payload,omitempty"`
@@ -170,24 +176,60 @@ type TopUserStat struct {
 // --- Service ---
 
 type PaymentService struct {
-	providerMu       sync.Mutex
-	providersLoaded  bool
-	entClient        *dbent.Client
-	registry         *payment.Registry
-	loadBalancer     payment.LoadBalancer
-	redeemService    *RedeemService
-	subscriptionSvc  *SubscriptionService
-	configService    *PaymentConfigService
-	userRepo         UserRepository
-	groupRepo        GroupRepository
-	resumeService    *PaymentResumeService
-	affiliateService *AffiliateService
+	providerMu               sync.Mutex
+	providersLoaded          bool
+	entClient                *dbent.Client
+	registry                 *payment.Registry
+	loadBalancer             payment.LoadBalancer
+	redeemService            *RedeemService
+	subscriptionSvc          *SubscriptionService
+	configService            *PaymentConfigService
+	userRepo                 UserRepository
+	groupRepo                GroupRepository
+	resumeService            *PaymentResumeService
+	affiliateService         *AffiliateService
+	notificationEmailService *NotificationEmailService
+
+	// MERCHANT-SYSTEM v1.0 (RFC §1.0.1 v1.12 P1-#2)
+	merchantCfg        config.MerchantConfig    // 启动期注入；用 s.merchantCfg.Enabled（不要写 s.cfg.Merchant.Enabled）
+	merchantRepo       MerchantRepository       // 充值 hook 查 merchant
+	merchantOutboxRepo MerchantOutboxRepository // 写 outbox（InsertIfNotExists）
 }
 
-func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService) *PaymentService {
-	svc := &PaymentService{entClient: entClient, registry: registry, loadBalancer: newVisibleMethodLoadBalancer(loadBalancer, configService), redeemService: redeemService, subscriptionSvc: subscriptionSvc, configService: configService, userRepo: userRepo, groupRepo: groupRepo, affiliateService: affiliateService}
+func NewPaymentService(
+	entClient *dbent.Client,
+	registry *payment.Registry,
+	loadBalancer payment.LoadBalancer,
+	redeemService *RedeemService,
+	subscriptionSvc *SubscriptionService,
+	configService *PaymentConfigService,
+	userRepo UserRepository,
+	groupRepo GroupRepository,
+	affiliateService *AffiliateService,
+	cfg *config.Config,
+	merchantRepo MerchantRepository,
+	merchantOutboxRepo MerchantOutboxRepository,
+) *PaymentService {
+	svc := &PaymentService{
+		entClient:          entClient,
+		registry:           registry,
+		loadBalancer:       newVisibleMethodLoadBalancer(loadBalancer, configService),
+		redeemService:      redeemService,
+		subscriptionSvc:    subscriptionSvc,
+		configService:      configService,
+		userRepo:           userRepo,
+		groupRepo:          groupRepo,
+		affiliateService:   affiliateService,
+		merchantCfg:        cfg.Merchant,
+		merchantRepo:       merchantRepo,
+		merchantOutboxRepo: merchantOutboxRepo,
+	}
 	svc.resumeService = psNewPaymentResumeService(configService)
 	return svc
+}
+
+func (s *PaymentService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
+	s.notificationEmailService = notificationEmailService
 }
 
 // --- Provider Registry ---

@@ -34,9 +34,14 @@ type PublicSettingsProvider interface {
 
 // FrontendServer serves the embedded frontend with settings injection
 type FrontendServer struct {
-	distFS      fs.FS
-	fileServer  http.Handler
-	baseHTML    []byte
+	distFS     fs.FS
+	fileServer http.Handler
+	// baseHTML 是 / 路由的 prerender 产物（dist/index.html）。请求 / 走它+缓存。
+	baseHTML []byte
+	// shellHTML 是 vite 出的原始空壳（dist/_spa-shell.html）。SPA fallback（未知路径，
+	// 比如 /dashboard 刷新）用它，避免拿 baseHTML 把 home 闪一下再跳 dashboard。
+	// 若 _spa-shell.html 不存在（未跑 prerender），退化为 baseHTML，行为同 SSG 前。
+	shellHTML   []byte
 	cache       *HTMLCache
 	settings    PublicSettingsProvider
 	overrideDir string // local file override directory
@@ -64,10 +69,20 @@ func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer
 	cache := NewHTMLCache()
 	cache.SetBaseHTML(baseHTML)
 
+	// 尝试加载 SPA fallback 空壳（prerender 产物）。读不到时退化为 baseHTML。
+	shellHTML := baseHTML
+	if shellFile, err := distFS.Open("_spa-shell.html"); err == nil {
+		if data, readErr := io.ReadAll(shellFile); readErr == nil && len(data) > 0 {
+			shellHTML = data
+		}
+		_ = shellFile.Close()
+	}
+
 	return &FrontendServer{
 		distFS:      distFS,
 		fileServer:  http.FileServer(http.FS(distFS)),
 		baseHTML:    baseHTML,
+		shellHTML:   shellHTML,
 		cache:       cache,
 		settings:    settingsProvider,
 		overrideDir: filepath.Join("data", "public"),
@@ -97,9 +112,32 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			cleanPath = "index.html"
 		}
 
-		// For index.html or SPA routes, serve with injected settings
-		if cleanPath == "index.html" || !s.fileExists(cleanPath) {
+		if cleanPath == "index.html" {
 			s.serveIndexHTML(c)
+			return
+		}
+
+		if cleanPath == "sitemap.xml" {
+			s.serveSitemap(c)
+			return
+		}
+
+		// _spa-shell.html 是后端内部用的 SPA fallback 模板，对外屏蔽
+		if cleanPath == "_spa-shell.html" {
+			c.Status(http.StatusNotFound)
+			c.Abort()
+			return
+		}
+
+		// 不是具体存在的静态资源 → 可能是 prerender 路由（dist/<path>/index.html）
+		// 或 SPA fallback 路由
+		if !s.fileExists(cleanPath) {
+			if s.tryServePrerendered(c, cleanPath) {
+				return
+			}
+			// SPA fallback：用原始空壳，避免把 home prerender 产物当兜底，导致刷新
+			// /dashboard 等路径时先闪一下首页内容再被 Vue 跳到正确视图。
+			s.servePrerenderedHTML(c, s.shellHTML)
 			return
 		}
 
@@ -114,13 +152,123 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 	}
 }
 
+// prerenderedRoutes 列出 SSG 生成的公开页路径，对应 frontend/scripts/prerender.mjs 的 ROUTES。
+// 同时作为 sitemap.xml 的内容源。新增 prerender 路由时两边一起改。
+var prerenderedRoutes = []string{
+	"/",
+	"/models",
+	"/docs/quickstart",
+	"/docs/api-guide",
+}
+
+// requestScheme 推断当前请求的 scheme：TLS 优先；其次 X-Forwarded-Proto；兜底 http。
+func requestScheme(c *gin.Context) string {
+	if c.Request.TLS != nil {
+		return "https"
+	}
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	return "http"
+}
+
+// serveSitemap 按当前请求 Host 动态拼出绝对 URL 的 sitemap.xml。
+// 多租户场景下每个商户域名访问会拿到对应域名的 sitemap。
+func (s *FrontendServer) serveSitemap(c *gin.Context) {
+	scheme := requestScheme(c)
+	host := c.Request.Host
+	base := scheme + "://" + host
+
+	var b bytes.Buffer
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	for _, p := range prerenderedRoutes {
+		b.WriteString("  <url><loc>")
+		b.WriteString(base)
+		b.WriteString(p)
+		b.WriteString("</loc></url>\n")
+	}
+	b.WriteString(`</urlset>` + "\n")
+
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "application/xml; charset=utf-8", b.Bytes())
+	c.Abort()
+}
+
+// tryServePrerendered: 检查 dist/<cleanPath>/index.html 是否存在（prerender 产物），
+// 若存在则以该文件为 baseHTML 走 __APP_CONFIG__ 注入逻辑。
+// prerender 产物每条路由内容不同，不能共用 index.html 的 baseHTML/缓存，
+// 因此每次读盘 + 注入（小文件，开销可忽略）。
+func (s *FrontendServer) tryServePrerendered(c *gin.Context, cleanPath string) bool {
+	if cleanPath == "" || cleanPath == "index.html" {
+		return false
+	}
+	candidate := strings.TrimSuffix(cleanPath, "/") + "/index.html"
+	file, err := s.distFS.Open(candidate)
+	if err != nil {
+		return false
+	}
+	baseHTML, err := io.ReadAll(file)
+	_ = file.Close()
+	if err != nil {
+		return false
+	}
+	s.servePrerenderedHTML(c, baseHTML)
+	return true
+}
+
+// servePrerenderedHTML: 把 prerender 产物当 baseHTML 注入 __APP_CONFIG__ 后返回。
+// 流程与 serveIndexHTML 一致但不走单例缓存，因为每个 path 有自己的产物。
+func (s *FrontendServer) servePrerenderedHTML(c *gin.Context, baseHTML []byte) {
+	nonce := middleware.GetNonceFromContext(c)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	settings, err := s.settings.GetPublicSettingsForInjection(ctx)
+	if err != nil {
+		content := replaceNoncePlaceholder(baseHTML, nonce)
+		c.Header("Cache-Control", "no-cache")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		c.Abort()
+		return
+	}
+
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		content := replaceNoncePlaceholder(baseHTML, nonce)
+		c.Header("Cache-Control", "no-cache")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		c.Abort()
+		return
+	}
+
+	script := []byte(`<script nonce="` + NonceHTMLPlaceholder + `">window.__APP_CONFIG__=` + string(settingsJSON) + `;</script>`)
+	headClose := []byte("</head>")
+	rendered := bytes.Replace(baseHTML, headClose, append(script, headClose...), 1)
+
+	content := replaceNoncePlaceholder(rendered, nonce)
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+	c.Abort()
+}
+
+// fileExists 仅在 path 指向一个**文件**时返回 true。
+// 排除目录是为了让 prerender 路由（如 /models 对应 dist/models/ 目录）
+// 落入下面的 tryServePrerendered 分支，而不是被 http.FileServer 接管 ——
+// 后者对"访问目录不带斜杠"的默认行为是 301 加斜杠并返回相对 Location，
+// 既多一跳又对部分爬虫不友好。
 func (s *FrontendServer) fileExists(path string) bool {
 	file, err := s.distFS.Open(path)
 	if err != nil {
 		return false
 	}
-	_ = file.Close()
-	return true
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // tryServeOverride checks if a local override file exists and serves it.
@@ -143,27 +291,34 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	// Get nonce from context (generated by SecurityHeaders middleware)
 	nonce := middleware.GetNonceFromContext(c)
 
-	// Check cache first
-	cached := s.cache.Get()
-	if cached != nil {
-		// Check If-None-Match for 304 response
-		if match := c.GetHeader("If-None-Match"); match == cached.ETag {
-			c.Status(http.StatusNotModified)
+	// MERCHANT-SYSTEM v1.0：商户分站请求绕过单例缓存，每个请求按 ctx 中的商户
+	// 重新渲染，避免主站缓存把主站品牌注入到分站 HTML（或反过来）。
+	// 商户域名总数有限、流量小，不缓存的开销可接受。
+	isMerchantSite := middleware.MerchantFromContext(c) != nil
+
+	if !isMerchantSite {
+		// Check cache first (main-site only)
+		cached := s.cache.Get()
+		if cached != nil {
+			// Check If-None-Match for 304 response
+			if match := c.GetHeader("If-None-Match"); match == cached.ETag {
+				c.Status(http.StatusNotModified)
+				c.Abort()
+				return
+			}
+
+			// Replace nonce placeholder with actual nonce before serving
+			content := replaceNoncePlaceholder(cached.Content, nonce)
+
+			c.Header("ETag", cached.ETag)
+			c.Header("Cache-Control", "no-cache") // Must revalidate
+			c.Data(http.StatusOK, "text/html; charset=utf-8", content)
 			c.Abort()
 			return
 		}
-
-		// Replace nonce placeholder with actual nonce before serving
-		content := replaceNoncePlaceholder(cached.Content, nonce)
-
-		c.Header("ETag", cached.ETag)
-		c.Header("Cache-Control", "no-cache") // Must revalidate
-		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
-		c.Abort()
-		return
 	}
 
-	// Cache miss - fetch settings and render
+	// Cache miss (or merchant-site bypass) - fetch settings and render
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
 
@@ -184,14 +339,18 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	}
 
 	rendered := s.injectSettings(settingsJSON)
-	s.cache.Set(rendered, settingsJSON)
+	if !isMerchantSite {
+		// 仅主站结果写缓存；商户分站每请求一次渲染一次
+		s.cache.Set(rendered, settingsJSON)
+	}
 
 	// Replace nonce placeholder with actual nonce before serving
 	content := replaceNoncePlaceholder(rendered, nonce)
 
-	cached = s.cache.Get()
-	if cached != nil {
-		c.Header("ETag", cached.ETag)
+	if !isMerchantSite {
+		if cached := s.cache.Get(); cached != nil {
+			c.Header("ETag", cached.ETag)
+		}
 	}
 	c.Header("Cache-Control", "no-cache")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
@@ -304,6 +463,8 @@ func shouldBypassEmbeddedFrontend(path string) bool {
 		strings.HasPrefix(trimmed, "/backend-api/") ||
 		strings.HasPrefix(trimmed, "/antigravity/") ||
 		strings.HasPrefix(trimmed, "/setup/") ||
+		strings.HasPrefix(trimmed, "/internal/") ||
+		strings.HasPrefix(trimmed, "/merchant-assets/") ||
 		trimmed == "/health" ||
 		trimmed == "/responses" ||
 		strings.HasPrefix(trimmed, "/responses/") ||

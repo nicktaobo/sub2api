@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+Allow: /models
+Allow: /docs/
+
+Disallow: /setup
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /email-verify
+Disallow: /auth/
+Disallow: /key-usage
+Disallow: /dashboard
+Disallow: /admin/
+Disallow: /merchant/
+Disallow: /keys
+Disallow: /usage
+Disallow: /redeem
+Disallow: /affiliate
+Disallow: /available-channels
+Disallow: /model-pricing
+Disallow: /profile
+Disallow: /subscriptions
+Disallow: /purchase
+Disallow: /orders
+Disallow: /payment/
+Disallow: /api/
+Disallow: /v1/
+
+Sitemap: /sitemap.xml

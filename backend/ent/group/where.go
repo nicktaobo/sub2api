@@ -210,6 +210,11 @@ func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
 }
 
+// AffiliateRebateExcluded applies equality check predicate on the "affiliate_rebate_excluded" field. It's identical to AffiliateRebateExcludedEQ.
+func AffiliateRebateExcluded(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAffiliateRebateExcluded, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldCreatedAt, v))
@@ -1438,6 +1443,16 @@ func RpmLimitLT(v int) predicate.Group {
 // RpmLimitLTE applies the LTE predicate on the "rpm_limit" field.
 func RpmLimitLTE(v int) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldRpmLimit, v))
+}
+
+// AffiliateRebateExcludedEQ applies the EQ predicate on the "affiliate_rebate_excluded" field.
+func AffiliateRebateExcludedEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAffiliateRebateExcluded, v))
+}
+
+// AffiliateRebateExcludedNEQ applies the NEQ predicate on the "affiliate_rebate_excluded" field.
+func AffiliateRebateExcludedNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAffiliateRebateExcluded, v))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

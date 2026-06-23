@@ -44,6 +44,22 @@ type Tx struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// Merchant is the client for interacting with the Merchant builders.
+	Merchant *MerchantClient
+	// MerchantAuditLog is the client for interacting with the MerchantAuditLog builders.
+	MerchantAuditLog *MerchantAuditLogClient
+	// MerchantDomain is the client for interacting with the MerchantDomain builders.
+	MerchantDomain *MerchantDomainClient
+	// MerchantEarningsOutbox is the client for interacting with the MerchantEarningsOutbox builders.
+	MerchantEarningsOutbox *MerchantEarningsOutboxClient
+	// MerchantGroupCost is the client for interacting with the MerchantGroupCost builders.
+	MerchantGroupCost *MerchantGroupCostClient
+	// MerchantGroupMarkup is the client for interacting with the MerchantGroupMarkup builders.
+	MerchantGroupMarkup *MerchantGroupMarkupClient
+	// MerchantLedger is the client for interacting with the MerchantLedger builders.
+	MerchantLedger *MerchantLedgerClient
+	// MerchantWithdrawRequest is the client for interacting with the MerchantWithdrawRequest builders.
+	MerchantWithdrawRequest *MerchantWithdrawRequestClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -80,6 +96,8 @@ type Tx struct {
 	UserAttributeDefinition *UserAttributeDefinitionClient
 	// UserAttributeValue is the client for interacting with the UserAttributeValue builders.
 	UserAttributeValue *UserAttributeValueClient
+	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
+	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 
@@ -228,6 +246,14 @@ func (tx *Tx) init() {
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
+	tx.Merchant = NewMerchantClient(tx.config)
+	tx.MerchantAuditLog = NewMerchantAuditLogClient(tx.config)
+	tx.MerchantDomain = NewMerchantDomainClient(tx.config)
+	tx.MerchantEarningsOutbox = NewMerchantEarningsOutboxClient(tx.config)
+	tx.MerchantGroupCost = NewMerchantGroupCostClient(tx.config)
+	tx.MerchantGroupMarkup = NewMerchantGroupMarkupClient(tx.config)
+	tx.MerchantLedger = NewMerchantLedgerClient(tx.config)
+	tx.MerchantWithdrawRequest = NewMerchantWithdrawRequestClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)
@@ -246,6 +272,7 @@ func (tx *Tx) init() {
 	tx.UserAllowedGroup = NewUserAllowedGroupClient(tx.config)
 	tx.UserAttributeDefinition = NewUserAttributeDefinitionClient(tx.config)
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
+	tx.UserPlatformQuota = NewUserPlatformQuotaClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
 }
 

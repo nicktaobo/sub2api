@@ -91,7 +91,20 @@ var ProviderSet = wire.NewSet(
 	NewChannelRepository,
 	NewChannelMonitorRepository,
 	NewChannelMonitorRequestTemplateRepository,
+	NewContentModerationRepository,
 	NewAffiliateRepository,
+	NewAffiliateConsumeOutboxRepository,
+	NewUserPlatformQuotaRepository,     // T14: user × platform quota
+	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
+
+	// MERCHANT-SYSTEM v1.0
+	NewMerchantRepository,
+	NewMerchantDomainRepository,
+	NewMerchantLedgerRepository,
+	NewMerchantOutboxRepository,
+	NewMerchantAuditLogRepository,
+	NewMerchantGroupMarkupRepository,
+	NewMerchantGroupCostRepository,
 
 	// Cache implementations
 	NewGatewayCache,
@@ -112,6 +125,7 @@ var ProviderSet = wire.NewSet(
 	NewRedeemCache,
 	NewUpdateCache,
 	NewGeminiTokenCache,
+	NewLeaderLockCache,
 	ProvideSchedulerCache,
 	NewSchedulerOutboxRepository,
 	NewProxyLatencyCache,
@@ -119,6 +133,7 @@ var ProviderSet = wire.NewSet(
 	NewRefreshTokenCache,
 	NewErrorPassthroughCache,
 	NewTLSFingerprintProfileCache,
+	NewContentModerationHashCache,
 
 	// Encryptors
 	NewAESEncryptor,

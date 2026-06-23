@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { createHead } from '@unhead/vue'
 import App from './App.vue'
 import router from './router'
 import i18n, { initI18n } from './i18n'
@@ -7,7 +8,8 @@ import { useAppStore } from '@/stores/app'
 import './style.css'
 
 function initThemeClass() {
-  const savedTheme = localStorage.getItem('theme')
+  if (typeof window === 'undefined') return
+  const savedTheme = window.localStorage?.getItem('theme')
   const shouldUseDark =
     savedTheme === 'dark' ||
     (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -20,7 +22,9 @@ async function bootstrap() {
 
   const app = createApp(App)
   const pinia = createPinia()
+  const head = createHead()
   app.use(pinia)
+  app.use(head)
 
   // Initialize settings from injected config BEFORE mounting (prevents flash)
   // This must happen after pinia is installed but before router and i18n

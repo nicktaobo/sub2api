@@ -7,9 +7,12 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
+import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
-import { resolveDocumentTitle } from './title'
+import { getSetupStatus } from '@/api/setup'
+import { resolveCompletedSetupRedirectPath } from './setupRedirect'
+import { resolveRouteDocumentTitle } from './title'
 
 /**
  * Route definitions with lazy loading
@@ -28,8 +31,9 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== Public Routes ====================
   {
-    path: '/home',
+    path: '/',
     name: 'Home',
+    alias: '/home',
     component: () => import('@/views/HomeView.vue'),
     meta: {
       requiresAuth: false,
@@ -43,7 +47,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Login',
-      titleKey: 'common.login'
+      titleKey: 'home.login'
     }
   },
   {
@@ -68,6 +72,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/auth/callback',
     name: 'OAuthCallback',
+    alias: '/auth/oauth/callback',
     component: () => import('@/views/auth/OAuthCallbackView.vue'),
     meta: {
       requiresAuth: false,
@@ -103,6 +108,25 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       title: 'WeChat Payment Callback',
       titleKey: 'auth.wechatPaymentCallbackPageTitle'
+    }
+  },
+  {
+    path: '/auth/dingtalk/callback',
+    name: 'DingTalkOAuthCallback',
+    component: () => import('@/views/auth/DingTalkCallbackView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'DingTalk OAuth Callback',
+      titleKey: 'auth.dingtalkCallbackPageTitle'
+    }
+  },
+  {
+    path: '/auth/dingtalk/email-completion',
+    name: 'dingtalk-email-completion',
+    component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'DingTalk Email Completion'
     }
   },
   {
@@ -143,12 +167,37 @@ const routes: RouteRecordRaw[] = [
       title: 'Key Usage',
     }
   },
+  {
+    path: '/legal/:documentId',
+    name: 'LegalDocument',
+    component: () => import('@/views/public/LegalDocumentView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Legal Document'
+    }
+  },
+  {
+    path: '/docs/:slug?',
+    name: 'ApiDocs',
+    component: () => import('@/views/public/ApiDocsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'API Docs',
+      titleKey: 'apiDocs.pageTitle'
+    }
+  },
+  {
+    path: '/models',
+    name: 'PublicModels',
+    component: () => import('@/views/public/PublicModelsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Models',
+      titleKey: 'publicModels.pageTitle'
+    }
+  },
 
   // ==================== User Routes ====================
-  {
-    path: '/',
-    redirect: '/home'
-  },
   {
     path: '/dashboard',
     name: 'Dashboard',
@@ -219,6 +268,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Available Channels',
       titleKey: 'availableChannels.title',
       descriptionKey: 'availableChannels.description'
+    }
+  },
+  {
+    path: '/model-pricing',
+    name: 'UserModelPricing',
+    component: () => import('@/views/user/ModelPricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Model Pricing',
+      titleKey: 'modelPricing.title',
+      descriptionKey: 'modelPricing.description'
     }
   },
   {
@@ -303,6 +364,18 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Stripe Payment',
       titleKey: 'payment.stripePay',
+      requiresPayment: false
+    }
+  },
+  {
+    path: '/payment/airwallex',
+    name: 'AirwallexPayment',
+    component: () => import('@/views/user/AirwallexPaymentView.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresAdmin: false,
+      title: 'Airwallex Payment',
+      titleKey: 'payment.airwallexPay',
       requiresPayment: false
     }
   },
@@ -411,6 +484,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/model-pricing',
+    name: 'AdminModelPricing',
+    component: () => import('@/views/admin/ModelPricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Model Pricing',
+      titleKey: 'admin.modelPricing.title',
+      descriptionKey: 'admin.modelPricing.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
@@ -506,6 +591,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/risk-control',
+    name: 'AdminRiskControl',
+    component: () => import('@/views/admin/RiskControlView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Risk Control',
+      titleKey: 'admin.riskControl.title',
+      descriptionKey: 'admin.riskControl.description',
+      requiresRiskControl: true
+    }
+  },
+  {
     path: '/admin/usage',
     name: 'AdminUsage',
     component: () => import('@/views/admin/UsageView.vue'),
@@ -559,6 +657,120 @@ const routes: RouteRecordRaw[] = [
   },
 
 
+  // ==================== Merchant Admin Routes ====================
+  {
+    path: '/admin/merchants',
+    name: 'AdminMerchants',
+    component: () => import('@/views/admin/merchants/MerchantsListView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Merchants',
+      titleKey: 'merchant.admin.title'
+    }
+  },
+  {
+    path: '/admin/merchants/new',
+    name: 'AdminMerchantCreate',
+    component: () => import('@/views/admin/merchants/MerchantCreateView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Create Merchant',
+      titleKey: 'merchant.admin.createTitle'
+    }
+  },
+  {
+    path: '/admin/merchants/:id',
+    name: 'AdminMerchantDetail',
+    component: () => import('@/views/admin/merchants/MerchantDetailView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Merchant Detail',
+      titleKey: 'merchant.admin.detailTitle'
+    }
+  },
+
+  // ==================== Merchant Owner Routes ====================
+  {
+    path: '/merchant',
+    redirect: '/merchant/ledger'
+  },
+  {
+    path: '/merchant/sub-users',
+    name: 'MerchantSubUsers',
+    component: () => import('@/views/merchant/MerchantSubUsersView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Sub Users',
+      titleKey: 'merchant.owner.subUsers.title'
+    }
+  },
+  {
+    path: '/merchant/ledger',
+    name: 'MerchantLedger',
+    component: () => import('@/views/merchant/MerchantLedgerView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      // 合并页：顶部分成统计概览 + 下方资金流水明细，统一用 stats.title 作主标题。
+      title: 'Merchant Stats',
+      titleKey: 'merchant.owner.stats.title'
+    }
+  },
+  {
+    path: '/merchant/group-pricing',
+    name: 'MerchantGroupPricing',
+    component: () => import('@/views/merchant/MerchantGroupPricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Pricing',
+      titleKey: 'merchant.owner.pricing.title'
+    }
+  },
+  {
+    path: '/merchant/domains',
+    name: 'MerchantDomains',
+    component: () => import('@/views/merchant/MerchantDomainsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Domains',
+      titleKey: 'merchant.owner.domains.title'
+    }
+  },
+  {
+    // 资金流水合并入分成统计后，保留老路径作向下兼容 redirect。
+    path: '/merchant/stats',
+    redirect: '/merchant/ledger'
+  },
+  {
+    path: '/merchant/withdrawals',
+    name: 'MerchantWithdrawals',
+    component: () => import('@/views/merchant/MerchantWithdrawalsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, title: 'Merchant Withdrawals', titleKey: 'merchant.owner.withdraw.title' }
+  },
+  {
+    path: '/admin/merchant-withdrawals',
+    name: 'AdminMerchantWithdrawals',
+    component: () => import('@/views/admin/merchants/AdminWithdrawalsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Withdraw Review', titleKey: 'merchant.admin.withdraw.title' }
+  },
+  {
+    path: '/admin/profit',
+    name: 'AdminProfit',
+    component: () => import('@/views/admin/ProfitView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Profit Report',
+      titleKey: 'admin.profit.title',
+      descriptionKey: 'admin.profit.description'
+    }
+  },
   // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',
@@ -633,10 +845,12 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal', '/docs', '/models']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
+  '/auth/dingtalk/callback',
+  '/auth/dingtalk/email-completion',
   '/auth/oidc/callback',
   '/auth/wechat/callback',
   '/auth/wechat/payment/callback',
@@ -659,7 +873,7 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
 
@@ -673,26 +887,28 @@ router.beforeEach((to, _from, next) => {
 
   // Set page title
   const appStore = useAppStore()
-  // For custom pages, use menu item label as document title
-  if (to.name === 'CustomPage') {
-    const id = to.params.id as string
-    const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
-    const adminSettingsStore = useAdminSettingsStore()
-    const menuItem = publicItems.find((item) => item.id === id)
-      ?? (authStore.isAdmin ? adminSettingsStore.customMenuItems.find((item) => item.id === id) : undefined)
-    if (menuItem?.label) {
-      const siteName = appStore.siteName || 'Sub2API'
-      document.title = `${menuItem.label} - ${siteName}`
-    } else {
-      document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
-    }
-  } else {
-    document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
-  }
+  const adminSettingsStore = useAdminSettingsStore()
+  const customMenuItems = [
+    ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
+    ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
+  ]
+  document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems)
 
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
+
+  if (to.path === '/setup') {
+    try {
+      const status = await getSetupStatus()
+      if (!status.needs_setup) {
+        next(resolveCompletedSetupRedirectPath(authStore.isAuthenticated, authStore.isAdmin))
+        return
+      }
+    } catch {
+      // If setup status cannot be determined, keep the setup page reachable.
+    }
+  }
 
   // If route doesn't require auth, allow access
   if (!requiresAuth) {
@@ -737,12 +953,55 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
+  // Sub-user guard: users with parent_merchant_id must not access admin pages.
+  // The field is optional on the User type (added by the merchant system backend)
+  // so we read it defensively via a type assertion.
+  const currentUser = authStore.user as (typeof authStore.user & { parent_merchant_id?: number | null }) | null
+  if (currentUser && currentUser.parent_merchant_id && to.path.startsWith('/admin')) {
+    next('/dashboard')
+    return
+  }
+
+  // Merchant owner guard: 普通用户 / 子用户不允许访问 /merchant/* 自助页面。
+  // 刷新页面时 ownedMerchantId 可能还没探测完，先尝试探测一次再判断，避免误伤真 owner。
+  if (to.path.startsWith('/merchant/')) {
+    if (!authStore.isMerchantOwner) {
+      await authStore.refreshMerchantOwnership()
+    }
+    if (!authStore.isMerchantOwner) {
+      next('/dashboard')
+      return
+    }
+  }
+
+  if (requiresAdmin && authStore.isAdmin) {
+    const adminComplianceStore = useAdminComplianceStore()
+    if (!adminComplianceStore.initialized) {
+      try {
+        await adminComplianceStore.fetchStatus()
+      } catch (error) {
+        const err = error as { status?: number; code?: string; metadata?: Record<string, string> }
+        if (err.status === 423 && err.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
+          adminComplianceStore.requireAcknowledgement(err.metadata)
+        }
+      }
+    }
+  }
+
 
   // Check payment requirement (internal payment system only)
   if (to.meta.requiresPayment) {
     const paymentEnabled = appStore.cachedPublicSettings?.payment_enabled
     if (!paymentEnabled) {
       next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      return
+    }
+  }
+
+  if (to.meta.requiresRiskControl) {
+    const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
+    if (!riskControlEnabled) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
       return
     }
   }

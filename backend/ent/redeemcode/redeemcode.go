@@ -30,10 +30,14 @@ const (
 	FieldNotes = "notes"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldExpiresAt holds the string denoting the expires_at field in the database.
+	FieldExpiresAt = "expires_at"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
 	// FieldValidityDays holds the string denoting the validity_days field in the database.
 	FieldValidityDays = "validity_days"
+	// FieldCreatedByMerchantID holds the string denoting the created_by_merchant_id field in the database.
+	FieldCreatedByMerchantID = "created_by_merchant_id"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
@@ -67,8 +71,10 @@ var Columns = []string{
 	FieldUsedAt,
 	FieldNotes,
 	FieldCreatedAt,
+	FieldExpiresAt,
 	FieldGroupID,
 	FieldValidityDays,
+	FieldCreatedByMerchantID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -148,6 +154,11 @@ func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
 }
 
+// ByExpiresAt orders the results by the expires_at field.
+func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
 // ByGroupID orders the results by the group_id field.
 func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGroupID, opts...).ToFunc()
@@ -156,6 +167,11 @@ func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 // ByValidityDays orders the results by the validity_days field.
 func ByValidityDays(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldValidityDays, opts...).ToFunc()
+}
+
+// ByCreatedByMerchantID orders the results by the created_by_merchant_id field.
+func ByCreatedByMerchantID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreatedByMerchantID, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

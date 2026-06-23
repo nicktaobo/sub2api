@@ -33,6 +33,13 @@ func (h *AnnouncementHandler) List(c *gin.Context) {
 		return
 	}
 
+	// MERCHANT-SYSTEM v1.0：商户域名请求不展示主站公告（公告目前不区分租户，
+	// 主站公告会泄漏到所有商户分站；先在此屏蔽，未来需要"商户自建公告"再加 merchant_id 列）。
+	if middleware2.MerchantFromContext(c) != nil {
+		response.Success(c, []dto.UserAnnouncement{})
+		return
+	}
+
 	unreadOnly := parseBoolQuery(c.Query("unread_only"))
 
 	items, err := h.announcementService.ListForUser(c.Request.Context(), subject.UserID, unreadOnly)

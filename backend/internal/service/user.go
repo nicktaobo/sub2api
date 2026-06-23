@@ -32,6 +32,7 @@ type User struct {
 	LastUsedAt           *time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	DeletedAt            *time.Time // 非 nil 表示用户已软删除
 
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
@@ -60,6 +61,9 @@ type User struct {
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
+
+	// MERCHANT-SYSTEM v1.0：子用户绑定的商户 id（NULL = 普通用户/owner）
+	ParentMerchantID *int64
 }
 
 func (u *User) IsAdmin() bool {

@@ -69,7 +69,7 @@
               {{ t("admin.groups.sortOrder") }}
             </button>
             <button
-              @click="showCreateModal = true"
+              @click="openCreateModal"
               class="btn btn-primary"
               data-tour="groups-create-btn"
             >
@@ -100,13 +100,7 @@
             <span
               :class="[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
-                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                  : value === 'openai'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : value === 'antigravity'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                platformPillClass(value),
               ]"
             >
               <PlatformIcon :platform="value" size="xs" />
@@ -201,10 +195,7 @@
                 }}</span>
                 <span
                   class="ml-1 font-medium text-emerald-600 dark:text-emerald-400"
-                  >{{
-                    (row.active_account_count || 0) -
-                    (row.rate_limited_account_count || 0)
-                  }}</span
+                  >{{ row.active_account_count || 0 }}</span
                 >
                 <span
                   class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
@@ -332,7 +323,7 @@
               :title="t('admin.groups.noGroupsYet')"
               :description="t('admin.groups.createFirstGroup')"
               :action-text="t('admin.groups.createGroup')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
@@ -512,6 +503,17 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
+        <div>
+          <label class="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="createForm.affiliate_rebate_excluded"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            {{ t("admin.groups.form.affiliateRebateExcluded") }}
+          </label>
+          <p class="input-hint">{{ t("admin.groups.form.affiliateRebateExcludedHint") }}</p>
+        </div>
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -645,6 +647,109 @@
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t pt-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t("admin.groups.modelsList.title") }}
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.groups.modelsList.hint") }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="createModelsListState.enabled = !createModelsListState.enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                createModelsListState.enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  createModelsListState.enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div
+            v-if="createModelsListState.enabled"
+            class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+          >
+            <div
+              v-if="!createModelsListLoading && createModelsListState.items.length > 0"
+              class="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
+            >
+              <span class="text-gray-500 dark:text-gray-400">
+                已选 {{ createModelsListSelectedCount }} /
+                {{ createModelsListState.items.length }}
+              </span>
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  class="rounded px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                  @click="selectAllModelsListItems(createModelsListState)"
+                >
+                  全选
+                </button>
+                <button
+                  type="button"
+                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  @click="invertModelsListSelection(createModelsListState)"
+                >
+                  反选
+                </button>
+              </div>
+            </div>
+            <div
+              class="max-h-64 space-y-2 overflow-y-auto p-2"
+            >
+              <p v-if="createModelsListLoading" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.groups.modelsList.loading") }}
+              </p>
+              <p
+                v-else-if="createModelsListState.items.length === 0"
+                class="text-xs text-gray-500 dark:text-gray-400"
+              >
+                {{ t("admin.groups.modelsList.empty") }}
+              </p>
+              <div
+                v-for="(item, index) in createModelsListState.items"
+                :key="item.id"
+                class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+              >
+                <input
+                  v-model="item.selected"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
+                  {{ item.id }}
+                </span>
+                <button
+                  type="button"
+                  :disabled="index === 0"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  @click="moveCreateModelsListItem(index, index - 1)"
+                >
+                  <Icon name="arrowUp" size="sm" />
+                </button>
+                <button
+                  type="button"
+                  :disabled="index === createModelsListState.items.length - 1"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  @click="moveCreateModelsListItem(index, index + 1)"
+                >
+                  <Icon name="arrowDown" size="sm" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -962,7 +1067,7 @@
 
         <!-- OpenAI Messages 调度配置（仅 openai 平台） -->
         <div
-          v-if="createForm.platform === 'openai'"
+          v-if="groupSupportsMessagesDispatch(createForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -1695,6 +1800,17 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
+        <div>
+          <label class="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="editForm.affiliate_rebate_excluded"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            {{ t("admin.groups.form.affiliateRebateExcluded") }}
+          </label>
+          <p class="input-hint">{{ t("admin.groups.form.affiliateRebateExcludedHint") }}</p>
+        </div>
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1830,6 +1946,109 @@
                 class="input"
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t pt-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t("admin.groups.modelsList.title") }}
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.groups.modelsList.hint") }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="editModelsListState.enabled = !editModelsListState.enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                editModelsListState.enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  editModelsListState.enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div
+            v-if="editModelsListState.enabled"
+            class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50 dark:border-dark-600 dark:bg-dark-800/40"
+          >
+            <div
+              v-if="!editModelsListLoading && editModelsListState.items.length > 0"
+              class="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-800"
+            >
+              <span class="text-gray-500 dark:text-gray-400">
+                已选 {{ editModelsListSelectedCount }} /
+                {{ editModelsListState.items.length }}
+              </span>
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  class="rounded px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                  @click="selectAllModelsListItems(editModelsListState)"
+                >
+                  全选
+                </button>
+                <button
+                  type="button"
+                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  @click="invertModelsListSelection(editModelsListState)"
+                >
+                  反选
+                </button>
+              </div>
+            </div>
+            <div
+              class="max-h-64 space-y-2 overflow-y-auto p-2"
+            >
+              <p v-if="editModelsListLoading" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.groups.modelsList.loading") }}
+              </p>
+              <p
+                v-else-if="editModelsListState.items.length === 0"
+                class="text-xs text-gray-500 dark:text-gray-400"
+              >
+                {{ t("admin.groups.modelsList.empty") }}
+              </p>
+              <div
+                v-for="(item, index) in editModelsListState.items"
+                :key="item.id"
+                class="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+              >
+                <input
+                  v-model="item.selected"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span class="min-w-0 flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
+                  {{ item.id }}
+                </span>
+                <button
+                  type="button"
+                  :disabled="index === 0"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  @click="moveEditModelsListItem(index, index - 1)"
+                >
+                  <Icon name="arrowUp" size="sm" />
+                </button>
+                <button
+                  type="button"
+                  :disabled="index === editModelsListState.items.length - 1"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  @click="moveEditModelsListItem(index, index + 1)"
+                >
+                  <Icon name="arrowDown" size="sm" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2143,7 +2362,7 @@
 
         <!-- OpenAI Messages 调度配置（仅 openai 平台） -->
         <div
-          v-if="editForm.platform === 'openai'"
+          v-if="groupSupportsMessagesDispatch(editForm.platform)"
           class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
         >
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -2830,6 +3049,7 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
+
   </AppLayout>
 </template>
 
@@ -2860,11 +3080,22 @@ import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
   createDefaultMessagesDispatchFormState,
+  groupSupportsMessagesDispatch,
   messagesDispatchConfigToFormState,
   messagesDispatchFormStateToConfig,
   resetMessagesDispatchFormState,
   type MessagesDispatchMappingRow,
 } from "./groupsMessagesDispatch";
+import {
+  buildModelsListConfig,
+  createModelsListState as createInitialModelsListState,
+  invertModelsListSelection,
+  moveModelsListItem,
+  selectAllModelsListItems,
+  setModelsListCandidates,
+} from "./groupsModelsList";
+import { createModelsListCandidatesTracker } from "./groupsModelsListCandidates";
+import { normalizeSupportedModelScopesForPlatform } from "./groupsSupportedModelScopes";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -2920,11 +3151,31 @@ const exclusiveOptions = computed(() => [
   { value: "false", label: t("admin.groups.nonExclusive") },
 ]);
 
+const PLATFORM_PILL_COLORS: Record<string, string> = {
+  anthropic: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  openai: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  antigravity: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  gemini: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  deepseek: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  moonshot: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+  glm: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  qwen: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+  seedance: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+function platformPillClass(p: string): string {
+  return PLATFORM_PILL_COLORS[p] || "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400";
+}
+
 const platformOptions = computed(() => [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "moonshot", label: "Kimi" },
+  { value: "glm", label: "GLM" },
+  { value: "qwen", label: "Qwen" },
+  { value: "seedance", label: "Seedance" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -2933,6 +3184,11 @@ const platformFilterOptions = computed(() => [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "moonshot", label: "Kimi" },
+  { value: "glm", label: "GLM" },
+  { value: "qwen", label: "Qwen" },
+  { value: "seedance", label: "Seedance" },
 ]);
 
 const editStatusOptions = computed(() => [
@@ -3098,6 +3354,17 @@ const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
+const createModelsListState = reactive(createInitialModelsListState());
+const editModelsListState = reactive(createInitialModelsListState());
+const createModelsListLoading = ref(false);
+const editModelsListLoading = ref(false);
+const modelsListCandidatesTracker = createModelsListCandidatesTracker();
+const createModelsListSelectedCount = computed(
+  () => createModelsListState.items.filter((item) => item.selected).length,
+);
+const editModelsListSelectedCount = computed(
+  () => editModelsListState.items.filter((item) => item.selected).length,
+);
 
 const createForm = reactive({
   name: "",
@@ -3139,6 +3406,8 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // 邀请返利消费侧排除（migration 143）
+  affiliate_rebate_excluded: false,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3337,6 +3606,52 @@ const removeEditRoutingRule = (rule: ModelRoutingRule) => {
   editModelRoutingRules.value.splice(index, 1);
 };
 
+const resetModelsListState = (
+  state: typeof createModelsListState,
+  config?: Parameters<typeof createInitialModelsListState>[0],
+) => {
+  const fresh = createInitialModelsListState(config);
+  state.enabled = fresh.enabled;
+  state.savedModels = fresh.savedModels;
+  state.items = fresh.items;
+};
+
+const loadModelsListCandidates = async (
+  mode: "create" | "edit",
+  groupID: number,
+  platform: GroupPlatform,
+) => {
+  const request = { mode, groupID, platform };
+  const requestID = modelsListCandidatesTracker.next(request);
+  const state = mode === "create" ? createModelsListState : editModelsListState;
+  const loadingRef = mode === "create" ? createModelsListLoading : editModelsListLoading;
+  loadingRef.value = true;
+  try {
+    const models = await adminAPI.groups.getModelsListCandidates(groupID, platform);
+    if (!modelsListCandidatesTracker.isCurrent(requestID, request)) {
+      return;
+    }
+    setModelsListCandidates(state, models);
+  } catch (error) {
+    if (!modelsListCandidatesTracker.isCurrent(requestID, request)) {
+      return;
+    }
+    console.error("Error loading group models list candidates:", error);
+  } finally {
+    if (modelsListCandidatesTracker.isCurrent(requestID, request)) {
+      loadingRef.value = false;
+    }
+  }
+};
+
+const moveCreateModelsListItem = (fromIndex: number, toIndex: number) => {
+  moveModelsListItem(createModelsListState, fromIndex, toIndex);
+};
+
+const moveEditModelsListItem = (fromIndex: number, toIndex: number) => {
+  moveModelsListItem(editModelsListState, fromIndex, toIndex);
+};
+
 // 将 UI 格式的路由规则转换为 API 格式
 const convertRoutingRulesToApiFormat = (
   rules: ModelRoutingRule[],
@@ -3425,6 +3740,8 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // 邀请返利消费侧排除（migration 143）
+  affiliate_rebate_excluded: false,
 });
 
 type ImagePricingFormState = {
@@ -3626,6 +3943,11 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadGroups();
 };
 
+const openCreateModal = () => {
+  showCreateModal.value = true;
+  loadModelsListCandidates("create", 0, createForm.platform);
+};
+
 const closeCreateModal = () => {
   showCreateModal.value = false;
   createModelRoutingRules.value.forEach((rule) => {
@@ -3650,12 +3972,14 @@ const closeCreateModal = () => {
   createForm.claude_code_only = false;
   createForm.fallback_group_id = null;
   createForm.fallback_group_id_on_invalid_request = null;
-  resetMessagesDispatchFormState(createForm);
+  resetMessagesDispatchFormState(createForm, createForm.platform);
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.rpm_limit = 0;
+  resetModelsListState(createModelsListState);
   createModelRoutingRules.value = [];
 };
 
@@ -3710,8 +4034,13 @@ const handleCreateGroup = async () => {
       model_routing: convertRoutingRulesToApiFormat(
         createModelRoutingRules.value,
       ),
+      models_list_config: buildModelsListConfig(createModelsListState),
+      supported_model_scopes: normalizeSupportedModelScopesForPlatform(
+        createForm.platform,
+        createForm.supported_model_scopes,
+      ),
       messages_dispatch_model_config:
-        createForm.platform === "openai"
+        groupSupportsMessagesDispatch(createForm.platform)
           ? messagesDispatchFormStateToConfig({
               allow_messages_dispatch: createForm.allow_messages_dispatch,
               opus_mapped_model: createForm.opus_mapped_model,
@@ -3772,6 +4101,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.fallback_group_id_on_invalid_request;
   const messagesDispatchFormState = messagesDispatchConfigToFormState(
     group.messages_dispatch_model_config,
+    group.platform,
   );
   editForm.allow_messages_dispatch =
     group.allow_messages_dispatch ||
@@ -3792,10 +4122,13 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.affiliate_rebate_excluded = group.affiliate_rebate_excluded ?? false;
+  resetModelsListState(editModelsListState, group.models_list_config);
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
     group.model_routing,
   );
+  loadModelsListCandidates("edit", group.id, group.platform);
   showEditModal.value = true;
 };
 
@@ -3808,7 +4141,8 @@ const closeEditModal = () => {
   editingGroup.value = null;
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];
-  resetMessagesDispatchFormState(editForm);
+  resetMessagesDispatchFormState(editForm, editForm.platform);
+  resetModelsListState(editModelsListState);
 };
 
 const handleUpdateGroup = async () => {
@@ -3841,8 +4175,13 @@ const handleUpdateGroup = async () => {
       model_routing: convertRoutingRulesToApiFormat(
         editModelRoutingRules.value,
       ),
+      models_list_config: buildModelsListConfig(editModelsListState),
+      supported_model_scopes: normalizeSupportedModelScopesForPlatform(
+        editForm.platform,
+        editForm.supported_model_scopes,
+      ),
       messages_dispatch_model_config:
-        editForm.platform === "openai"
+        groupSupportsMessagesDispatch(editForm.platform)
           ? messagesDispatchFormStateToConfig({
               allow_messages_dispatch: editForm.allow_messages_dispatch,
               opus_mapped_model: editForm.opus_mapped_model,
@@ -3908,6 +4247,7 @@ const handleRPMOverrides = (group: AdminGroup) => {
   showRPMOverridesModal.value = true;
 };
 
+
 const handleDelete = (group: AdminGroup) => {
   deletingGroup.value = group;
   showDeleteDialog.value = true;
@@ -3947,13 +4287,13 @@ watch(
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
     }
-    if (newVal !== "openai") {
-      resetMessagesDispatchFormState(createForm);
-    }
+    resetMessagesDispatchFormState(createForm, newVal);
     if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
       createForm.require_oauth_only = false;
       createForm.require_privacy_set = false;
     }
+    resetModelsListState(createModelsListState);
+    loadModelsListCandidates("create", 0, newVal);
   },
 );
 
@@ -3963,12 +4303,17 @@ watch(
     if (!["anthropic", "antigravity"].includes(newVal)) {
       editForm.fallback_group_id_on_invalid_request = null;
     }
-    if (newVal !== "openai") {
-      resetMessagesDispatchFormState(editForm);
+    // 仅在平台实际切换时重置，编辑弹窗初始化时跳过（避免覆盖已保存的值）
+    if (!editingGroup.value || newVal !== editingGroup.value.platform) {
+      resetMessagesDispatchFormState(editForm, newVal);
     }
     if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
       editForm.require_oauth_only = false;
       editForm.require_privacy_set = false;
+    }
+    if (editingGroup.value) {
+      resetModelsListState(editModelsListState, editForm.platform === editingGroup.value.platform ? editingGroup.value.models_list_config : undefined);
+      loadModelsListCandidates("edit", editingGroup.value.id, newVal);
     }
   },
 );
@@ -4043,6 +4388,7 @@ const saveSortOrder = async () => {
 
 onMounted(() => {
   loadGroups();
+  loadModelsListCandidates("create", 0, createForm.platform);
   document.addEventListener("click", handleClickOutside);
 });
 

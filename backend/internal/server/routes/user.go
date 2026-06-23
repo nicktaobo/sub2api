@@ -31,6 +31,8 @@ func RegisterUserRoutes(
 			user.POST("/account-bindings/email", h.User.BindEmailIdentity)
 			user.DELETE("/account-bindings/:provider", h.User.UnbindIdentity)
 			user.POST("/auth-identities/bind/start", h.User.StartIdentityBinding)
+			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
+			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
 
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
@@ -76,10 +78,19 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
+		// 模型定价展示（独立于 available_channels_enabled，跟用户可见 group 绑定）
+		// 端点 = group，模型集合 = 该 group 在所有 channel 里出现过的 supported_models 并集
+		pricing := authenticated.Group("/pricing")
+		{
+			pricing.GET("/groups", h.AvailableChannel.PricingGroupList)
+		}
+
 		// 使用记录
 		usage := authenticated.Group("/usage")
 		{
 			usage.GET("", h.Usage.List)
+			usage.GET("/errors", h.Usage.ListErrors)
+			usage.GET("/errors/:id", h.Usage.GetErrorDetail)
 			usage.GET("/:id", h.Usage.GetByID)
 			usage.GET("/stats", h.Usage.Stats)
 			// User dashboard endpoints

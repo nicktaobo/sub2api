@@ -81,11 +81,16 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// 2. Resolve model mapping (same as ForwardAsChatCompletions)
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	// 国产模型默认 effort 补充：需要 mappedModel 判定，推迟到 billingModel 算出之后。
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
 
 	// 3. Rewrite model in body (no protocol conversion)
 	upstreamBody := body
 	if upstreamModel != originalModel {
 		upstreamBody = ReplaceModelInBody(body, upstreamModel)
+	}
+	if normalizedBody, normalized := NormalizeGLMOpenAIReasoningEffort(upstreamBody, upstreamModel); normalized {
+		upstreamBody = normalizedBody
 	}
 
 	// 4. Apply OpenAI fast policy on the CC body
@@ -93,6 +98,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if policyErr != nil {
 		var blocked *OpenAIFastBlockedError
 		if errors.As(policyErr, &blocked) {
+			MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 			writeChatCompletionsError(c, http.StatusForbidden, "permission_error", blocked.Message)
 		}
 		return nil, policyErr
@@ -135,6 +141,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
+	upstreamReq = upstreamReq.WithContext(WithHTTPUpstreamProfile(upstreamReq.Context(), HTTPUpstreamProfileOpenAI))
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+apiKey)
 	if clientStream {
@@ -155,6 +162,14 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	customUA := account.GetOpenAIUserAgent()
 	if customUA != "" {
 		upstreamReq.Header.Set("user-agent", customUA)
+	}
+
+	// Kimi For Coding 对客户端做白名单校验，需为 Coding Agent UA（前缀 claude-cli/）。
+	// 当 Moonshot 平台账号使用 api.kimi.com 端点且未自定义 UA 时，自动设置。
+	if account.Platform == PlatformMoonshot && customUA == "" {
+		if kimiBase := account.GetCredential("base_url"); strings.Contains(kimiBase, "api.kimi.com") {
+			upstreamReq.Header.Set("user-agent", kimiCodingUserAgent)
+		}
 	}
 
 	// 6. Send request
@@ -181,7 +196,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 
 	// 7. Handle error response with failover
 	if resp.StatusCode >= 400 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
@@ -206,21 +221,19 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 				Message:            upstreamMsg,
 				Detail:             upstreamDetail,
 			})
-			if s.rateLimitService != nil {
-				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
-			}
+			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
-				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
+				RetryableOnSameAccount: account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 			}
 		}
-		return s.handleChatCompletionsErrorResponse(resp, c, account)
+		return s.handleChatCompletionsErrorResponse(resp, c, account, billingModel)
 	}
 
 	// 8. Forward response
 	if clientStream {
-		return s.streamRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
 	}
 	return s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
@@ -234,23 +247,32 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 func (s *OpenAIGatewayService) streamRawChatCompletions(
 	c *gin.Context,
 	resp *http.Response,
+	account *Account,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
 	serviceTier *string,
 	startTime time.Time,
+	requestBodyLen int,
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 
-	if s.responseHeaderFilter != nil {
-		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	headersWritten := false
+	writeStreamHeaders := func() {
+		if headersWritten {
+			return
+		}
+		headersWritten = true
+		if s.responseHeaderFilter != nil {
+			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		}
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(http.StatusOK)
 	}
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
 
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
@@ -262,9 +284,45 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	var usage OpenAIUsage
 	var firstTokenMs *int
 	clientDisconnected := false
+	clientOutputStarted := false
+	pendingLines := make([]string, 0, 8)
+	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+
+	writeLine := func(line string) {
+		if clientDisconnected {
+			return
+		}
+		if !clientOutputStarted && !refusalDetector.ShouldReleaseClientOutput() {
+			pendingLines = append(pendingLines, line)
+			return
+		}
+		if !clientOutputStarted {
+			writeStreamHeaders()
+			for _, pending := range pendingLines {
+				if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
+					clientDisconnected = true
+					logger.L().Debug("openai chat_completions raw: client disconnected, continuing to drain upstream for billing",
+						zap.Error(werr),
+						zap.String("request_id", requestID),
+					)
+					return
+				}
+			}
+			pendingLines = pendingLines[:0]
+			clientOutputStarted = true
+		}
+		if _, werr := c.Writer.WriteString(line + "\n"); werr != nil {
+			clientDisconnected = true
+			logger.L().Debug("openai chat_completions raw: client disconnected, continuing to drain upstream for billing",
+				zap.Error(werr),
+				zap.String("request_id", requestID),
+			)
+		}
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
 			if trimmedPayload != "[DONE]" {
@@ -279,22 +337,14 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			}
 		}
 
-		if !clientDisconnected {
-			if _, werr := c.Writer.WriteString(line + "\n"); werr != nil {
-				clientDisconnected = true
-				logger.L().Debug("openai chat_completions raw: client disconnected, continuing to drain upstream for billing",
-					zap.Error(werr),
-					zap.String("request_id", requestID),
-				)
-			}
-		}
+		writeLine(line)
 		if line == "" {
-			if !clientDisconnected {
+			if !clientDisconnected && clientOutputStarted {
 				c.Writer.Flush()
 			}
 			continue
 		}
-		if !clientDisconnected {
+		if !clientDisconnected && clientOutputStarted {
 			c.Writer.Flush()
 		}
 	}
@@ -305,6 +355,27 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
+		}
+	} else if !clientDisconnected && !clientOutputStarted {
+		if refusalDetector.IsSilentRefusal() {
+			return nil, newOpenAISilentRefusalFailoverError(c, account, requestID)
+		}
+		if len(pendingLines) > 0 {
+			writeStreamHeaders()
+			for _, pending := range pendingLines {
+				if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
+					clientDisconnected = true
+					logger.L().Debug("openai chat_completions raw: client disconnected during final flush",
+						zap.Error(werr),
+						zap.String("request_id", requestID),
+					)
+					break
+				}
+			}
+			if !clientDisconnected {
+				c.Writer.Flush()
+				clientOutputStarted = true
+			}
 		}
 	}
 
@@ -382,6 +453,17 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		return nil, fmt.Errorf("read upstream body: %w", err)
 	}
 
+	// 部分国产模型/中转（如 op.aancn.cn 的 GLM-5.2）对 stream=false 仍返回 SSE。
+	// 直接透传 SSE 会让非流式客户端解析失败，且 json 解析 usage 失败导致零计费。
+	// 检测到 SSE 时聚合成单个 Chat Completions JSON 响应（含 content/reasoning/usage）。
+	respContentType := resp.Header.Get("Content-Type")
+	if isSSEResponseBody(respContentType, respBody) {
+		if assembled, ok := aggregateChatCompletionsSSEToJSON(respBody, originalModel); ok {
+			respBody = assembled
+			respContentType = "application/json"
+		}
+	}
+
 	var ccResp apicompat.ChatCompletionsResponse
 	var usage OpenAIUsage
 	if err := json.Unmarshal(respBody, &ccResp); err == nil && ccResp.Usage != nil {
@@ -397,8 +479,8 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		c.Writer.Header().Set("Content-Type", ct)
+	if respContentType != "" {
+		c.Writer.Header().Set("Content-Type", respContentType)
 	} else {
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
@@ -418,20 +500,108 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	}, nil
 }
 
+// isSSEResponseBody reports whether an upstream response is an SSE stream
+// (text/event-stream content-type, or a body that begins with an SSE "data:" line),
+// even though the client requested a non-stream (stream=false) response.
+func isSSEResponseBody(contentType string, body []byte) bool {
+	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+		return true
+	}
+	return bytes.HasPrefix(bytes.TrimLeft(body, " \r\n\t"), []byte("data:"))
+}
+
+// aggregateChatCompletionsSSEToJSON collapses a buffered Chat Completions SSE
+// stream into a single non-streaming ChatCompletionsResponse JSON, accumulating
+// content / reasoning_content deltas, finish_reason and usage (incl. cached
+// tokens). Returns (nil, false) when the body holds no parseable chunk.
+func aggregateChatCompletionsSSEToJSON(body []byte, fallbackModel string) ([]byte, bool) {
+	var contentSB, reasoningSB strings.Builder
+	var chatUsage *apicompat.ChatUsage
+	var finishReason, id, model string
+	var created int64
+	sawChunk := false
+
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 0, 64*1024), defaultMaxLineSize)
+	for scanner.Scan() {
+		payload, ok := extractOpenAISSEDataLine(scanner.Text())
+		if !ok || strings.TrimSpace(payload) == "[DONE]" {
+			continue
+		}
+		var chunk apicompat.ChatCompletionsChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			continue
+		}
+		sawChunk = true
+		if chunk.ID != "" {
+			id = chunk.ID
+		}
+		if chunk.Model != "" {
+			model = chunk.Model
+		}
+		if chunk.Created != 0 {
+			created = chunk.Created
+		}
+		for _, ch := range chunk.Choices {
+			if ch.Delta.Content != nil {
+				contentSB.WriteString(*ch.Delta.Content)
+			}
+			if ch.Delta.ReasoningContent != nil {
+				reasoningSB.WriteString(*ch.Delta.ReasoningContent)
+			}
+			if ch.FinishReason != nil && *ch.FinishReason != "" {
+				finishReason = *ch.FinishReason
+			}
+		}
+		if chunk.Usage != nil {
+			chatUsage = chunk.Usage
+		}
+	}
+	if !sawChunk {
+		return nil, false
+	}
+	if model == "" {
+		model = fallbackModel
+	}
+	if finishReason == "" {
+		finishReason = "stop"
+	}
+
+	contentJSON, err := json.Marshal(contentSB.String())
+	if err != nil {
+		return nil, false
+	}
+	out := apicompat.ChatCompletionsResponse{
+		ID:      id,
+		Object:  "chat.completion",
+		Created: created,
+		Model:   model,
+		Choices: []apicompat.ChatChoice{{
+			Index: 0,
+			Message: apicompat.ChatMessage{
+				Role:             "assistant",
+				Content:          json.RawMessage(contentJSON),
+				ReasoningContent: reasoningSB.String(),
+			},
+			FinishReason: finishReason,
+		}},
+		Usage: chatUsage,
+	}
+	assembled, err := json.Marshal(out)
+	if err != nil {
+		return nil, false
+	}
+	return assembled, true
+}
+
 // buildOpenAIChatCompletionsURL 拼接上游 Chat Completions 端点 URL。
 //
 //   - base 已是 /chat/completions：原样返回
 //   - base 以 /v1 结尾：追加 /chat/completions
+//   - base 以其他版本段结尾（如 /v4）：追加 /chat/completions
 //   - 其他情况：追加 /v1/chat/completions
 //
 // 与 buildOpenAIResponsesURL 是姐妹函数。
 func buildOpenAIChatCompletionsURL(base string) string {
-	normalized := strings.TrimRight(strings.TrimSpace(base), "/")
-	if strings.HasSuffix(normalized, "/chat/completions") {
-		return normalized
-	}
-	if strings.HasSuffix(normalized, "/v1") {
-		return normalized + "/chat/completions"
-	}
-	return normalized + "/v1/chat/completions"
+	return buildOpenAIEndpointURL(base, "/v1/chat/completions")
 }

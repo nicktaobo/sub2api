@@ -21,6 +21,19 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     announcements.value.filter((a) => !a.read_at).length
   )
 
+  // Banner mode: latest unread announcements with notify_mode === 'banner',
+  // sorted by created_at desc, capped at 3 for the top rolling banner.
+  const bannerAnnouncements = computed(() =>
+    announcements.value
+      .filter((a) => a.notify_mode === 'banner' && !a.read_at)
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      .slice(0, 3)
+  )
+
   // Actions
   async function fetchAnnouncements(force = false) {
     const now = Date.now()
@@ -133,6 +146,7 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     currentPopup,
     // Getters
     unreadCount,
+    bannerAnnouncements,
     // Actions
     fetchAnnouncements,
     dismissPopup,

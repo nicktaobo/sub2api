@@ -1,6 +1,10 @@
 package handler
 
 import (
+	"html"
+	"net/http"
+	"strings"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -10,16 +14,43 @@ import (
 
 // SettingHandler 公开设置处理器（无需认证）
 type SettingHandler struct {
-	settingService *service.SettingService
-	version        string
+	settingService           *service.SettingService
+	fxRateService            *service.FXRateService
+	notificationEmailService *service.NotificationEmailService
+	version                  string
 }
 
 // NewSettingHandler 创建公开设置处理器
-func NewSettingHandler(settingService *service.SettingService, version string) *SettingHandler {
+func NewSettingHandler(settingService *service.SettingService, fxRateService *service.FXRateService, version string) *SettingHandler {
 	return &SettingHandler{
 		settingService: settingService,
+		fxRateService:  fxRateService,
 		version:        version,
 	}
+}
+
+// GetFXRate 获取当前 CNY/USD 汇率（公开接口；前端"模型定价"页用来算等效美元价）
+// GET /api/v1/settings/fx-rate
+func (h *SettingHandler) GetFXRate(c *gin.Context) {
+	if h.fxRateService == nil {
+		response.Success(c, gin.H{"cny_per_usd": 6.8, "last_updated": nil})
+		return
+	}
+	last := h.fxRateService.LastUpdated()
+	var lastStr any
+	if !last.IsZero() {
+		lastStr = last.Format("2006-01-02T15:04:05Z07:00")
+	}
+	response.Success(c, gin.H{
+		"cny_per_usd":  h.fxRateService.CNYPerUSD(),
+		"last_updated": lastStr,
+	})
+}
+
+// SetNotificationEmailService attaches the public notification email service without
+// changing the constructor signature used by existing tests.
+func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
+	h.notificationEmailService = notificationEmailService
 }
 
 // GetPublicSettings 获取公开设置
@@ -40,6 +71,11 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		PasswordResetEnabled:             settings.PasswordResetEnabled,
 		InvitationCodeEnabled:            settings.InvitationCodeEnabled,
 		TotpEnabled:                      settings.TotpEnabled,
+		LoginAgreementEnabled:            settings.LoginAgreementEnabled,
+		LoginAgreementMode:               settings.LoginAgreementMode,
+		LoginAgreementUpdatedAt:          settings.LoginAgreementUpdatedAt,
+		LoginAgreementRevision:           settings.LoginAgreementRevision,
+		LoginAgreementDocuments:          publicLoginAgreementDocumentsToDTO(settings.LoginAgreementDocuments),
 		TurnstileEnabled:                 settings.TurnstileEnabled,
 		TurnstileSiteKey:                 settings.TurnstileSiteKey,
 		SiteName:                         settings.SiteName,
@@ -47,6 +83,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		SiteSubtitle:                     settings.SiteSubtitle,
 		APIBaseURL:                       settings.APIBaseURL,
 		ContactInfo:                      settings.ContactInfo,
+		ContactMethods:                   dto.ParseContactMethods(settings.ContactMethods),
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,
@@ -56,6 +93,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
 		CustomMenuItems:                  dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  dto.ParseCustomEndpoints(settings.CustomEndpoints),
+		DingTalkOAuthEnabled:             settings.DingTalkOAuthEnabled,
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		WeChatOAuthEnabled:               settings.WeChatOAuthEnabled,
 		WeChatOAuthOpenEnabled:           settings.WeChatOAuthOpenEnabled,
@@ -63,6 +101,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		WeChatOAuthMobileEnabled:         settings.WeChatOAuthMobileEnabled,
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
+		GitHubOAuthEnabled:               settings.GitHubOAuthEnabled,
+		GoogleOAuthEnabled:               settings.GoogleOAuthEnabled,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
 		Version:                          h.version,
@@ -77,5 +117,54 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
+
+		RiskControlEnabled: settings.RiskControlEnabled,
+
+		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
 	})
+}
+
+// UnsubscribeNotificationEmail handles optional notification email opt-outs.
+// GET /api/v1/settings/email-unsubscribe?token=...
+func (h *SettingHandler) UnsubscribeNotificationEmail(c *gin.Context) {
+	if h.notificationEmailService == nil {
+		response.InternalError(c, "notification email service is not configured")
+		return
+	}
+	token := strings.TrimSpace(c.Query("token"))
+	if token == "" {
+		response.BadRequest(c, "token is required")
+		return
+	}
+	result, err := h.notificationEmailService.Unsubscribe(c.Request.Context(), token)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	body := "<!doctype html><html><head><meta charset=\"utf-8\"><title>Unsubscribed</title></head><body style=\"font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;padding:32px;\"><h1>Unsubscribed</h1><p>You have unsubscribed <strong>" + html.EscapeString(result.Email) + "</strong> from <strong>" + html.EscapeString(result.Event) + "</strong> emails.</p></body></html>"
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(body))
+}
+
+func publicLoginAgreementDocumentsToDTO(items []service.LoginAgreementDocument) []dto.LoginAgreementDocument {
+	result := make([]dto.LoginAgreementDocument, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.LoginAgreementDocument{
+			ID:        item.ID,
+			Title:     item.Title,
+			ContentMD: item.ContentMD,
+			I18n:      copyLoginAgreementI18nToDTO(item.I18n),
+		})
+	}
+	return result
+}
+
+func copyLoginAgreementI18nToDTO(src map[string]service.LoginAgreementLocaleContent) map[string]dto.LoginAgreementLocaleContent {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]dto.LoginAgreementLocaleContent, len(src))
+	for k, v := range src {
+		dst[k] = dto.LoginAgreementLocaleContent{Title: v.Title, ContentMD: v.ContentMD}
+	}
+	return dst
 }

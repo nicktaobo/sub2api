@@ -11,3 +11,9 @@ export function formatScaled(value: number | null, scale: number): string {
   if (value == null) return '-'
   return `$${(value * scale).toPrecision(10).replace(/\.?0+$/, '')}`
 }
+
+/**
+ * 默认 CNY/USD 汇率（当后端 /settings/fx-rate 拉取失败时降级使用）。
+ * 实际值通过 fxRateAPI.get() 从后端拿。
+ */
+export const DEFAULT_CNY_PER_USD = 6.8

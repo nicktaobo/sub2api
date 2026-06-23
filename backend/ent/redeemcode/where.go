@@ -95,6 +95,11 @@ func CreatedAt(v time.Time) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldCreatedAt, v))
 }
 
+// ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
+func ExpiresAt(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldExpiresAt, v))
+}
+
 // GroupID applies equality check predicate on the "group_id" field. It's identical to GroupIDEQ.
 func GroupID(v int64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldGroupID, v))
@@ -103,6 +108,11 @@ func GroupID(v int64) predicate.RedeemCode {
 // ValidityDays applies equality check predicate on the "validity_days" field. It's identical to ValidityDaysEQ.
 func ValidityDays(v int) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldValidityDays, v))
+}
+
+// CreatedByMerchantID applies equality check predicate on the "created_by_merchant_id" field. It's identical to CreatedByMerchantIDEQ.
+func CreatedByMerchantID(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldCreatedByMerchantID, v))
 }
 
 // CodeEQ applies the EQ predicate on the "code" field.
@@ -535,6 +545,56 @@ func CreatedAtLTE(v time.Time) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldCreatedAt, v))
 }
 
+// ExpiresAtEQ applies the EQ predicate on the "expires_at" field.
+func ExpiresAtEQ(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtNEQ applies the NEQ predicate on the "expires_at" field.
+func ExpiresAtNEQ(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtIn applies the In predicate on the "expires_at" field.
+func ExpiresAtIn(vs ...time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtNotIn applies the NotIn predicate on the "expires_at" field.
+func ExpiresAtNotIn(vs ...time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtGT applies the GT predicate on the "expires_at" field.
+func ExpiresAtGT(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldExpiresAt, v))
+}
+
+// ExpiresAtGTE applies the GTE predicate on the "expires_at" field.
+func ExpiresAtGTE(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtLT applies the LT predicate on the "expires_at" field.
+func ExpiresAtLT(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldExpiresAt, v))
+}
+
+// ExpiresAtLTE applies the LTE predicate on the "expires_at" field.
+func ExpiresAtLTE(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtIsNil applies the IsNil predicate on the "expires_at" field.
+func ExpiresAtIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldExpiresAt))
+}
+
+// ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
+func ExpiresAtNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldExpiresAt))
+}
+
 // GroupIDEQ applies the EQ predicate on the "group_id" field.
 func GroupIDEQ(v int64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldGroupID, v))
@@ -603,6 +663,56 @@ func ValidityDaysLT(v int) predicate.RedeemCode {
 // ValidityDaysLTE applies the LTE predicate on the "validity_days" field.
 func ValidityDaysLTE(v int) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldValidityDays, v))
+}
+
+// CreatedByMerchantIDEQ applies the EQ predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDNEQ applies the NEQ predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDNEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDIn applies the In predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldCreatedByMerchantID, vs...))
+}
+
+// CreatedByMerchantIDNotIn applies the NotIn predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDNotIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldCreatedByMerchantID, vs...))
+}
+
+// CreatedByMerchantIDGT applies the GT predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDGT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDGTE applies the GTE predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDGTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDLT applies the LT predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDLT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDLTE applies the LTE predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDLTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldCreatedByMerchantID, v))
+}
+
+// CreatedByMerchantIDIsNil applies the IsNil predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldCreatedByMerchantID))
+}
+
+// CreatedByMerchantIDNotNil applies the NotNil predicate on the "created_by_merchant_id" field.
+func CreatedByMerchantIDNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldCreatedByMerchantID))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

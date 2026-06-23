@@ -105,11 +105,22 @@ func (s *emailSyncRepoStub) UpdateBalance(context.Context, int64, float64) error
 
 func (s *emailSyncRepoStub) DeductBalance(context.Context, int64, float64) error { return nil }
 
+func (s *emailSyncRepoStub) DeductBalanceStrict(context.Context, int64, float64) error {
+	return nil
+}
+
 func (s *emailSyncRepoStub) UpdateConcurrency(context.Context, int64, int) error { return nil }
 
 func (s *emailSyncRepoStub) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
 
 func (s *emailSyncRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
+	return 0, nil
+}
+
+func (s *emailSyncRepoStub) BatchSetConcurrency(context.Context, []int64, int) (int, error) {
+	return 0, nil
+}
+func (s *emailSyncRepoStub) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
 	return 0, nil
 }
 
@@ -130,6 +141,9 @@ func (s *emailSyncRepoStub) UpdateTotpSecret(context.Context, int64, *string) er
 func (s *emailSyncRepoStub) EnableTotp(context.Context, int64) error { return nil }
 
 func (s *emailSyncRepoStub) DisableTotp(context.Context, int64) error { return nil }
+func (s *emailSyncRepoStub) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}
 
 func (s *emailSyncRepoStub) EnsureEmailAuthIdentity(_ context.Context, userID int64, email string) error {
 	s.ensureCalls = append(s.ensureCalls, ensureEmailCall{userID: userID, email: email})

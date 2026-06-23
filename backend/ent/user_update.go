@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/merchant"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
@@ -23,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
+	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
@@ -410,6 +412,26 @@ func (_u *UserUpdate) AddRpmLimit(v int) *UserUpdate {
 	return _u
 }
 
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (_u *UserUpdate) SetParentMerchantID(v int64) *UserUpdate {
+	_u.mutation.SetParentMerchantID(v)
+	return _u
+}
+
+// SetNillableParentMerchantID sets the "parent_merchant_id" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableParentMerchantID(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetParentMerchantID(*v)
+	}
+	return _u
+}
+
+// ClearParentMerchantID clears the value of the "parent_merchant_id" field.
+func (_u *UserUpdate) ClearParentMerchantID() *UserUpdate {
+	_u.mutation.ClearParentMerchantID()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -588,6 +610,26 @@ func (_u *UserUpdate) AddPendingAuthSessions(v ...*PendingAuthSession) *UserUpda
 		ids[i] = v[i].ID
 	}
 	return _u.AddPendingAuthSessionIDs(ids...)
+}
+
+// AddPlatformQuotaIDs adds the "platform_quotas" edge to the UserPlatformQuota entity by IDs.
+func (_u *UserUpdate) AddPlatformQuotaIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddPlatformQuotaIDs(ids...)
+	return _u
+}
+
+// AddPlatformQuotas adds the "platform_quotas" edges to the UserPlatformQuota entity.
+func (_u *UserUpdate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPlatformQuotaIDs(ids...)
+}
+
+// SetParentMerchant sets the "parent_merchant" edge to the Merchant entity.
+func (_u *UserUpdate) SetParentMerchant(v *Merchant) *UserUpdate {
+	return _u.SetParentMerchantID(v.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -845,6 +887,33 @@ func (_u *UserUpdate) RemovePendingAuthSessions(v ...*PendingAuthSession) *UserU
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePendingAuthSessionIDs(ids...)
+}
+
+// ClearPlatformQuotas clears all "platform_quotas" edges to the UserPlatformQuota entity.
+func (_u *UserUpdate) ClearPlatformQuotas() *UserUpdate {
+	_u.mutation.ClearPlatformQuotas()
+	return _u
+}
+
+// RemovePlatformQuotaIDs removes the "platform_quotas" edge to UserPlatformQuota entities by IDs.
+func (_u *UserUpdate) RemovePlatformQuotaIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemovePlatformQuotaIDs(ids...)
+	return _u
+}
+
+// RemovePlatformQuotas removes "platform_quotas" edges to UserPlatformQuota entities.
+func (_u *UserUpdate) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePlatformQuotaIDs(ids...)
+}
+
+// ClearParentMerchant clears the "parent_merchant" edge to the Merchant entity.
+func (_u *UserUpdate) ClearParentMerchant() *UserUpdate {
+	_u.mutation.ClearParentMerchant()
+	return _u
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1587,6 +1656,80 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.PlatformQuotasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPlatformQuotasIDs(); len(nodes) > 0 && !_u.mutation.PlatformQuotasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PlatformQuotasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ParentMerchantCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.ParentMerchantTable,
+			Columns: []string{user.ParentMerchantColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchant.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ParentMerchantIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.ParentMerchantTable,
+			Columns: []string{user.ParentMerchantColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1978,6 +2121,26 @@ func (_u *UserUpdateOne) AddRpmLimit(v int) *UserUpdateOne {
 	return _u
 }
 
+// SetParentMerchantID sets the "parent_merchant_id" field.
+func (_u *UserUpdateOne) SetParentMerchantID(v int64) *UserUpdateOne {
+	_u.mutation.SetParentMerchantID(v)
+	return _u
+}
+
+// SetNillableParentMerchantID sets the "parent_merchant_id" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableParentMerchantID(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetParentMerchantID(*v)
+	}
+	return _u
+}
+
+// ClearParentMerchantID clears the value of the "parent_merchant_id" field.
+func (_u *UserUpdateOne) ClearParentMerchantID() *UserUpdateOne {
+	_u.mutation.ClearParentMerchantID()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2156,6 +2319,26 @@ func (_u *UserUpdateOne) AddPendingAuthSessions(v ...*PendingAuthSession) *UserU
 		ids[i] = v[i].ID
 	}
 	return _u.AddPendingAuthSessionIDs(ids...)
+}
+
+// AddPlatformQuotaIDs adds the "platform_quotas" edge to the UserPlatformQuota entity by IDs.
+func (_u *UserUpdateOne) AddPlatformQuotaIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddPlatformQuotaIDs(ids...)
+	return _u
+}
+
+// AddPlatformQuotas adds the "platform_quotas" edges to the UserPlatformQuota entity.
+func (_u *UserUpdateOne) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPlatformQuotaIDs(ids...)
+}
+
+// SetParentMerchant sets the "parent_merchant" edge to the Merchant entity.
+func (_u *UserUpdateOne) SetParentMerchant(v *Merchant) *UserUpdateOne {
+	return _u.SetParentMerchantID(v.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -2413,6 +2596,33 @@ func (_u *UserUpdateOne) RemovePendingAuthSessions(v ...*PendingAuthSession) *Us
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePendingAuthSessionIDs(ids...)
+}
+
+// ClearPlatformQuotas clears all "platform_quotas" edges to the UserPlatformQuota entity.
+func (_u *UserUpdateOne) ClearPlatformQuotas() *UserUpdateOne {
+	_u.mutation.ClearPlatformQuotas()
+	return _u
+}
+
+// RemovePlatformQuotaIDs removes the "platform_quotas" edge to UserPlatformQuota entities by IDs.
+func (_u *UserUpdateOne) RemovePlatformQuotaIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemovePlatformQuotaIDs(ids...)
+	return _u
+}
+
+// RemovePlatformQuotas removes "platform_quotas" edges to UserPlatformQuota entities.
+func (_u *UserUpdateOne) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePlatformQuotaIDs(ids...)
+}
+
+// ClearParentMerchant clears the "parent_merchant" edge to the Merchant entity.
+func (_u *UserUpdateOne) ClearParentMerchant() *UserUpdateOne {
+	_u.mutation.ClearParentMerchant()
+	return _u
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -3178,6 +3388,80 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(pendingauthsession.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PlatformQuotasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPlatformQuotasIDs(); len(nodes) > 0 && !_u.mutation.PlatformQuotasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PlatformQuotasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PlatformQuotasTable,
+			Columns: []string{user.PlatformQuotasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ParentMerchantCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.ParentMerchantTable,
+			Columns: []string{user.ParentMerchantColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchant.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ParentMerchantIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.ParentMerchantTable,
+			Columns: []string{user.ParentMerchantColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(merchant.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

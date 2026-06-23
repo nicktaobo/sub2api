@@ -56,7 +56,8 @@ func applyErrorPassthroughRule(
 		status = *rule.ResponseCode
 	}
 
-	errMsg = ExtractUpstreamErrorMessage(responseBody)
+	// 即便命中"透传上游原文"的规则，也必须先脱敏，避免暴露上游渠道身份。
+	errMsg = sanitizeUpstreamErrorMessage(ExtractUpstreamErrorMessage(responseBody))
 	if !rule.PassthroughBody && rule.CustomMessage != nil {
 		errMsg = *rule.CustomMessage
 	}

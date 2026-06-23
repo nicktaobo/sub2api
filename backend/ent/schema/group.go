@@ -155,11 +155,20 @@ func (Group) Fields() []ent.Field {
 			Default(domain.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型"),
+		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
+			Default(domain.GroupModelsListConfig{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").
 			Default(0).
 			Comment("分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流"),
+
+		// 邀请返利（消费侧）—— 该分组的消费不参与邀请返利分成（migration 143）。
+		field.Bool("affiliate_rebate_excluded").
+			Default(false).
+			Comment("该分组不参与邀请返利（消费侧），默认参与"),
 	}
 }
 

@@ -20,6 +20,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/merchant"
+	"github.com/Wei-Shaw/sub2api/ent/merchantauditlog"
+	"github.com/Wei-Shaw/sub2api/ent/merchantdomain"
+	"github.com/Wei-Shaw/sub2api/ent/merchantearningsoutbox"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupcost"
+	"github.com/Wei-Shaw/sub2api/ent/merchantgroupmarkup"
+	"github.com/Wei-Shaw/sub2api/ent/merchantledger"
+	"github.com/Wei-Shaw/sub2api/ent/merchantwithdrawrequest"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -39,6 +47,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
+	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
@@ -222,33 +231,33 @@ func init() {
 	// account.DefaultExtra holds the default value on creation for the extra field.
 	account.DefaultExtra = accountDescExtra.Default.(func() map[string]interface{})
 	// accountDescConcurrency is the schema descriptor for concurrency field.
-	accountDescConcurrency := accountFields[7].Descriptor()
+	accountDescConcurrency := accountFields[8].Descriptor()
 	// account.DefaultConcurrency holds the default value on creation for the concurrency field.
 	account.DefaultConcurrency = accountDescConcurrency.Default.(int)
 	// accountDescPriority is the schema descriptor for priority field.
-	accountDescPriority := accountFields[9].Descriptor()
+	accountDescPriority := accountFields[10].Descriptor()
 	// account.DefaultPriority holds the default value on creation for the priority field.
 	account.DefaultPriority = accountDescPriority.Default.(int)
 	// accountDescRateMultiplier is the schema descriptor for rate_multiplier field.
-	accountDescRateMultiplier := accountFields[10].Descriptor()
+	accountDescRateMultiplier := accountFields[11].Descriptor()
 	// account.DefaultRateMultiplier holds the default value on creation for the rate_multiplier field.
 	account.DefaultRateMultiplier = accountDescRateMultiplier.Default.(float64)
 	// accountDescStatus is the schema descriptor for status field.
-	accountDescStatus := accountFields[11].Descriptor()
+	accountDescStatus := accountFields[12].Descriptor()
 	// account.DefaultStatus holds the default value on creation for the status field.
 	account.DefaultStatus = accountDescStatus.Default.(string)
 	// account.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	account.StatusValidator = accountDescStatus.Validators[0].(func(string) error)
 	// accountDescAutoPauseOnExpired is the schema descriptor for auto_pause_on_expired field.
-	accountDescAutoPauseOnExpired := accountFields[15].Descriptor()
+	accountDescAutoPauseOnExpired := accountFields[16].Descriptor()
 	// account.DefaultAutoPauseOnExpired holds the default value on creation for the auto_pause_on_expired field.
 	account.DefaultAutoPauseOnExpired = accountDescAutoPauseOnExpired.Default.(bool)
 	// accountDescSchedulable is the schema descriptor for schedulable field.
-	accountDescSchedulable := accountFields[16].Descriptor()
+	accountDescSchedulable := accountFields[17].Descriptor()
 	// account.DefaultSchedulable holds the default value on creation for the schedulable field.
 	account.DefaultSchedulable = accountDescSchedulable.Default.(bool)
 	// accountDescSessionWindowStatus is the schema descriptor for session_window_status field.
-	accountDescSessionWindowStatus := accountFields[24].Descriptor()
+	accountDescSessionWindowStatus := accountFields[25].Descriptor()
 	// account.SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	account.SessionWindowStatusValidator = accountDescSessionWindowStatus.Validators[0].(func(string) error)
 	accountgroupFields := schema.AccountGroup{}.Fields()
@@ -464,8 +473,14 @@ func init() {
 			return nil
 		}
 	}()
+	// channelmonitorDescAPIMode is the schema descriptor for api_mode field.
+	channelmonitorDescAPIMode := channelmonitorFields[2].Descriptor()
+	// channelmonitor.DefaultAPIMode holds the default value on creation for the api_mode field.
+	channelmonitor.DefaultAPIMode = channelmonitorDescAPIMode.Default.(string)
+	// channelmonitor.APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
+	channelmonitor.APIModeValidator = channelmonitorDescAPIMode.Validators[0].(func(string) error)
 	// channelmonitorDescEndpoint is the schema descriptor for endpoint field.
-	channelmonitorDescEndpoint := channelmonitorFields[2].Descriptor()
+	channelmonitorDescEndpoint := channelmonitorFields[3].Descriptor()
 	// channelmonitor.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
 	channelmonitor.EndpointValidator = func() func(string) error {
 		validators := channelmonitorDescEndpoint.Validators
@@ -483,11 +498,11 @@ func init() {
 		}
 	}()
 	// channelmonitorDescAPIKeyEncrypted is the schema descriptor for api_key_encrypted field.
-	channelmonitorDescAPIKeyEncrypted := channelmonitorFields[3].Descriptor()
+	channelmonitorDescAPIKeyEncrypted := channelmonitorFields[4].Descriptor()
 	// channelmonitor.APIKeyEncryptedValidator is a validator for the "api_key_encrypted" field. It is called by the builders before save.
 	channelmonitor.APIKeyEncryptedValidator = channelmonitorDescAPIKeyEncrypted.Validators[0].(func(string) error)
 	// channelmonitorDescPrimaryModel is the schema descriptor for primary_model field.
-	channelmonitorDescPrimaryModel := channelmonitorFields[4].Descriptor()
+	channelmonitorDescPrimaryModel := channelmonitorFields[5].Descriptor()
 	// channelmonitor.PrimaryModelValidator is a validator for the "primary_model" field. It is called by the builders before save.
 	channelmonitor.PrimaryModelValidator = func() func(string) error {
 		validators := channelmonitorDescPrimaryModel.Validators
@@ -505,29 +520,35 @@ func init() {
 		}
 	}()
 	// channelmonitorDescExtraModels is the schema descriptor for extra_models field.
-	channelmonitorDescExtraModels := channelmonitorFields[5].Descriptor()
+	channelmonitorDescExtraModels := channelmonitorFields[6].Descriptor()
 	// channelmonitor.DefaultExtraModels holds the default value on creation for the extra_models field.
 	channelmonitor.DefaultExtraModels = channelmonitorDescExtraModels.Default.([]string)
 	// channelmonitorDescGroupName is the schema descriptor for group_name field.
-	channelmonitorDescGroupName := channelmonitorFields[6].Descriptor()
+	channelmonitorDescGroupName := channelmonitorFields[7].Descriptor()
 	// channelmonitor.DefaultGroupName holds the default value on creation for the group_name field.
 	channelmonitor.DefaultGroupName = channelmonitorDescGroupName.Default.(string)
 	// channelmonitor.GroupNameValidator is a validator for the "group_name" field. It is called by the builders before save.
 	channelmonitor.GroupNameValidator = channelmonitorDescGroupName.Validators[0].(func(string) error)
 	// channelmonitorDescEnabled is the schema descriptor for enabled field.
-	channelmonitorDescEnabled := channelmonitorFields[7].Descriptor()
+	channelmonitorDescEnabled := channelmonitorFields[8].Descriptor()
 	// channelmonitor.DefaultEnabled holds the default value on creation for the enabled field.
 	channelmonitor.DefaultEnabled = channelmonitorDescEnabled.Default.(bool)
 	// channelmonitorDescIntervalSeconds is the schema descriptor for interval_seconds field.
-	channelmonitorDescIntervalSeconds := channelmonitorFields[8].Descriptor()
+	channelmonitorDescIntervalSeconds := channelmonitorFields[9].Descriptor()
 	// channelmonitor.IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	channelmonitor.IntervalSecondsValidator = channelmonitorDescIntervalSeconds.Validators[0].(func(int) error)
+	// channelmonitorDescJitterSeconds is the schema descriptor for jitter_seconds field.
+	channelmonitorDescJitterSeconds := channelmonitorFields[10].Descriptor()
+	// channelmonitor.DefaultJitterSeconds holds the default value on creation for the jitter_seconds field.
+	channelmonitor.DefaultJitterSeconds = channelmonitorDescJitterSeconds.Default.(int)
+	// channelmonitor.JitterSecondsValidator is a validator for the "jitter_seconds" field. It is called by the builders before save.
+	channelmonitor.JitterSecondsValidator = channelmonitorDescJitterSeconds.Validators[0].(func(int) error)
 	// channelmonitorDescExtraHeaders is the schema descriptor for extra_headers field.
-	channelmonitorDescExtraHeaders := channelmonitorFields[12].Descriptor()
+	channelmonitorDescExtraHeaders := channelmonitorFields[14].Descriptor()
 	// channelmonitor.DefaultExtraHeaders holds the default value on creation for the extra_headers field.
 	channelmonitor.DefaultExtraHeaders = channelmonitorDescExtraHeaders.Default.(map[string]string)
 	// channelmonitorDescBodyOverrideMode is the schema descriptor for body_override_mode field.
-	channelmonitorDescBodyOverrideMode := channelmonitorFields[13].Descriptor()
+	channelmonitorDescBodyOverrideMode := channelmonitorFields[15].Descriptor()
 	// channelmonitor.DefaultBodyOverrideMode holds the default value on creation for the body_override_mode field.
 	channelmonitor.DefaultBodyOverrideMode = channelmonitorDescBodyOverrideMode.Default.(string)
 	// channelmonitor.BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.
@@ -661,18 +682,24 @@ func init() {
 			return nil
 		}
 	}()
+	// channelmonitorrequesttemplateDescAPIMode is the schema descriptor for api_mode field.
+	channelmonitorrequesttemplateDescAPIMode := channelmonitorrequesttemplateFields[2].Descriptor()
+	// channelmonitorrequesttemplate.DefaultAPIMode holds the default value on creation for the api_mode field.
+	channelmonitorrequesttemplate.DefaultAPIMode = channelmonitorrequesttemplateDescAPIMode.Default.(string)
+	// channelmonitorrequesttemplate.APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
+	channelmonitorrequesttemplate.APIModeValidator = channelmonitorrequesttemplateDescAPIMode.Validators[0].(func(string) error)
 	// channelmonitorrequesttemplateDescDescription is the schema descriptor for description field.
-	channelmonitorrequesttemplateDescDescription := channelmonitorrequesttemplateFields[2].Descriptor()
+	channelmonitorrequesttemplateDescDescription := channelmonitorrequesttemplateFields[3].Descriptor()
 	// channelmonitorrequesttemplate.DefaultDescription holds the default value on creation for the description field.
 	channelmonitorrequesttemplate.DefaultDescription = channelmonitorrequesttemplateDescDescription.Default.(string)
 	// channelmonitorrequesttemplate.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
 	channelmonitorrequesttemplate.DescriptionValidator = channelmonitorrequesttemplateDescDescription.Validators[0].(func(string) error)
 	// channelmonitorrequesttemplateDescExtraHeaders is the schema descriptor for extra_headers field.
-	channelmonitorrequesttemplateDescExtraHeaders := channelmonitorrequesttemplateFields[3].Descriptor()
+	channelmonitorrequesttemplateDescExtraHeaders := channelmonitorrequesttemplateFields[4].Descriptor()
 	// channelmonitorrequesttemplate.DefaultExtraHeaders holds the default value on creation for the extra_headers field.
 	channelmonitorrequesttemplate.DefaultExtraHeaders = channelmonitorrequesttemplateDescExtraHeaders.Default.(map[string]string)
 	// channelmonitorrequesttemplateDescBodyOverrideMode is the schema descriptor for body_override_mode field.
-	channelmonitorrequesttemplateDescBodyOverrideMode := channelmonitorrequesttemplateFields[4].Descriptor()
+	channelmonitorrequesttemplateDescBodyOverrideMode := channelmonitorrequesttemplateFields[5].Descriptor()
 	// channelmonitorrequesttemplate.DefaultBodyOverrideMode holds the default value on creation for the body_override_mode field.
 	channelmonitorrequesttemplate.DefaultBodyOverrideMode = channelmonitorrequesttemplateDescBodyOverrideMode.Default.(string)
 	// channelmonitorrequesttemplate.BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.
@@ -857,10 +884,18 @@ func init() {
 	groupDescMessagesDispatchModelConfig := groupFields[29].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
+	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
+	groupDescModelsListConfig := groupFields[30].Descriptor()
+	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
+	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[30].Descriptor()
+	groupDescRpmLimit := groupFields[31].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
+	// groupDescAffiliateRebateExcluded is the schema descriptor for affiliate_rebate_excluded field.
+	groupDescAffiliateRebateExcluded := groupFields[32].Descriptor()
+	// group.DefaultAffiliateRebateExcluded holds the default value on creation for the affiliate_rebate_excluded field.
+	group.DefaultAffiliateRebateExcluded = groupDescAffiliateRebateExcluded.Default.(bool)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0
@@ -923,6 +958,272 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	merchantMixin := schema.Merchant{}.Mixin()
+	merchantMixinHooks1 := merchantMixin[1].Hooks()
+	merchant.Hooks[0] = merchantMixinHooks1[0]
+	merchantMixinInters1 := merchantMixin[1].Interceptors()
+	merchant.Interceptors[0] = merchantMixinInters1[0]
+	merchantMixinFields0 := merchantMixin[0].Fields()
+	_ = merchantMixinFields0
+	merchantFields := schema.Merchant{}.Fields()
+	_ = merchantFields
+	// merchantDescCreatedAt is the schema descriptor for created_at field.
+	merchantDescCreatedAt := merchantMixinFields0[0].Descriptor()
+	// merchant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchant.DefaultCreatedAt = merchantDescCreatedAt.Default.(func() time.Time)
+	// merchantDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantDescUpdatedAt := merchantMixinFields0[1].Descriptor()
+	// merchant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchant.DefaultUpdatedAt = merchantDescUpdatedAt.Default.(func() time.Time)
+	// merchant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchant.UpdateDefaultUpdatedAt = merchantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// merchantDescName is the schema descriptor for name field.
+	merchantDescName := merchantFields[1].Descriptor()
+	// merchant.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	merchant.NameValidator = func() func(string) error {
+		validators := merchantDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// merchantDescStatus is the schema descriptor for status field.
+	merchantDescStatus := merchantFields[2].Descriptor()
+	// merchant.DefaultStatus holds the default value on creation for the status field.
+	merchant.DefaultStatus = merchantDescStatus.Default.(string)
+	// merchant.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	merchant.StatusValidator = merchantDescStatus.Validators[0].(func(string) error)
+	// merchantDescOwnerBalanceBaseline is the schema descriptor for owner_balance_baseline field.
+	merchantDescOwnerBalanceBaseline := merchantFields[3].Descriptor()
+	// merchant.DefaultOwnerBalanceBaseline holds the default value on creation for the owner_balance_baseline field.
+	merchant.DefaultOwnerBalanceBaseline = merchantDescOwnerBalanceBaseline.Default.(float64)
+	// merchantDescLowBalanceThreshold is the schema descriptor for low_balance_threshold field.
+	merchantDescLowBalanceThreshold := merchantFields[4].Descriptor()
+	// merchant.DefaultLowBalanceThreshold holds the default value on creation for the low_balance_threshold field.
+	merchant.DefaultLowBalanceThreshold = merchantDescLowBalanceThreshold.Default.(float64)
+	// merchantDescNotifyEmails is the schema descriptor for notify_emails field.
+	merchantDescNotifyEmails := merchantFields[5].Descriptor()
+	// merchant.DefaultNotifyEmails holds the default value on creation for the notify_emails field.
+	merchant.DefaultNotifyEmails = merchantDescNotifyEmails.Default.([]string)
+	merchantauditlogFields := schema.MerchantAuditLog{}.Fields()
+	_ = merchantauditlogFields
+	// merchantauditlogDescField is the schema descriptor for field field.
+	merchantauditlogDescField := merchantauditlogFields[2].Descriptor()
+	// merchantauditlog.FieldValidator is a validator for the "field" field. It is called by the builders before save.
+	merchantauditlog.FieldValidator = merchantauditlogDescField.Validators[0].(func(string) error)
+	// merchantauditlogDescReason is the schema descriptor for reason field.
+	merchantauditlogDescReason := merchantauditlogFields[5].Descriptor()
+	// merchantauditlog.DefaultReason holds the default value on creation for the reason field.
+	merchantauditlog.DefaultReason = merchantauditlogDescReason.Default.(string)
+	// merchantauditlogDescCreatedAt is the schema descriptor for created_at field.
+	merchantauditlogDescCreatedAt := merchantauditlogFields[6].Descriptor()
+	// merchantauditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantauditlog.DefaultCreatedAt = merchantauditlogDescCreatedAt.Default.(func() time.Time)
+	merchantdomainMixin := schema.MerchantDomain{}.Mixin()
+	merchantdomainMixinHooks1 := merchantdomainMixin[1].Hooks()
+	merchantdomain.Hooks[0] = merchantdomainMixinHooks1[0]
+	merchantdomainMixinInters1 := merchantdomainMixin[1].Interceptors()
+	merchantdomain.Interceptors[0] = merchantdomainMixinInters1[0]
+	merchantdomainMixinFields0 := merchantdomainMixin[0].Fields()
+	_ = merchantdomainMixinFields0
+	merchantdomainFields := schema.MerchantDomain{}.Fields()
+	_ = merchantdomainFields
+	// merchantdomainDescCreatedAt is the schema descriptor for created_at field.
+	merchantdomainDescCreatedAt := merchantdomainMixinFields0[0].Descriptor()
+	// merchantdomain.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantdomain.DefaultCreatedAt = merchantdomainDescCreatedAt.Default.(func() time.Time)
+	// merchantdomainDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantdomainDescUpdatedAt := merchantdomainMixinFields0[1].Descriptor()
+	// merchantdomain.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantdomain.DefaultUpdatedAt = merchantdomainDescUpdatedAt.Default.(func() time.Time)
+	// merchantdomain.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantdomain.UpdateDefaultUpdatedAt = merchantdomainDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// merchantdomainDescDomain is the schema descriptor for domain field.
+	merchantdomainDescDomain := merchantdomainFields[1].Descriptor()
+	// merchantdomain.DomainValidator is a validator for the "domain" field. It is called by the builders before save.
+	merchantdomain.DomainValidator = func() func(string) error {
+		validators := merchantdomainDescDomain.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(domain string) error {
+			for _, fn := range fns {
+				if err := fn(domain); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// merchantdomainDescSiteName is the schema descriptor for site_name field.
+	merchantdomainDescSiteName := merchantdomainFields[2].Descriptor()
+	// merchantdomain.DefaultSiteName holds the default value on creation for the site_name field.
+	merchantdomain.DefaultSiteName = merchantdomainDescSiteName.Default.(string)
+	// merchantdomain.SiteNameValidator is a validator for the "site_name" field. It is called by the builders before save.
+	merchantdomain.SiteNameValidator = merchantdomainDescSiteName.Validators[0].(func(string) error)
+	// merchantdomainDescSiteLogo is the schema descriptor for site_logo field.
+	merchantdomainDescSiteLogo := merchantdomainFields[3].Descriptor()
+	// merchantdomain.DefaultSiteLogo holds the default value on creation for the site_logo field.
+	merchantdomain.DefaultSiteLogo = merchantdomainDescSiteLogo.Default.(string)
+	// merchantdomainDescBrandColor is the schema descriptor for brand_color field.
+	merchantdomainDescBrandColor := merchantdomainFields[4].Descriptor()
+	// merchantdomain.DefaultBrandColor holds the default value on creation for the brand_color field.
+	merchantdomain.DefaultBrandColor = merchantdomainDescBrandColor.Default.(string)
+	// merchantdomain.BrandColorValidator is a validator for the "brand_color" field. It is called by the builders before save.
+	merchantdomain.BrandColorValidator = merchantdomainDescBrandColor.Validators[0].(func(string) error)
+	// merchantdomainDescCustomCSS is the schema descriptor for custom_css field.
+	merchantdomainDescCustomCSS := merchantdomainFields[5].Descriptor()
+	// merchantdomain.DefaultCustomCSS holds the default value on creation for the custom_css field.
+	merchantdomain.DefaultCustomCSS = merchantdomainDescCustomCSS.Default.(string)
+	// merchantdomainDescHomeContent is the schema descriptor for home_content field.
+	merchantdomainDescHomeContent := merchantdomainFields[6].Descriptor()
+	// merchantdomain.DefaultHomeContent holds the default value on creation for the home_content field.
+	merchantdomain.DefaultHomeContent = merchantdomainDescHomeContent.Default.(string)
+	// merchantdomainDescSeoTitle is the schema descriptor for seo_title field.
+	merchantdomainDescSeoTitle := merchantdomainFields[7].Descriptor()
+	// merchantdomain.DefaultSeoTitle holds the default value on creation for the seo_title field.
+	merchantdomain.DefaultSeoTitle = merchantdomainDescSeoTitle.Default.(string)
+	// merchantdomain.SeoTitleValidator is a validator for the "seo_title" field. It is called by the builders before save.
+	merchantdomain.SeoTitleValidator = merchantdomainDescSeoTitle.Validators[0].(func(string) error)
+	// merchantdomainDescSeoDescription is the schema descriptor for seo_description field.
+	merchantdomainDescSeoDescription := merchantdomainFields[8].Descriptor()
+	// merchantdomain.DefaultSeoDescription holds the default value on creation for the seo_description field.
+	merchantdomain.DefaultSeoDescription = merchantdomainDescSeoDescription.Default.(string)
+	// merchantdomainDescSeoKeywords is the schema descriptor for seo_keywords field.
+	merchantdomainDescSeoKeywords := merchantdomainFields[9].Descriptor()
+	// merchantdomain.DefaultSeoKeywords holds the default value on creation for the seo_keywords field.
+	merchantdomain.DefaultSeoKeywords = merchantdomainDescSeoKeywords.Default.(string)
+	// merchantdomain.SeoKeywordsValidator is a validator for the "seo_keywords" field. It is called by the builders before save.
+	merchantdomain.SeoKeywordsValidator = merchantdomainDescSeoKeywords.Validators[0].(func(string) error)
+	// merchantdomainDescVerifyToken is the schema descriptor for verify_token field.
+	merchantdomainDescVerifyToken := merchantdomainFields[10].Descriptor()
+	// merchantdomain.DefaultVerifyToken holds the default value on creation for the verify_token field.
+	merchantdomain.DefaultVerifyToken = merchantdomainDescVerifyToken.Default.(string)
+	// merchantdomain.VerifyTokenValidator is a validator for the "verify_token" field. It is called by the builders before save.
+	merchantdomain.VerifyTokenValidator = merchantdomainDescVerifyToken.Validators[0].(func(string) error)
+	// merchantdomainDescVerified is the schema descriptor for verified field.
+	merchantdomainDescVerified := merchantdomainFields[11].Descriptor()
+	// merchantdomain.DefaultVerified holds the default value on creation for the verified field.
+	merchantdomain.DefaultVerified = merchantdomainDescVerified.Default.(bool)
+	merchantearningsoutboxFields := schema.MerchantEarningsOutbox{}.Fields()
+	_ = merchantearningsoutboxFields
+	// merchantearningsoutboxDescSource is the schema descriptor for source field.
+	merchantearningsoutboxDescSource := merchantearningsoutboxFields[3].Descriptor()
+	// merchantearningsoutbox.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	merchantearningsoutbox.SourceValidator = merchantearningsoutboxDescSource.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescRefType is the schema descriptor for ref_type field.
+	merchantearningsoutboxDescRefType := merchantearningsoutboxFields[4].Descriptor()
+	// merchantearningsoutbox.RefTypeValidator is a validator for the "ref_type" field. It is called by the builders before save.
+	merchantearningsoutbox.RefTypeValidator = merchantearningsoutboxDescRefType.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	merchantearningsoutboxDescIdempotencyKey := merchantearningsoutboxFields[6].Descriptor()
+	// merchantearningsoutbox.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	merchantearningsoutbox.IdempotencyKeyValidator = merchantearningsoutboxDescIdempotencyKey.Validators[0].(func(string) error)
+	// merchantearningsoutboxDescProcessed is the schema descriptor for processed field.
+	merchantearningsoutboxDescProcessed := merchantearningsoutboxFields[7].Descriptor()
+	// merchantearningsoutbox.DefaultProcessed holds the default value on creation for the processed field.
+	merchantearningsoutbox.DefaultProcessed = merchantearningsoutboxDescProcessed.Default.(bool)
+	// merchantearningsoutboxDescCreatedAt is the schema descriptor for created_at field.
+	merchantearningsoutboxDescCreatedAt := merchantearningsoutboxFields[9].Descriptor()
+	// merchantearningsoutbox.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantearningsoutbox.DefaultCreatedAt = merchantearningsoutboxDescCreatedAt.Default.(func() time.Time)
+	merchantgroupcostMixin := schema.MerchantGroupCost{}.Mixin()
+	merchantgroupcostMixinFields0 := merchantgroupcostMixin[0].Fields()
+	_ = merchantgroupcostMixinFields0
+	merchantgroupcostFields := schema.MerchantGroupCost{}.Fields()
+	_ = merchantgroupcostFields
+	// merchantgroupcostDescCreatedAt is the schema descriptor for created_at field.
+	merchantgroupcostDescCreatedAt := merchantgroupcostMixinFields0[0].Descriptor()
+	// merchantgroupcost.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantgroupcost.DefaultCreatedAt = merchantgroupcostDescCreatedAt.Default.(func() time.Time)
+	// merchantgroupcostDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantgroupcostDescUpdatedAt := merchantgroupcostMixinFields0[1].Descriptor()
+	// merchantgroupcost.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantgroupcost.DefaultUpdatedAt = merchantgroupcostDescUpdatedAt.Default.(func() time.Time)
+	// merchantgroupcost.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantgroupcost.UpdateDefaultUpdatedAt = merchantgroupcostDescUpdatedAt.UpdateDefault.(func() time.Time)
+	merchantgroupmarkupMixin := schema.MerchantGroupMarkup{}.Mixin()
+	merchantgroupmarkupMixinFields0 := merchantgroupmarkupMixin[0].Fields()
+	_ = merchantgroupmarkupMixinFields0
+	merchantgroupmarkupFields := schema.MerchantGroupMarkup{}.Fields()
+	_ = merchantgroupmarkupFields
+	// merchantgroupmarkupDescCreatedAt is the schema descriptor for created_at field.
+	merchantgroupmarkupDescCreatedAt := merchantgroupmarkupMixinFields0[0].Descriptor()
+	// merchantgroupmarkup.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantgroupmarkup.DefaultCreatedAt = merchantgroupmarkupDescCreatedAt.Default.(func() time.Time)
+	// merchantgroupmarkupDescUpdatedAt is the schema descriptor for updated_at field.
+	merchantgroupmarkupDescUpdatedAt := merchantgroupmarkupMixinFields0[1].Descriptor()
+	// merchantgroupmarkup.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	merchantgroupmarkup.DefaultUpdatedAt = merchantgroupmarkupDescUpdatedAt.Default.(func() time.Time)
+	// merchantgroupmarkup.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	merchantgroupmarkup.UpdateDefaultUpdatedAt = merchantgroupmarkupDescUpdatedAt.UpdateDefault.(func() time.Time)
+	merchantledgerFields := schema.MerchantLedger{}.Fields()
+	_ = merchantledgerFields
+	// merchantledgerDescDirection is the schema descriptor for direction field.
+	merchantledgerDescDirection := merchantledgerFields[3].Descriptor()
+	// merchantledger.DirectionValidator is a validator for the "direction" field. It is called by the builders before save.
+	merchantledger.DirectionValidator = merchantledgerDescDirection.Validators[0].(func(string) error)
+	// merchantledgerDescIsAggregated is the schema descriptor for is_aggregated field.
+	merchantledgerDescIsAggregated := merchantledgerFields[6].Descriptor()
+	// merchantledger.DefaultIsAggregated holds the default value on creation for the is_aggregated field.
+	merchantledger.DefaultIsAggregated = merchantledgerDescIsAggregated.Default.(bool)
+	// merchantledgerDescSource is the schema descriptor for source field.
+	merchantledgerDescSource := merchantledgerFields[8].Descriptor()
+	// merchantledger.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	merchantledger.SourceValidator = merchantledgerDescSource.Validators[0].(func(string) error)
+	// merchantledgerDescRefType is the schema descriptor for ref_type field.
+	merchantledgerDescRefType := merchantledgerFields[9].Descriptor()
+	// merchantledger.RefTypeValidator is a validator for the "ref_type" field. It is called by the builders before save.
+	merchantledger.RefTypeValidator = merchantledgerDescRefType.Validators[0].(func(string) error)
+	// merchantledgerDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	merchantledgerDescIdempotencyKey := merchantledgerFields[11].Descriptor()
+	// merchantledger.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	merchantledger.IdempotencyKeyValidator = merchantledgerDescIdempotencyKey.Validators[0].(func(string) error)
+	// merchantledgerDescCreatedAt is the schema descriptor for created_at field.
+	merchantledgerDescCreatedAt := merchantledgerFields[13].Descriptor()
+	// merchantledger.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantledger.DefaultCreatedAt = merchantledgerDescCreatedAt.Default.(func() time.Time)
+	merchantwithdrawrequestFields := schema.MerchantWithdrawRequest{}.Fields()
+	_ = merchantwithdrawrequestFields
+	// merchantwithdrawrequestDescStatus is the schema descriptor for status field.
+	merchantwithdrawrequestDescStatus := merchantwithdrawrequestFields[2].Descriptor()
+	// merchantwithdrawrequest.DefaultStatus holds the default value on creation for the status field.
+	merchantwithdrawrequest.DefaultStatus = merchantwithdrawrequestDescStatus.Default.(string)
+	// merchantwithdrawrequest.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	merchantwithdrawrequest.StatusValidator = merchantwithdrawrequestDescStatus.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentMethod is the schema descriptor for payment_method field.
+	merchantwithdrawrequestDescPaymentMethod := merchantwithdrawrequestFields[3].Descriptor()
+	// merchantwithdrawrequest.PaymentMethodValidator is a validator for the "payment_method" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentMethodValidator = merchantwithdrawrequestDescPaymentMethod.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentAccount is the schema descriptor for payment_account field.
+	merchantwithdrawrequestDescPaymentAccount := merchantwithdrawrequestFields[4].Descriptor()
+	// merchantwithdrawrequest.PaymentAccountValidator is a validator for the "payment_account" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentAccountValidator = merchantwithdrawrequestDescPaymentAccount.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescPaymentName is the schema descriptor for payment_name field.
+	merchantwithdrawrequestDescPaymentName := merchantwithdrawrequestFields[5].Descriptor()
+	// merchantwithdrawrequest.PaymentNameValidator is a validator for the "payment_name" field. It is called by the builders before save.
+	merchantwithdrawrequest.PaymentNameValidator = merchantwithdrawrequestDescPaymentName.Validators[0].(func(string) error)
+	// merchantwithdrawrequestDescNote is the schema descriptor for note field.
+	merchantwithdrawrequestDescNote := merchantwithdrawrequestFields[6].Descriptor()
+	// merchantwithdrawrequest.DefaultNote holds the default value on creation for the note field.
+	merchantwithdrawrequest.DefaultNote = merchantwithdrawrequestDescNote.Default.(string)
+	// merchantwithdrawrequestDescRejectReason is the schema descriptor for reject_reason field.
+	merchantwithdrawrequestDescRejectReason := merchantwithdrawrequestFields[8].Descriptor()
+	// merchantwithdrawrequest.DefaultRejectReason holds the default value on creation for the reject_reason field.
+	merchantwithdrawrequest.DefaultRejectReason = merchantwithdrawrequestDescRejectReason.Default.(string)
+	// merchantwithdrawrequestDescCreatedAt is the schema descriptor for created_at field.
+	merchantwithdrawrequestDescCreatedAt := merchantwithdrawrequestFields[10].Descriptor()
+	// merchantwithdrawrequest.DefaultCreatedAt holds the default value on creation for the created_at field.
+	merchantwithdrawrequest.DefaultCreatedAt = merchantwithdrawrequestDescCreatedAt.Default.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.
@@ -1345,6 +1646,16 @@ func init() {
 	proxy.DefaultStatus = proxyDescStatus.Default.(string)
 	// proxy.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	proxy.StatusValidator = proxyDescStatus.Validators[0].(func(string) error)
+	// proxyDescFallbackMode is the schema descriptor for fallback_mode field.
+	proxyDescFallbackMode := proxyFields[8].Descriptor()
+	// proxy.DefaultFallbackMode holds the default value on creation for the fallback_mode field.
+	proxy.DefaultFallbackMode = proxyDescFallbackMode.Default.(string)
+	// proxy.FallbackModeValidator is a validator for the "fallback_mode" field. It is called by the builders before save.
+	proxy.FallbackModeValidator = proxyDescFallbackMode.Validators[0].(func(string) error)
+	// proxyDescExpiryWarnDays is the schema descriptor for expiry_warn_days field.
+	proxyDescExpiryWarnDays := proxyFields[10].Descriptor()
+	// proxy.DefaultExpiryWarnDays holds the default value on creation for the expiry_warn_days field.
+	proxy.DefaultExpiryWarnDays = proxyDescExpiryWarnDays.Default.(int)
 	redeemcodeFields := schema.RedeemCode{}.Fields()
 	_ = redeemcodeFields
 	// redeemcodeDescCode is the schema descriptor for code field.
@@ -1386,7 +1697,7 @@ func init() {
 	// redeemcode.DefaultCreatedAt holds the default value on creation for the created_at field.
 	redeemcode.DefaultCreatedAt = redeemcodeDescCreatedAt.Default.(func() time.Time)
 	// redeemcodeDescValidityDays is the schema descriptor for validity_days field.
-	redeemcodeDescValidityDays := redeemcodeFields[9].Descriptor()
+	redeemcodeDescValidityDays := redeemcodeFields[10].Descriptor()
 	// redeemcode.DefaultValidityDays holds the default value on creation for the validity_days field.
 	redeemcode.DefaultValidityDays = redeemcodeDescValidityDays.Default.(int)
 	securitysecretMixin := schema.SecuritySecret{}.Mixin()
@@ -1722,12 +2033,24 @@ func init() {
 	usagelogDescImageSize := usagelogFields[34].Descriptor()
 	// usagelog.ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	usagelog.ImageSizeValidator = usagelogDescImageSize.Validators[0].(func(string) error)
+	// usagelogDescImageInputSize is the schema descriptor for image_input_size field.
+	usagelogDescImageInputSize := usagelogFields[35].Descriptor()
+	// usagelog.ImageInputSizeValidator is a validator for the "image_input_size" field. It is called by the builders before save.
+	usagelog.ImageInputSizeValidator = usagelogDescImageInputSize.Validators[0].(func(string) error)
+	// usagelogDescImageOutputSize is the schema descriptor for image_output_size field.
+	usagelogDescImageOutputSize := usagelogFields[36].Descriptor()
+	// usagelog.ImageOutputSizeValidator is a validator for the "image_output_size" field. It is called by the builders before save.
+	usagelog.ImageOutputSizeValidator = usagelogDescImageOutputSize.Validators[0].(func(string) error)
+	// usagelogDescImageSizeSource is the schema descriptor for image_size_source field.
+	usagelogDescImageSizeSource := usagelogFields[37].Descriptor()
+	// usagelog.ImageSizeSourceValidator is a validator for the "image_size_source" field. It is called by the builders before save.
+	usagelog.ImageSizeSourceValidator = usagelogDescImageSizeSource.Validators[0].(func(string) error)
 	// usagelogDescCacheTTLOverridden is the schema descriptor for cache_ttl_overridden field.
-	usagelogDescCacheTTLOverridden := usagelogFields[35].Descriptor()
+	usagelogDescCacheTTLOverridden := usagelogFields[39].Descriptor()
 	// usagelog.DefaultCacheTTLOverridden holds the default value on creation for the cache_ttl_overridden field.
 	usagelog.DefaultCacheTTLOverridden = usagelogDescCacheTTLOverridden.Default.(bool)
 	// usagelogDescCreatedAt is the schema descriptor for created_at field.
-	usagelogDescCreatedAt := usagelogFields[36].Descriptor()
+	usagelogDescCreatedAt := usagelogFields[40].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
 	userMixin := schema.User{}.Mixin()
@@ -1973,6 +2296,56 @@ func init() {
 	userattributevalueDescValue := userattributevalueFields[2].Descriptor()
 	// userattributevalue.DefaultValue holds the default value on creation for the value field.
 	userattributevalue.DefaultValue = userattributevalueDescValue.Default.(string)
+	userplatformquotaMixin := schema.UserPlatformQuota{}.Mixin()
+	userplatformquotaMixinHooks1 := userplatformquotaMixin[1].Hooks()
+	userplatformquota.Hooks[0] = userplatformquotaMixinHooks1[0]
+	userplatformquotaMixinInters1 := userplatformquotaMixin[1].Interceptors()
+	userplatformquota.Interceptors[0] = userplatformquotaMixinInters1[0]
+	userplatformquotaMixinFields0 := userplatformquotaMixin[0].Fields()
+	_ = userplatformquotaMixinFields0
+	userplatformquotaFields := schema.UserPlatformQuota{}.Fields()
+	_ = userplatformquotaFields
+	// userplatformquotaDescCreatedAt is the schema descriptor for created_at field.
+	userplatformquotaDescCreatedAt := userplatformquotaMixinFields0[0].Descriptor()
+	// userplatformquota.DefaultCreatedAt holds the default value on creation for the created_at field.
+	userplatformquota.DefaultCreatedAt = userplatformquotaDescCreatedAt.Default.(func() time.Time)
+	// userplatformquotaDescUpdatedAt is the schema descriptor for updated_at field.
+	userplatformquotaDescUpdatedAt := userplatformquotaMixinFields0[1].Descriptor()
+	// userplatformquota.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	userplatformquota.DefaultUpdatedAt = userplatformquotaDescUpdatedAt.Default.(func() time.Time)
+	// userplatformquota.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	userplatformquota.UpdateDefaultUpdatedAt = userplatformquotaDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// userplatformquotaDescPlatform is the schema descriptor for platform field.
+	userplatformquotaDescPlatform := userplatformquotaFields[1].Descriptor()
+	// userplatformquota.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	userplatformquota.PlatformValidator = func() func(string) error {
+		validators := userplatformquotaDescPlatform.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(platform string) error {
+			for _, fn := range fns {
+				if err := fn(platform); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userplatformquotaDescDailyUsageUsd is the schema descriptor for daily_usage_usd field.
+	userplatformquotaDescDailyUsageUsd := userplatformquotaFields[5].Descriptor()
+	// userplatformquota.DefaultDailyUsageUsd holds the default value on creation for the daily_usage_usd field.
+	userplatformquota.DefaultDailyUsageUsd = userplatformquotaDescDailyUsageUsd.Default.(float64)
+	// userplatformquotaDescWeeklyUsageUsd is the schema descriptor for weekly_usage_usd field.
+	userplatformquotaDescWeeklyUsageUsd := userplatformquotaFields[6].Descriptor()
+	// userplatformquota.DefaultWeeklyUsageUsd holds the default value on creation for the weekly_usage_usd field.
+	userplatformquota.DefaultWeeklyUsageUsd = userplatformquotaDescWeeklyUsageUsd.Default.(float64)
+	// userplatformquotaDescMonthlyUsageUsd is the schema descriptor for monthly_usage_usd field.
+	userplatformquotaDescMonthlyUsageUsd := userplatformquotaFields[7].Descriptor()
+	// userplatformquota.DefaultMonthlyUsageUsd holds the default value on creation for the monthly_usage_usd field.
+	userplatformquota.DefaultMonthlyUsageUsd = userplatformquotaDescMonthlyUsageUsd.Default.(float64)
 	usersubscriptionMixin := schema.UserSubscription{}.Mixin()
 	usersubscriptionMixinHooks1 := usersubscriptionMixin[1].Hooks()
 	usersubscription.Hooks[0] = usersubscriptionMixinHooks1[0]

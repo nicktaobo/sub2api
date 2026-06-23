@@ -3,6 +3,7 @@ import { driver, type Driver, type DriveStep } from 'driver.js'
 import 'driver.js/dist/driver.css'
 import { useAuthStore as useUserStore } from '@/stores/auth'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useAppStore } from '@/stores/app'
 import { useI18n } from 'vue-i18n'
 import { getAdminSteps, getUserSteps } from '@/components/Guide/steps'
 
@@ -12,10 +13,26 @@ export interface OnboardingOptions {
 }
 
 export function useOnboardingTour(options: OnboardingOptions) {
-  const { t } = useI18n()
+  const { t: rawT } = useI18n()
   const userStore = useUserStore()
   const onboardingStore = useOnboardingStore()
+  const appStore = useAppStore()
   const storageVersion = 'v4_interactive' // Bump version for new tour type
+
+  // 给步骤里的 t() 调用自动注入 {siteName}，避免每处都改签名。
+  // 未配置 site_name 时 fallback 为空，vue-i18n 会显示空字符串而非 'Sub2API'。
+  // 兼容 vue-i18n 的 t(key) / t(key, fallbackString) / t(key, params) 三种调用形态。
+  function t(key: string): string
+  function t(key: string, fallbackOrParams: string | Record<string, unknown>): string
+  function t(key: string, fallbackOrParams?: string | Record<string, unknown>): string {
+    const siteName = appStore.cachedPublicSettings?.site_name || appStore.siteName || ''
+    if (typeof fallbackOrParams === 'string') {
+      // vue-i18n 的 fallback-string 形态：用 named 注入 siteName，找不到 key 再用 fallback
+      const res = rawT(key, { siteName })
+      return res === key ? fallbackOrParams : res
+    }
+    return rawT(key, { siteName, ...(fallbackOrParams || {}) })
+  }
 
   // Timing constants for better maintainability
   const TIMING = {

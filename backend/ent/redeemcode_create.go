@@ -128,6 +128,20 @@ func (_c *RedeemCodeCreate) SetNillableCreatedAt(v *time.Time) *RedeemCodeCreate
 	return _c
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (_c *RedeemCodeCreate) SetExpiresAt(v time.Time) *RedeemCodeCreate {
+	_c.mutation.SetExpiresAt(v)
+	return _c
+}
+
+// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableExpiresAt(v *time.Time) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetExpiresAt(*v)
+	}
+	return _c
+}
+
 // SetGroupID sets the "group_id" field.
 func (_c *RedeemCodeCreate) SetGroupID(v int64) *RedeemCodeCreate {
 	_c.mutation.SetGroupID(v)
@@ -152,6 +166,20 @@ func (_c *RedeemCodeCreate) SetValidityDays(v int) *RedeemCodeCreate {
 func (_c *RedeemCodeCreate) SetNillableValidityDays(v *int) *RedeemCodeCreate {
 	if v != nil {
 		_c.SetValidityDays(*v)
+	}
+	return _c
+}
+
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (_c *RedeemCodeCreate) SetCreatedByMerchantID(v int64) *RedeemCodeCreate {
+	_c.mutation.SetCreatedByMerchantID(v)
+	return _c
+}
+
+// SetNillableCreatedByMerchantID sets the "created_by_merchant_id" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableCreatedByMerchantID(v *int64) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetCreatedByMerchantID(*v)
 	}
 	return _c
 }
@@ -327,9 +355,17 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 		_spec.SetField(redeemcode.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
+	if value, ok := _c.mutation.ExpiresAt(); ok {
+		_spec.SetField(redeemcode.FieldExpiresAt, field.TypeTime, value)
+		_node.ExpiresAt = &value
+	}
 	if value, ok := _c.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
 		_node.ValidityDays = value
+	}
+	if value, ok := _c.mutation.CreatedByMerchantID(); ok {
+		_spec.SetField(redeemcode.FieldCreatedByMerchantID, field.TypeInt64, value)
+		_node.CreatedByMerchantID = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -525,6 +561,24 @@ func (u *RedeemCodeUpsert) ClearNotes() *RedeemCodeUpsert {
 	return u
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (u *RedeemCodeUpsert) SetExpiresAt(v time.Time) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldExpiresAt, v)
+	return u
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateExpiresAt() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldExpiresAt)
+	return u
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *RedeemCodeUpsert) ClearExpiresAt() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldExpiresAt)
+	return u
+}
+
 // SetGroupID sets the "group_id" field.
 func (u *RedeemCodeUpsert) SetGroupID(v int64) *RedeemCodeUpsert {
 	u.Set(redeemcode.FieldGroupID, v)
@@ -558,6 +612,30 @@ func (u *RedeemCodeUpsert) UpdateValidityDays() *RedeemCodeUpsert {
 // AddValidityDays adds v to the "validity_days" field.
 func (u *RedeemCodeUpsert) AddValidityDays(v int) *RedeemCodeUpsert {
 	u.Add(redeemcode.FieldValidityDays, v)
+	return u
+}
+
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsert) SetCreatedByMerchantID(v int64) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldCreatedByMerchantID, v)
+	return u
+}
+
+// UpdateCreatedByMerchantID sets the "created_by_merchant_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateCreatedByMerchantID() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldCreatedByMerchantID)
+	return u
+}
+
+// AddCreatedByMerchantID adds v to the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsert) AddCreatedByMerchantID(v int64) *RedeemCodeUpsert {
+	u.Add(redeemcode.FieldCreatedByMerchantID, v)
+	return u
+}
+
+// ClearCreatedByMerchantID clears the value of the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsert) ClearCreatedByMerchantID() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldCreatedByMerchantID)
 	return u
 }
 
@@ -732,6 +810,27 @@ func (u *RedeemCodeUpsertOne) ClearNotes() *RedeemCodeUpsertOne {
 	})
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (u *RedeemCodeUpsertOne) SetExpiresAt(v time.Time) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateExpiresAt() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *RedeemCodeUpsertOne) ClearExpiresAt() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
 // SetGroupID sets the "group_id" field.
 func (u *RedeemCodeUpsertOne) SetGroupID(v int64) *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
@@ -771,6 +870,34 @@ func (u *RedeemCodeUpsertOne) AddValidityDays(v int) *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) UpdateValidityDays() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertOne) SetCreatedByMerchantID(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetCreatedByMerchantID(v)
+	})
+}
+
+// AddCreatedByMerchantID adds v to the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertOne) AddCreatedByMerchantID(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddCreatedByMerchantID(v)
+	})
+}
+
+// UpdateCreatedByMerchantID sets the "created_by_merchant_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateCreatedByMerchantID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateCreatedByMerchantID()
+	})
+}
+
+// ClearCreatedByMerchantID clears the value of the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertOne) ClearCreatedByMerchantID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearCreatedByMerchantID()
 	})
 }
 
@@ -1111,6 +1238,27 @@ func (u *RedeemCodeUpsertBulk) ClearNotes() *RedeemCodeUpsertBulk {
 	})
 }
 
+// SetExpiresAt sets the "expires_at" field.
+func (u *RedeemCodeUpsertBulk) SetExpiresAt(v time.Time) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetExpiresAt(v)
+	})
+}
+
+// UpdateExpiresAt sets the "expires_at" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateExpiresAt() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateExpiresAt()
+	})
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (u *RedeemCodeUpsertBulk) ClearExpiresAt() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearExpiresAt()
+	})
+}
+
 // SetGroupID sets the "group_id" field.
 func (u *RedeemCodeUpsertBulk) SetGroupID(v int64) *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
@@ -1150,6 +1298,34 @@ func (u *RedeemCodeUpsertBulk) AddValidityDays(v int) *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) UpdateValidityDays() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetCreatedByMerchantID sets the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertBulk) SetCreatedByMerchantID(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetCreatedByMerchantID(v)
+	})
+}
+
+// AddCreatedByMerchantID adds v to the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertBulk) AddCreatedByMerchantID(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddCreatedByMerchantID(v)
+	})
+}
+
+// UpdateCreatedByMerchantID sets the "created_by_merchant_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateCreatedByMerchantID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateCreatedByMerchantID()
+	})
+}
+
+// ClearCreatedByMerchantID clears the value of the "created_by_merchant_id" field.
+func (u *RedeemCodeUpsertBulk) ClearCreatedByMerchantID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearCreatedByMerchantID()
 	})
 }
 

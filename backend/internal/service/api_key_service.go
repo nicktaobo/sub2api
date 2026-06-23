@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,6 +56,8 @@ type APIKeyRepository interface {
 	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
 	Update(ctx context.Context, key *APIKey) error
 	Delete(ctx context.Context, id int64) error
+	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
+	DeleteWithAudit(ctx context.Context, id int64) error
 
 	ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error)
 	VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error)
@@ -200,6 +203,7 @@ type APIKeyService struct {
 	userGroupRateRepo     UserGroupRateRepository
 	cache                 APIKeyCache
 	rateLimitCacheInvalid RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
+	merchantPricing       *MerchantPricingService   // optional: 给商户子用户展示 sell_rate
 	cfg                   *config.Config
 	authCacheL1           *ristretto.Cache
 	authCfg               apiKeyAuthCacheConfig
@@ -235,6 +239,12 @@ func NewAPIKeyService(
 // Called after construction (e.g. in wire) to avoid circular dependencies.
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {
 	s.rateLimitCacheInvalid = inv
+}
+
+// SetMerchantPricing 注入 MerchantPricingService，用于在展示可用分组时替换商户子用户看到的 rate_multiplier。
+// post-construction setter，避免和 NewAPIKeyService 现有签名冲突。nil 表示商户系统未启用。
+func (s *APIKeyService) SetMerchantPricing(mp *MerchantPricingService) {
+	s.merchantPricing = mp
 }
 
 func (s *APIKeyService) compileAPIKeyIPRules(apiKey *APIKey) {
@@ -399,7 +409,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	apiKey := &APIKey{
 		UserID:      userID,
 		Key:         key,
-		Name:        req.Name,
+		Name:        html.EscapeString(req.Name),
 		GroupID:     req.GroupID,
 		Status:      StatusActive,
 		IPWhitelist: req.IPWhitelist,
@@ -538,7 +548,7 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 
 	// 更新字段
 	if req.Name != nil {
-		apiKey.Name = *req.Name
+		apiKey.Name = html.EscapeString(*req.Name)
 	}
 
 	if req.GroupID != nil {
@@ -648,15 +658,16 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
 		return ErrInsufficientPerms
 	}
 
-	// 清除Redis缓存（使用 userID 而非 apiKey.UserID）
+	// 事务内:写审计 + 软删除(tombstone)。
+	if err := s.apiKeyRepo.DeleteWithAudit(ctx, id); err != nil {
+		return fmt.Errorf("delete api key: %w", err)
+	}
+
+	// 删除成功后再清理缓存,避免"缓存已清但删除失败"的竞态。
 	if s.cache != nil {
 		_ = s.cache.DeleteCreateAttemptCount(ctx, userID)
 	}
 	s.InvalidateAuthCacheByKey(ctx, key)
-
-	if err := s.apiKeyRepo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete api key: %w", err)
-	}
 	s.lastUsedTouchL1.Delete(id)
 
 	return nil
@@ -772,7 +783,42 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 		}
 	}
 
+	// MERCHANT-SYSTEM v3.0：商户子用户在该分组配了 sell_rate 时，把展示用倍率换成 sell_rate，
+	// 保证"展示价 = 计费价"一致。订阅型分组不参与商户定价；owner / suspended / 主站普通用户
+	// 在 LookupSellRateForUser 内部已返回 false，此处自动跳过替换。
+	if s.merchantPricing != nil {
+		for i := range availableGroups {
+			g := &availableGroups[i]
+			if g.IsSubscriptionType() {
+				continue
+			}
+			if sellRate, ok := s.merchantPricing.LookupSellRateForUser(ctx, userID, g.ID); ok {
+				g.RateMultiplier = sellRate
+			}
+		}
+	}
+
 	return availableGroups, nil
+}
+
+// ListPublicGroups 返回所有公开（非专属、非订阅）的活跃分组，用于未登录访客
+// 的"模型广场"展示。不应用任何用户/商户上下文。
+func (s *APIKeyService) ListPublicGroups(ctx context.Context) ([]Group, error) {
+	allGroups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	out := make([]Group, 0, len(allGroups))
+	for _, g := range allGroups {
+		if g.IsExclusive {
+			continue
+		}
+		if g.IsSubscriptionType() {
+			continue
+		}
+		out = append(out, g)
+	}
+	return out, nil
 }
 
 // canUserBindGroupInternal 内部方法，检查用户是否可以绑定分组（使用预加载的订阅数据）

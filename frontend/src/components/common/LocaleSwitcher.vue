@@ -6,8 +6,8 @@
       class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
       :title="currentLocale?.name"
     >
-      <span class="text-base">{{ currentLocale?.flag }}</span>
-      <span class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
+      <Icon name="globe" size="sm" class="text-gray-500 dark:text-gray-400" />
+      <span class="hidden sm:inline">{{ currentLocale?.name }}</span>
       <Icon
         name="chevronDown"
         size="xs"
@@ -19,10 +19,10 @@
     <transition name="dropdown">
       <div
         v-if="isOpen"
-        class="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+        class="absolute right-0 z-50 mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
       >
         <button
-          v-for="locale in availableLocales"
+          v-for="locale in visibleLocales"
           :key="locale.code"
           :disabled="switching"
           @click="selectLocale(locale.code)"
@@ -32,7 +32,6 @@
               locale.code === currentLocaleCode
           }"
         >
-          <span class="text-base">{{ locale.flag }}</span>
           <span>{{ locale.name }}</span>
           <Icon v-if="locale.code === currentLocaleCode" name="check" size="sm" class="ml-auto text-primary-500" />
         </button>
@@ -45,16 +44,22 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
-import { setLocale, availableLocales } from '@/i18n'
+import { setLocale, availableLocales, adminOnlyLocales } from '@/i18n'
+import { useAuthStore } from '@/stores/auth'
 
 const { locale } = useI18n()
+const authStore = useAuthStore()
 
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const switching = ref(false)
 
+const visibleLocales = computed(() =>
+  authStore.isAdmin ? [...availableLocales, ...adminOnlyLocales] : availableLocales
+)
+
 const currentLocaleCode = computed(() => locale.value)
-const currentLocale = computed(() => availableLocales.find((l) => l.code === locale.value))
+const currentLocale = computed(() => visibleLocales.value.find((l) => l.code === locale.value))
 
 function toggleDropdown() {
   isOpen.value = !isOpen.value

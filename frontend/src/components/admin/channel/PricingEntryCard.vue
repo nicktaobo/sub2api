@@ -187,6 +187,9 @@
           <div v-else class="mt-2 rounded border border-dashed border-gray-300 p-3 text-center text-xs text-gray-400 dark:border-dark-500">
             {{ t('admin.channels.form.noTiersYet', '暂无层级，点击添加配置按次计费价格') }}
           </div>
+          <p class="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-dark-400">
+            {{ t('admin.channels.form.tierLabelMatrixHint', '提示：层级标签用 "-" 分隔（如 Low-1024x1024）会在用户定价页自动渲染为二维矩阵；否则按扁平列表展示。') }}
+          </p>
         </div>
 
         <!-- Image mode -->
@@ -220,6 +223,9 @@
               @remove="removeInterval(idx)"
             />
           </div>
+          <p class="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-dark-400">
+            {{ t('admin.channels.form.tierLabelMatrixHint', '提示：层级标签用 "-" 分隔（如 Low-1024x1024）会在用户定价页自动渲染为二维矩阵；否则按扁平列表展示。') }}
+          </p>
         </div>
       </div>
     </div>
