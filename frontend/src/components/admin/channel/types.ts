@@ -201,6 +201,7 @@ export function getPlatformTagClass(platform: string): string {
     case 'glm': return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
     case 'qwen': return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
     case 'seedance': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+    case 'grok': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
     default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
   }
 }
@@ -217,6 +218,7 @@ export function getPlatformTextClass(platform: string): string {
     case 'glm': return 'text-rose-700 dark:text-rose-400'
     case 'qwen': return 'text-violet-700 dark:text-violet-400'
     case 'seedance': return 'text-amber-700 dark:text-amber-400'
+    case 'grok': return 'text-slate-700 dark:text-slate-300'
     default: return ''
   }
 }

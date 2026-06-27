@@ -8949,6 +8949,10 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 		if walletCost := p.walletCost(); walletCost > 0 {
 			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, walletCost); err != nil {
 				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
+			} else if deps.billingCacheService != nil {
+				if err := deps.billingCacheService.InvalidateUserBalance(billingCtx, p.User.ID); err != nil {
+					slog.Warn("invalidate balance cache after legacy deduction failed", "user_id", p.User.ID, "error", err)
+				}
 			}
 		}
 	}
@@ -9140,7 +9144,7 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 		}
 	} else if p.walletCost() > 0 && p.User != nil {
 		// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：钱包路径用 walletCost (含 markup)
-		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.walletCost())
+		syncBalanceCacheAfterDeduction(ctx, p, deps, result)
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
@@ -9187,6 +9191,25 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 	// no dependency on the request context or upstream connection.
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
+	if p == nil || p.Cost == nil || p.User == nil || deps == nil || deps.billingCacheService == nil {
+		return
+	}
+	if result != nil && result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			slog.Warn("invalidate balance cache after exhausted deduction failed",
+				"user_id", p.User.ID,
+				"new_balance", *result.NewBalance,
+				"balance_overdrafted", result.BalanceOverdrafted,
+				"error", err,
+			)
+		}
+		return
+	}
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 1.2)：钱包路径用 walletCost (含 markup)
+	deps.billingCacheService.QueueDeductBalance(p.User.ID, p.walletCost())
 }
 
 // notifyBalanceLow sends balance low notification after deduction.

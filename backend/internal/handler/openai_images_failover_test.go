@@ -56,6 +56,31 @@ func (r openAIImagesFailoverAccountRepo) accountsForPlatform(platform string) []
 	return out
 }
 
+func (r openAIImagesFailoverAccountRepo) accountsForPlatforms(platforms []string) []service.Account {
+	out := make([]service.Account, 0, len(r.accounts))
+	for _, account := range r.accounts {
+		for _, p := range platforms {
+			if account.Platform == p {
+				out = append(out, account)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func (r openAIImagesFailoverAccountRepo) ListSchedulableByPlatforms(_ context.Context, platforms []string) ([]service.Account, error) {
+	return r.accountsForPlatforms(platforms), nil
+}
+
+func (r openAIImagesFailoverAccountRepo) ListSchedulableByGroupIDAndPlatforms(_ context.Context, _ int64, platforms []string) ([]service.Account, error) {
+	return r.accountsForPlatforms(platforms), nil
+}
+
+func (r openAIImagesFailoverAccountRepo) ListSchedulableUngroupedByPlatforms(_ context.Context, platforms []string) ([]service.Account, error) {
+	return r.accountsForPlatforms(platforms), nil
+}
+
 type openAIImagesFailoverHTTPUpstream struct {
 	service.HTTPUpstream
 	mu         sync.Mutex
@@ -129,6 +154,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		nil,
 		nil,
 		upstream,
+		nil,
 		nil,
 		nil,
 		nil,
