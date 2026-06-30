@@ -36,9 +36,6 @@ func RegisterGatewayRoutes(
 		platform := getGroupPlatform(c)
 		return isOpenAICompatPlatform(platform) || platform == service.PlatformGrok
 	}
-	isOpenAIGatewayPlatform := func(c *gin.Context) bool {
-		return isOpenAICompatPlatform(getGroupPlatform(c))
-	}
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -59,7 +56,7 @@ func RegisterGatewayRoutes(
 		// /v1/messages/count_tokens: OpenAI uses Anthropic-compat bridge; other
 		// OpenAI-compatible platforms keep the prior unsupported response.
 		gateway.POST("/messages/count_tokens", func(c *gin.Context) {
-			if isOpenAIGatewayPlatform(c) {
+			if getGroupPlatform(c) == service.PlatformOpenAI {
 				h.OpenAIGateway.CountTokens(c)
 				return
 			}

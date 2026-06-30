@@ -51,6 +51,13 @@ const (
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
+	// kimiCodingUserAgent 是 Kimi For Coding（api.kimi.com）放行所需的 Coding Agent UA。
+	// Kimi 服务端对客户端做白名单校验：仅放行 Kimi CLI / Claude Code / Roo Code 等。
+	// 实测（2026-06-18）：匹配规则为大小写敏感的前缀 "claude-cli/"，版本号与 "(external, cli)"
+	// 后缀均不参与判定；旧值 "claude-code/1.0" 不在白名单内，Kimi 收紧校验后返回 403。
+	// 此处直接对齐真实 Claude Code 的 User-Agent 结构。
+	kimiCodingUserAgent = "claude-cli/2.1.162 (external, cli)"
+
 	// OpenAI WS Mode 失败后的重连次数上限（不含首次尝试）。
 	// 与 Codex 客户端保持一致：失败后最多重连 5 次。
 	openAIWSReconnectRetryLimit = 5
@@ -334,31 +341,33 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
+	accountRepo            AccountRepository
+	usageLogRepo           UsageLogRepository
+	usageBillingRepo       UsageBillingRepository
+	userRepo               UserRepository
+	userSubRepo            UserSubscriptionRepository
+	cache                  GatewayCache
+	cfg                    *config.Config
+	codexDetector          CodexClientRestrictionDetector
+	schedulerSnapshot      *SchedulerSnapshotService
+	concurrencyService     *ConcurrencyService
+	billingService         *BillingService
+	rateLimitService       *RateLimitService
+	billingCacheService    *BillingCacheService
+	userGroupRateResolver  *userGroupRateResolver
+	httpUpstream           HTTPUpstream
+	deferredService        *DeferredService
+	openAITokenProvider    *OpenAITokenProvider
+	grokTokenProvider      *GrokTokenProvider
+	toolCorrector          *CodexToolCorrector
+	openaiWSResolver       OpenAIWSProtocolResolver
+	resolver               *ModelPricingResolver
+	channelService         *ChannelService
+	balanceNotifyService   *BalanceNotifyService
+	settingService         *SettingService
+	merchantPricing        *MerchantPricingService        // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
+	userPlatformQuotaRepo  UserPlatformQuotaRepository
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -404,6 +413,8 @@ func NewOpenAIGatewayService(
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
+	merchantPricing *MerchantPricingService,
+	affiliateRebatePricing *AffiliateRebatePricingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
@@ -427,19 +438,21 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:          httpUpstream,
-		deferredService:       deferredService,
-		openAITokenProvider:   openAITokenProvider,
-		grokTokenProvider:     grokTokenProvider,
-		toolCorrector:         NewCodexToolCorrector(),
-		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
-		resolver:              resolver,
-		channelService:        channelService,
-		balanceNotifyService:  balanceNotifyService,
-		settingService:        settingService,
-		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		httpUpstream:           httpUpstream,
+		deferredService:        deferredService,
+		openAITokenProvider:    openAITokenProvider,
+		grokTokenProvider:      grokTokenProvider,
+		toolCorrector:          NewCodexToolCorrector(),
+		openaiWSResolver:       NewOpenAIWSProtocolResolver(cfg),
+		resolver:               resolver,
+		channelService:         channelService,
+		balanceNotifyService:   balanceNotifyService,
+		settingService:         settingService,
+		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle:  newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		merchantPricing:        merchantPricing,
+		affiliateRebatePricing: affiliateRebatePricing,
+		userPlatformQuotaRepo:  userPlatformQuotaRepo,
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
@@ -6382,6 +6395,46 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
 	}
+
+	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.2)：pricing hook
+	var merchantPricingResult MerchantUsagePricingResult
+	if s.merchantPricing != nil && cost != nil {
+		var groupID int64
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
+			UserID:         user.ID,
+			GroupID:        groupID,
+			RawCost:        cost.TotalCost,
+			SiteActualCost: cost.ActualCost,
+			BillingType:    billingType,
+			APIKeyID:       apiKey.ID,
+		})
+		if merchantPricingResult.BalanceCostOverride != nil {
+			usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride
+		}
+	}
+
+	// 邀请返利消费侧 hook（migration 143）
+	var affiliateRebateResult AffiliateRebateResult
+	if s.affiliateRebatePricing != nil && cost != nil {
+		var groupID int64
+		var groupExcluded bool
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		if apiKey.Group != nil {
+			groupExcluded = apiKey.Group.AffiliateRebateExcluded
+		}
+		affiliateRebateResult = s.affiliateRebatePricing.ApplyConsumptionRebate(ctx, AffiliateRebateInput{
+			UserID:         user.ID,
+			GroupID:        groupID,
+			GroupExcluded:  groupExcluded,
+			BillingType:    billingType,
+			SiteActualCost: cost.ActualCost,
+		})
+	}
 	if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = imageMultiplier
 	} else {
@@ -6462,6 +6515,14 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			AccountRateMultiplier: accountRateMultiplier,
 			APIKeyService:         input.APIKeyService,
 			Platform:              quotaPlatform,
+
+			// MERCHANT-SYSTEM v1.0
+			BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
+			MerchantOutbox:      merchantPricingResult.MerchantOutbox,
+			MerchantLedger:      merchantPricingResult.MerchantLedger,
+
+			// 邀请返利消费侧（migration 143）
+			AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

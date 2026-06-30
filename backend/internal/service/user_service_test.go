@@ -200,6 +200,12 @@ func (m *mockUserRepo) DeductBalance(ctx context.Context, id int64, amount float
 	}
 	return nil
 }
+func (m *mockUserRepo) DeductBalanceStrict(ctx context.Context, id int64, amount float64) error {
+	if m.deductBalanceFn != nil {
+		return m.deductBalanceFn(ctx, id, amount)
+	}
+	return nil
+}
 func (m *mockUserRepo) UpdateConcurrency(context.Context, int64, int) error { return nil }
 func (m *mockUserRepo) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
 func (m *mockUserRepo) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
