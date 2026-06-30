@@ -3,54 +3,65 @@
 package service
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
-// TestAccountTestService_GrokProbesXAINotAnthropic locks in that a Grok account's
-// connection test probes the xAI /responses endpoint with a Bearer access token,
-// instead of falling through to the Anthropic Messages probe (api.anthropic.com).
-func TestAccountTestService_GrokProbesXAINotAnthropic(t *testing.T) {
+func TestAccountTestService_TestAccountConnection_GrokUsesXAIResponses(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	ctx, recorder := newTestContext()
 
 	account := &Account{
-		ID:          77,
+		ID:          13,
+		Name:        "grok-oauth",
 		Platform:    PlatformGrok,
 		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
-			"access_token": "grok-test-token",
-			"base_url":     "https://api.x.ai/v1",
+			"access_token": "grok-access-token",
+			"expires_at":   time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+			"model_mapping": map[string]any{
+				"grok": "grok-4.3",
+			},
 		},
 	}
-
 	repo := &mockAccountRepoForGemini{
 		accountsByID: map[int64]*Account{account.ID: account},
 	}
-	upstream := &queuedHTTPUpstream{
-		responses: []*http.Response{newJSONResponse(http.StatusOK, `{"id":"resp_1","status":"completed"}`)},
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n" +
+				"data: {\"type\":\"response.completed\"}\n\n",
+		)),
+	}}
+	svc := &AccountTestService{
+		accountRepo:       repo,
+		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		httpUpstream:      upstream,
 	}
-	svc := &AccountTestService{accountRepo: repo, httpUpstream: upstream}
 
-	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/13/test", nil)
+
+	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
 	require.NoError(t, err)
 
-	require.Len(t, upstream.requests, 1)
-	captured := upstream.requests[0]
-
-	// Must hit xAI, never Anthropic.
-	require.Equal(t, "api.x.ai", captured.URL.Host)
-	require.NotContains(t, captured.URL.Host, "anthropic.com")
-	require.True(t, strings.HasSuffix(captured.URL.Path, "/responses"),
-		"expected xAI responses path, got %q", captured.URL.Path)
-
-	// Authorization header must carry the OAuth access token as a Bearer token.
-	require.Equal(t, "Bearer grok-test-token", captured.Header.Get("Authorization"))
-
-	require.Contains(t, recorder.Body.String(), "test_complete")
+	require.Equal(t, "https://api.x.ai/v1/responses", upstream.lastReq.URL.String())
+	require.Equal(t, "Bearer grok-access-token", upstream.lastReq.Header.Get("Authorization"))
+	require.Equal(t, "grok-4.3", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.NotContains(t, rec.Body.String(), "claude")
+	require.Contains(t, rec.Body.String(), `"model":"grok-4.3"`)
+	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }

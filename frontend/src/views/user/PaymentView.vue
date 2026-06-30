@@ -38,15 +38,7 @@
               <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
-              <p class="whitespace-pre-line text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
-              <div v-if="contactMethods.length > 0" class="mx-auto mt-6 w-fit space-y-2 text-sm">
-                <div v-for="item in contactMethods" :key="item.id || item.label + item.value" class="flex items-center justify-center gap-1.5">
-                  <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ contactLabel(item) }}：</span>
-                  <a v-if="contactHref(item)" :href="contactHref(item)" target="_blank" rel="noopener noreferrer"
-                    class="break-all font-medium text-primary-600 hover:underline dark:text-primary-400">{{ item.value }}</a>
-                  <span v-else class="break-all font-medium text-gray-700 dark:text-gray-200">{{ item.value }}</span>
-                </div>
-              </div>
+              <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
             <div class="card p-6">
@@ -112,9 +104,9 @@
                 <!-- Price -->
                 <div class="flex items-baseline gap-2">
                   <span v-if="selectedPlan.original_price" class="text-sm text-gray-400 line-through dark:text-gray-500">
-                    {{ formatSelectedPaymentAmount(selectedPlan.original_price) }}
+                    {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.original_price) }}
                   </span>
-                  <span :class="['text-3xl font-bold', planTextClass]">{{ formatSelectedPaymentAmount(selectedPlan.price) }}</span>
+                  <span :class="['text-3xl font-bold', planTextClass]">{{ formatSelectedSubscriptionPaymentAmount(selectedPlan.price) }}</span>
                   <span class="text-sm text-gray-500 dark:text-gray-400">/ {{ planValiditySuffix }}</span>
                 </div>
                 <!-- Description -->
@@ -158,7 +150,7 @@
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                    <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(selectedPlan.price) }}</span>
+                    <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(subPaymentAmount) }}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
@@ -175,7 +167,7 @@
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
-                <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(feeRate > 0 ? subTotalAmount : selectedPlan.price) }}</span>
+                <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
               <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
             </template>
@@ -283,57 +275,19 @@ import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, pl
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { ContactMethod } from '@/types'
-import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
 
 const i18n = useI18n()
-const { t, te } = i18n
+const { t } = i18n
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const paymentStore = usePaymentStore()
 const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
-
-// Contact methods shown on the "recharge unavailable" card (label：address)
-const contactMethods = computed<ContactMethod[]>(() =>
-  [...(appStore.cachedPublicSettings?.contact_methods ?? [])]
-    .filter((m) => m && m.label && m.value)
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-)
-
-function contactHref(item: ContactMethod): string {
-  const v = (item.value || '').trim()
-  if (!v) return ''
-  if (item.type === 'email') return v.startsWith('mailto:') ? v : `mailto:${v}`
-  if (item.type === 'telegram') return v.startsWith('http') ? v : `https://t.me/${v.replace(/^@/, '')}`
-  if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('mailto:')) return v
-  return ''
-}
-
-// Translate the admin-configured contact label by keyword, falling back to the
-// raw backend label when nothing matches. Platform prefix comes from `type`.
-const CONTACT_ROLE_KEYWORDS: { key: string; match: string[] }[] = [
-  { key: 'store', match: ['小店', '商店', '店鋪', '店铺', '店', 'shop', 'store'] },
-  { key: 'support', match: ['客服', '服務', '服务', 'support', 'service'] },
-  { key: 'community', match: ['社群', '群組', '群组', '群', 'community', 'group'] },
-  { key: 'channel', match: ['頻道', '频道', 'channel'] },
-  { key: 'company', match: ['公司', 'company'] },
-]
-
-function contactLabel(item: ContactMethod): string {
-  const raw = (item.label || '').trim()
-  const lower = raw.toLowerCase()
-  const role = CONTACT_ROLE_KEYWORDS.find((r) => r.match.some((m) => lower.includes(m.toLowerCase())))
-  if (!role) return raw
-  const roleText = t(`payment.contactRoles.${role.key}`)
-  const platformKey = `payment.contactPlatforms.${item.type}`
-  const platform = item.type && te(platformKey) ? t(platformKey) : ''
-  return platform ? `${platform} ${roleText}` : roleText
-}
 
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
@@ -539,7 +493,7 @@ const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
-  return multiplier > 0 ? multiplier : 1
+  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
 })
 const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
 
@@ -586,8 +540,49 @@ const localeCode = computed(() => {
   return undefined
 })
 
-function formatSelectedPaymentAmount(value: number): string {
-  return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
+interface PaymentAmountFormatOptions {
+  subscription?: boolean
+}
+
+function currencyFractionDigits(currency: string): number {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+    }).resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    return 2
+  }
+}
+
+function roundPaymentAmount(value: number, currency: string): number {
+  if (!Number.isFinite(value)) return 0
+  const factor = 10 ** currencyFractionDigits(currency)
+  return Math.round(value * factor) / factor
+}
+
+function ceilPaymentAmount(value: number, currency: string): number {
+  if (!Number.isFinite(value)) return 0
+  const factor = 10 ** currencyFractionDigits(currency)
+  return Math.ceil(value * factor) / factor
+}
+
+function subscriptionPaymentAmountForCurrency(value: number, currency: string): number {
+  if (currency !== DEFAULT_PAYMENT_CURRENCY) return value
+  return roundPaymentAmount(value / balanceRechargeMultiplier.value, currency)
+}
+
+function subscriptionPaymentAmount(value: number): number {
+  return subscriptionPaymentAmountForCurrency(value, selectedCurrency.value)
+}
+
+function formatSelectedPaymentAmount(value: number, options: PaymentAmountFormatOptions = {}): string {
+  const amount = options.subscription ? subscriptionPaymentAmount(value) : value
+  return formatPaymentAmount(amount, selectedCurrency.value, localeCode.value)
+}
+
+function formatSelectedSubscriptionPaymentAmount(value: number): string {
+  return formatSelectedPaymentAmount(value, { subscription: true })
 }
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
@@ -634,34 +629,45 @@ const canSubmit = computed(() =>
     && selectedLimit.value?.available !== false
 )
 
-// Subscription-specific: method options based on plan price
+const subPaymentAmount = computed(() => {
+  const price = selectedPlan.value?.price ?? 0
+  return subscriptionPaymentAmount(price)
+})
+
+const subFeeAmount = computed(() => {
+  if (feeRate.value <= 0 || subPaymentAmount.value <= 0) return 0
+  return ceilPaymentAmount((subPaymentAmount.value * feeRate.value) / 100, selectedCurrency.value)
+})
+
+const subTotalAmount = computed(() => {
+  if (feeRate.value <= 0 || subPaymentAmount.value <= 0) return subPaymentAmount.value
+  return roundPaymentAmount(subPaymentAmount.value + subFeeAmount.value, selectedCurrency.value)
+})
+
+function subscriptionTotalAmountForCurrency(value: number, currency: string): number {
+  const paymentAmount = subscriptionPaymentAmountForCurrency(value, currency)
+  if (feeRate.value <= 0 || paymentAmount <= 0) return paymentAmount
+  const fee = ceilPaymentAmount((paymentAmount * feeRate.value) / 100, currency)
+  return roundPaymentAmount(paymentAmount + fee, currency)
+}
+
+// Subscription-specific: method options based on gateway pay amount
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
-  const planPrice = selectedPlan.value?.price ?? 0
+  const price = selectedPlan.value?.price ?? 0
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
+    const currency = normalizePaymentCurrency(ml?.currency)
     return {
       type,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(planPrice, type),
+      available: ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
     }
   })
 })
 
-const subFeeAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return 0
-  return Math.ceil(((price * feeRate.value) / 100) * 100) / 100
-})
-
-const subTotalAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return price
-  return Math.round((price + subFeeAmount.value) * 100) / 100
-})
-
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
-    && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
+    && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
 

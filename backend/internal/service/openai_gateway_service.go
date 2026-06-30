@@ -41,21 +41,15 @@ const (
 	// ChatGPT internal API for OAuth accounts
 	chatgptCodexURL = "https://chatgpt.com/backend-api/codex/responses"
 	// OpenAI Platform API for API Key accounts (fallback)
-	openaiPlatformAPIURL   = "https://api.openai.com/v1/responses"
-	openaiStickySessionTTL = time.Hour // 粘性会话TTL
+	openaiPlatformAPIURL            = "https://api.openai.com/v1/responses"
+	openaiPlatformAPIInputTokensURL = "https://api.openai.com/v1/responses/input_tokens"
+	openaiStickySessionTTL          = time.Hour // 粘性会话TTL
 	// 与真实 Codex CLI 的 User-Agent 结构对齐：
 	// {originator}/{version} ({OS} {OS_version}; {arch}) {terminal}
 	// 旧值 "codex_cli_rs/0.125.0" 缺少 OS/架构/终端后缀，易被上游指纹识别为非官方客户端。
 	codexCLIUserAgent = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
-
-	// kimiCodingUserAgent 是 Kimi For Coding（api.kimi.com）放行所需的 Coding Agent UA。
-	// Kimi 服务端对客户端做白名单校验：仅放行 Kimi CLI / Claude Code / Roo Code 等。
-	// 实测（2026-06-18）：匹配规则为大小写敏感的前缀 "claude-cli/"，版本号与 "(external, cli)"
-	// 后缀均不参与判定；旧值 "claude-code/1.0" 不在白名单内，Kimi 收紧校验后返回 403。
-	// 此处直接对齐真实 Claude Code 的 User-Agent 结构。
-	kimiCodingUserAgent = "claude-cli/2.1.162 (external, cli)"
 
 	// OpenAI WS Mode 失败后的重连次数上限（不含首次尝试）。
 	// 与 Codex 客户端保持一致：失败后最多重连 5 次。
@@ -340,33 +334,31 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo            AccountRepository
-	usageLogRepo           UsageLogRepository
-	usageBillingRepo       UsageBillingRepository
-	userRepo               UserRepository
-	userSubRepo            UserSubscriptionRepository
-	cache                  GatewayCache
-	cfg                    *config.Config
-	codexDetector          CodexClientRestrictionDetector
-	schedulerSnapshot      *SchedulerSnapshotService
-	concurrencyService     *ConcurrencyService
-	billingService         *BillingService
-	rateLimitService       *RateLimitService
-	billingCacheService    *BillingCacheService
-	userGroupRateResolver  *userGroupRateResolver
-	httpUpstream           HTTPUpstream
-	deferredService        *DeferredService
-	openAITokenProvider    *OpenAITokenProvider
-	grokTokenProvider      *GrokTokenProvider
-	toolCorrector          *CodexToolCorrector
-	openaiWSResolver       OpenAIWSProtocolResolver
-	resolver               *ModelPricingResolver
-	channelService         *ChannelService
-	balanceNotifyService   *BalanceNotifyService
-	settingService         *SettingService
-	merchantPricing        *MerchantPricingService        // MERCHANT-SYSTEM v1.0
-	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
-	userPlatformQuotaRepo  UserPlatformQuotaRepository
+	accountRepo           AccountRepository
+	usageLogRepo          UsageLogRepository
+	usageBillingRepo      UsageBillingRepository
+	userRepo              UserRepository
+	userSubRepo           UserSubscriptionRepository
+	cache                 GatewayCache
+	cfg                   *config.Config
+	codexDetector         CodexClientRestrictionDetector
+	schedulerSnapshot     *SchedulerSnapshotService
+	concurrencyService    *ConcurrencyService
+	billingService        *BillingService
+	rateLimitService      *RateLimitService
+	billingCacheService   *BillingCacheService
+	userGroupRateResolver *userGroupRateResolver
+	httpUpstream          HTTPUpstream
+	deferredService       *DeferredService
+	openAITokenProvider   *OpenAITokenProvider
+	grokTokenProvider     *GrokTokenProvider
+	toolCorrector         *CodexToolCorrector
+	openaiWSResolver      OpenAIWSProtocolResolver
+	resolver              *ModelPricingResolver
+	channelService        *ChannelService
+	balanceNotifyService  *BalanceNotifyService
+	settingService        *SettingService
+	userPlatformQuotaRepo UserPlatformQuotaRepository
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -412,8 +404,6 @@ func NewOpenAIGatewayService(
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
-	merchantPricing *MerchantPricingService,
-	affiliateRebatePricing *AffiliateRebatePricingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
@@ -437,21 +427,19 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:           httpUpstream,
-		deferredService:        deferredService,
-		openAITokenProvider:    openAITokenProvider,
-		grokTokenProvider:      grokTokenProvider,
-		toolCorrector:          NewCodexToolCorrector(),
-		openaiWSResolver:       NewOpenAIWSProtocolResolver(cfg),
-		resolver:               resolver,
-		channelService:         channelService,
-		balanceNotifyService:   balanceNotifyService,
-		settingService:         settingService,
-		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle:  newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		merchantPricing:        merchantPricing,
-		affiliateRebatePricing: affiliateRebatePricing,
-		userPlatformQuotaRepo:  userPlatformQuotaRepo,
+		httpUpstream:          httpUpstream,
+		deferredService:       deferredService,
+		openAITokenProvider:   openAITokenProvider,
+		grokTokenProvider:     grokTokenProvider,
+		toolCorrector:         NewCodexToolCorrector(),
+		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
+		resolver:              resolver,
+		channelService:        channelService,
+		balanceNotifyService:  balanceNotifyService,
+		settingService:        settingService,
+		userPlatformQuotaRepo: userPlatformQuotaRepo,
+		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
@@ -1208,6 +1196,51 @@ func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string
 	return match(string(upstreamBody))
 }
 
+func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
+	match := func(text string) bool {
+		lower := strings.ToLower(strings.TrimSpace(text))
+		if lower == "" {
+			return false
+		}
+		if strings.Contains(lower, "context_too_large") || strings.Contains(lower, "context_length_exceeded") {
+			return true
+		}
+		if strings.Contains(lower, "maximum context length") || strings.Contains(lower, "max context length") {
+			return true
+		}
+		hasExceeded := strings.Contains(lower, "exceed") || strings.Contains(lower, "too large") || strings.Contains(lower, "too long")
+		if strings.Contains(lower, "context window") && hasExceeded {
+			return true
+		}
+		if strings.Contains(lower, "context length") && hasExceeded {
+			return true
+		}
+		return strings.Contains(lower, "token limit") &&
+			strings.Contains(lower, "context") &&
+			hasExceeded
+	}
+
+	if match(upstreamMsg) {
+		return true
+	}
+	if len(upstreamBody) == 0 {
+		return false
+	}
+	for _, path := range []string{
+		"error.message",
+		"response.error.message",
+		"message",
+		"error.code",
+		"response.error.code",
+		"code",
+	} {
+		if match(gjson.GetBytes(upstreamBody, path).String()) {
+			return true
+		}
+	}
+	return match(string(upstreamBody))
+}
+
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
 func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
@@ -1359,7 +1392,7 @@ func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool)
 // openAICompactSupportTier classifies an OpenAI account by compact capability.
 // 0 = explicitly unsupported, 1 = unknown / not yet probed, 2 = explicitly supported.
 func openAICompactSupportTier(account *Account) int {
-	if account == nil || !account.IsOpenAICompatible() {
+	if account == nil || !account.IsOpenAI() {
 		return 0
 	}
 	supported, known := account.OpenAICompactSupportKnown()
@@ -1372,13 +1405,9 @@ func openAICompactSupportTier(account *Account) int {
 	return 0
 }
 
-// isOpenAICompatibleAccountEligibleForRequest centralises the schedulable / OpenAI /
-// model / compact-support checks used during account selection. The platform gate
-// compares ROUTE FAMILIES (via normalizeOpenAICompatiblePlatform) rather than raw
-// platforms, so deepseek/glm/qwen/moonshot/seedance accounts stay schedulable on the
-// OpenAI-compatible route while grok is isolated to its own family.
 func isOpenAICompatibleAccountEligibleForRequest(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
-	if account == nil || normalizeOpenAICompatiblePlatform(account.Platform) != normalizeOpenAICompatiblePlatform(platform) || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
+	platform = normalizeOpenAICompatiblePlatform(platform)
+	if account == nil || account.Platform != platform || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
 		return false
 	}
 	if account.IsOpenAI() {
@@ -1488,7 +1517,7 @@ func grokQuotaSnapshotStaleForPause(snapshot *xai.QuotaSnapshot, now time.Time) 
 }
 
 func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) (bool, openAIQuotaAutoPauseDecision) {
-	if account == nil || !account.IsOpenAICompatible() {
+	if account == nil || !account.IsOpenAI() {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
 	// Per-account explicit-disable flags must take precedence over the global default.
@@ -2264,40 +2293,20 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	return nil, ErrNoAvailableAccounts
 }
 
-// openAICompatPlatforms 是经 OpenAI 兼容派发层（账号调度 / token / 模型放行）的全部平台名单，
-// 含 OpenAI 与五个国产平台（含 Seedance）。Grok 自成一个路由家族，单独调度，不在此列表内。
-var openAICompatPlatforms = []string{PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen, PlatformSeedance}
-
-// schedulablePlatformsForRouteFamily 根据归一化后的路由家族返回应纳入调度的平台名单：
-// Grok 家族只查 Grok；OpenAI 兼容家族则覆盖 OpenAI 与五个国产平台。
-func schedulablePlatformsForRouteFamily(platform string) []string {
-	if normalizeOpenAICompatiblePlatform(platform) == PlatformGrok {
-		return []string{PlatformGrok}
-	}
-	return openAICompatPlatforms
-}
-
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
-	platforms := schedulablePlatformsForRouteFamily(platform)
+	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.schedulerSnapshot != nil {
-		var allAccounts []Account
-		for _, p := range platforms {
-			accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, p, true)
-			if err != nil {
-				return nil, err
-			}
-			allAccounts = append(allAccounts, accounts...)
-		}
-		return allAccounts, nil
+		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
+		return accounts, err
 	}
 	var accounts []Account
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		accounts, err = s.accountRepo.ListSchedulableByPlatforms(ctx, platforms)
+		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
 	} else if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, platforms)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, platforms)
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
@@ -2428,26 +2437,6 @@ func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
-	// OpenAI 兼容的国产平台（DeepSeek / Moonshot / GLM / Qwen / Seedance）只用 API Key。
-	// Grok 虽然也算 OpenAI 兼容，但走自己的 OAuth(access_token)/APIKey 分支，必须排除，
-	// 否则会被这里的 api_key-only 逻辑吞掉，导致 Grok OAuth 账号取不到 access_token。
-	if account.IsOpenAICompatible() && !account.IsOpenAI() && !account.IsGrok() {
-		tp := s.resolveTokenProviderForPlatform(account.Platform)
-		if tp != nil {
-			token, err := tp.GetAccessToken(ctx, account)
-			if err != nil {
-				return "", "", err
-			}
-			return token, "apikey", nil
-		}
-		// fallback: 直接从凭据读取 api_key
-		apiKey := account.GetCredential("api_key")
-		if apiKey == "" {
-			return "", "", fmt.Errorf("api_key not found in credentials for platform %s", account.Platform)
-		}
-		return apiKey, "apikey", nil
-	}
-
 	switch account.Type {
 	case AccountTypeOAuth:
 		if account.Platform == PlatformGrok {
@@ -2496,30 +2485,6 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 	}
 }
 
-// platformTokenProvider is a common interface for platform-specific token providers.
-type platformTokenProvider interface {
-	GetAccessToken(ctx context.Context, account *Account) (string, error)
-}
-
-// resolveTokenProviderForPlatform returns the stateless token provider for the
-// given OpenAI-compatible platform. Returns nil for unknown platforms.
-func (s *OpenAIGatewayService) resolveTokenProviderForPlatform(platform string) platformTokenProvider {
-	switch platform {
-	case PlatformDeepSeek:
-		return NewDeepSeekTokenProvider()
-	case PlatformMoonshot:
-		return NewMoonshotTokenProvider()
-	case PlatformGLM:
-		return NewGLMTokenProvider()
-	case PlatformQwen:
-		return NewQwenTokenProvider()
-	case PlatformSeedance:
-		return NewSeedanceTokenProvider()
-	default:
-		return nil
-	}
-}
-
 func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool {
 	switch statusCode {
 	case 401, 402, 403, 429, 529:
@@ -2530,6 +2495,9 @@ func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool 
 }
 
 func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
+	if isOpenAIContextWindowError(upstreamMsg, upstreamBody) {
+		return false
+	}
 	if s.shouldFailoverUpstreamError(statusCode) {
 		return true
 	}
@@ -2776,6 +2744,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if codexImageGenerationBridgeEnabled && ensureOpenAIResponsesImageGenerationTool(decoded) {
 			markDecodedModified()
 			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Injected /responses image_generation tool for Codex client")
+		}
+		if codexImageGenerationBridgeEnabled && ensureOpenAIResponsesImageGenerationToolChoiceAuto(decoded) {
+			markDecodedModified()
+			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Set /responses image_generation tool_choice=auto for Codex client")
 		}
 		if normalizeOpenAIResponsesImageGenerationTools(decoded) {
 			markDecodedModified()
@@ -3836,8 +3808,7 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	if contentType == "" {
 		contentType = "application/json"
 	}
-	// 透传模式：保留上游错误 JSON 结构，但对 body 脱敏，去除上游渠道身份(host/url/key/IP)
-	c.Data(resp.StatusCode, contentType, []byte(sanitizeUpstreamErrorMessage(string(body))))
+	c.Data(resp.StatusCode, contentType, body)
 
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", resp.StatusCode)
@@ -3931,6 +3902,9 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 }
 
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
+	if isOpenAIContextWindowError(message, payload) {
+		return false
+	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
 		return true
 	}
@@ -3963,17 +3937,18 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	return true
 }
 
-func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
+func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	c *gin.Context,
 	account *Account,
 	passthrough bool,
 	upstreamRequestID string,
+	kind string,
 	payload []byte,
 	message string,
-) *UpstreamFailoverError {
+) string {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
-		message = "OpenAI stream disconnected before completion"
+		message = "OpenAI upstream response failed"
 	}
 	detail := ""
 	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -3990,7 +3965,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 			UpstreamStatusCode: http.StatusBadGateway,
 			UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
 			Passthrough:        passthrough,
-			Kind:               "failover",
+			Kind:               kind,
 			Message:            message,
 			Detail:             detail,
 		}
@@ -4001,6 +3976,22 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 		}
 		appendOpsUpstreamError(c, event)
 	}
+	return message
+}
+
+func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
+	c *gin.Context,
+	account *Account,
+	passthrough bool,
+	upstreamRequestID string,
+	payload []byte,
+	message string,
+) *UpstreamFailoverError {
+	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	if message == "" {
+		message = "OpenAI stream disconnected before completion"
+	}
+	message = s.recordOpenAIStreamUpstreamError(c, account, passthrough, upstreamRequestID, "failover", payload, message)
 	body, _ := json.Marshal(gin.H{
 		"error": gin.H{
 			"type":    "upstream_error",
@@ -4472,14 +4463,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		req.Header.Set("user-agent", customUA)
 	}
 
-	// Kimi For Coding 对客户端做白名单校验，需为 Coding Agent UA（前缀 claude-cli/）。
-	// 当 Moonshot 平台账号使用 api.kimi.com 端点且未自定义 UA 时，自动设置。
-	if account.Platform == PlatformMoonshot && customUA == "" {
-		if baseURL := account.GetCredential("base_url"); strings.Contains(baseURL, "api.kimi.com") {
-			req.Header.Set("user-agent", kimiCodingUserAgent)
-		}
-	}
-
 	// 若开启 ForceCodexCLI，则强制将上游 User-Agent 伪装为 Codex CLI。
 	// 用于网关未透传/改写 User-Agent 时，仍能命中 Codex 侧识别逻辑。
 	if s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
@@ -4687,6 +4670,9 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream request failed"
+	}
+	if isOpenAIContextWindowError(upstreamMsg, body) && upstreamMsg != "" {
+		errMsg = upstreamMsg
 	}
 
 	c.JSON(statusCode, gin.H{
@@ -6182,6 +6168,7 @@ type OpenAIRecordUsageInput struct {
 	IPAddress          string // 请求的客户端 IP 地址
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
+	QuotaPlatform      string // user×platform quota platform resolved by the handler before async billing.
 	// CyberBlocked 为 true 时把该用量行标记为 cyber（request_type=cyber），计费逻辑不变。
 	CyberBlocked bool
 	ChannelUsageFields
@@ -6318,22 +6305,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		result.UpstreamModel,
 		result.Model,
 	)
-	// L3 防伪造:计费前把上游上报 output 封顶到模型物理上限(2026-06 gegemini 事件)。
-	// 同步 result.Usage(写 usage_log)与 tokens(算 cost),口径一致;原始(封顶前)值
-	// 留审计 + L2 上报 guard 检测伪造。
-	reportedOutputTokens := result.Usage.OutputTokens
-	if s.cfg != nil && s.cfg.Gateway.OutputCap.Enabled {
-		if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
-			logger.L().With(
-				zap.String("component", "service.openai_gateway.output_cap"),
-				zap.String("billing_model", billingModel),
-				zap.Int("reported_output", result.Usage.OutputTokens),
-				zap.Int("capped_output", capped),
-			).Warn("output_tokens.capped_before_billing")
-			result.Usage.OutputTokens = capped
-			tokens.OutputTokens = capped
-		}
-	}
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
@@ -6411,46 +6382,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
 	}
-
-	// MERCHANT-SYSTEM v1.0 (RFC §5.2.1 Step 2.2)：pricing hook
-	var merchantPricingResult MerchantUsagePricingResult
-	if s.merchantPricing != nil && cost != nil {
-		var groupID int64
-		if apiKey.GroupID != nil {
-			groupID = *apiKey.GroupID
-		}
-		merchantPricingResult = s.merchantPricing.ApplyUsageMarkup(ctx, MerchantUsagePricingInput{
-			UserID:         user.ID,
-			GroupID:        groupID,
-			RawCost:        cost.TotalCost,
-			SiteActualCost: cost.ActualCost,
-			BillingType:    billingType,
-			APIKeyID:       apiKey.ID,
-		})
-		if merchantPricingResult.BalanceCostOverride != nil {
-			usageLog.ActualCost = *merchantPricingResult.BalanceCostOverride
-		}
-	}
-
-	// 邀请返利消费侧 hook（migration 143）
-	var affiliateRebateResult AffiliateRebateResult
-	if s.affiliateRebatePricing != nil && cost != nil {
-		var groupID int64
-		var groupExcluded bool
-		if apiKey.GroupID != nil {
-			groupID = *apiKey.GroupID
-		}
-		if apiKey.Group != nil {
-			groupExcluded = apiKey.Group.AffiliateRebateExcluded
-		}
-		affiliateRebateResult = s.affiliateRebatePricing.ApplyConsumptionRebate(ctx, AffiliateRebateInput{
-			UserID:         user.ID,
-			GroupID:        groupID,
-			GroupExcluded:  groupExcluded,
-			BillingType:    billingType,
-			SiteActualCost: cost.ActualCost,
-		})
-	}
 	if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = imageMultiplier
 	} else {
@@ -6512,6 +6443,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return nil
 	}
 
+	// Async usage billing runs outside the original request context, so it
+	// cannot recover ForcePlatform there. Fall back for internal/test callers.
+	quotaPlatform := input.QuotaPlatform
+	if quotaPlatform == "" {
+		quotaPlatform = PlatformFromAPIKey(apiKey)
+	}
+
 	billingErr := func() error {
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
 			Cost:                  cost,
@@ -6523,15 +6461,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			IsSubscriptionBill:    isSubscriptionBilling,
 			AccountRateMultiplier: accountRateMultiplier,
 			APIKeyService:         input.APIKeyService,
-			Platform:              PlatformFromAPIKey(apiKey),
-
-			// MERCHANT-SYSTEM v1.0
-			BalanceCostOverride: merchantPricingResult.BalanceCostOverride,
-			MerchantOutbox:      merchantPricingResult.MerchantOutbox,
-			MerchantLedger:      merchantPricingResult.MerchantLedger,
-
-			// 邀请返利消费侧（migration 143）
-			AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
+			Platform:              quotaPlatform,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()
@@ -6540,27 +6470,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-
-	// L2:真实流量样本异步上报 guard(off 热路径,错误全吞)。completion_tokens 送封顶前原始 output。
-	if gr := GuardReporterFromConfig(s.cfg.Gateway.GuardReport); gr != nil {
-		billed := 0.0
-		if cost != nil {
-			billed = cost.TotalCost
-		}
-		gr.Enqueue(GuardSample{
-			Sub2apiAccountID: account.ID,
-			Model:            billingModel,
-			RequestedModel:   requestedModel,
-			ResponseModel:    result.UpstreamModel,
-			RequestID:        result.RequestID,
-			IsStream:         result.Stream,
-			StreamCompleted:  result.Stream && !result.ClientDisconnect,
-			PromptTokens:     result.Usage.InputTokens,
-			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output
-			TotalTokens:      result.Usage.InputTokens + reportedOutputTokens,
-			BilledAmount:     billed,
-		})
-	}
 
 	return nil
 }
