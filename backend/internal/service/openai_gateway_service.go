@@ -1405,7 +1405,7 @@ func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool)
 // openAICompactSupportTier classifies an OpenAI account by compact capability.
 // 0 = explicitly unsupported, 1 = unknown / not yet probed, 2 = explicitly supported.
 func openAICompactSupportTier(account *Account) int {
-	if account == nil || !account.IsOpenAI() {
+	if account == nil || !account.IsOpenAICompatible() {
 		return 0
 	}
 	supported, known := account.OpenAICompactSupportKnown()
@@ -1418,9 +1418,13 @@ func openAICompactSupportTier(account *Account) int {
 	return 0
 }
 
+// isOpenAICompatibleAccountEligibleForRequest centralises the schedulable / OpenAI /
+// model / compact-support checks used during account selection. The platform gate
+// compares ROUTE FAMILIES (via normalizeOpenAICompatiblePlatform) rather than raw
+// platforms, so deepseek/glm/qwen/moonshot/seedance accounts stay schedulable on the
+// OpenAI-compatible route while grok is isolated to its own family.
 func isOpenAICompatibleAccountEligibleForRequest(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
-	platform = normalizeOpenAICompatiblePlatform(platform)
-	if account == nil || account.Platform != platform || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
+	if account == nil || normalizeOpenAICompatiblePlatform(account.Platform) != normalizeOpenAICompatiblePlatform(platform) || !account.IsOpenAICompatible() || !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
 		return false
 	}
 	if account.IsOpenAI() {
@@ -1530,7 +1534,7 @@ func grokQuotaSnapshotStaleForPause(snapshot *xai.QuotaSnapshot, now time.Time) 
 }
 
 func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) (bool, openAIQuotaAutoPauseDecision) {
-	if account == nil || !account.IsOpenAI() {
+	if account == nil || !account.IsOpenAICompatible() {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
 	// Per-account explicit-disable flags must take precedence over the global default.
@@ -2306,20 +2310,40 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	return nil, ErrNoAvailableAccounts
 }
 
+// openAICompatPlatforms 是经 OpenAI 兼容派发层（账号调度 / token / 模型放行）的全部平台名单，
+// 含 OpenAI 与五个国产平台（含 Seedance）。Grok 自成一个路由家族，单独调度，不在此列表内。
+var openAICompatPlatforms = []string{PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen, PlatformSeedance}
+
+// schedulablePlatformsForRouteFamily 根据归一化后的路由家族返回应纳入调度的平台名单：
+// Grok 家族只查 Grok；OpenAI 兼容家族则覆盖 OpenAI 与五个国产平台。
+func schedulablePlatformsForRouteFamily(platform string) []string {
+	if normalizeOpenAICompatiblePlatform(platform) == PlatformGrok {
+		return []string{PlatformGrok}
+	}
+	return openAICompatPlatforms
+}
+
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
-	platform = normalizeOpenAICompatiblePlatform(platform)
+	platforms := schedulablePlatformsForRouteFamily(platform)
 	if s.schedulerSnapshot != nil {
-		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
-		return accounts, err
+		var allAccounts []Account
+		for _, p := range platforms {
+			accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, p, true)
+			if err != nil {
+				return nil, err
+			}
+			allAccounts = append(allAccounts, accounts...)
+		}
+		return allAccounts, nil
 	}
 	var accounts []Account
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
+		accounts, err = s.accountRepo.ListSchedulableByPlatforms(ctx, platforms)
 	} else if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, platforms)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, platforms)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
@@ -2450,6 +2474,26 @@ func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
+	// OpenAI 兼容的国产平台（DeepSeek / Moonshot / GLM / Qwen / Seedance）只用 API Key。
+	// Grok 虽然也算 OpenAI 兼容，但走自己的 OAuth(access_token)/APIKey 分支，必须排除，
+	// 否则会被这里的 api_key-only 逻辑吞掉，导致 Grok OAuth 账号取不到 access_token。
+	if account.IsOpenAICompatible() && !account.IsOpenAI() && !account.IsGrok() {
+		tp := s.resolveTokenProviderForPlatform(account.Platform)
+		if tp != nil {
+			token, err := tp.GetAccessToken(ctx, account)
+			if err != nil {
+				return "", "", err
+			}
+			return token, "apikey", nil
+		}
+		// fallback: 直接从凭据读取 api_key
+		apiKey := account.GetCredential("api_key")
+		if apiKey == "" {
+			return "", "", fmt.Errorf("api_key not found in credentials for platform %s", account.Platform)
+		}
+		return apiKey, "apikey", nil
+	}
+
 	switch account.Type {
 	case AccountTypeOAuth:
 		if account.Platform == PlatformGrok {
@@ -2495,6 +2539,30 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 		return apiKey, "apikey", nil
 	default:
 		return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
+	}
+}
+
+// platformTokenProvider is a common interface for platform-specific token providers.
+type platformTokenProvider interface {
+	GetAccessToken(ctx context.Context, account *Account) (string, error)
+}
+
+// resolveTokenProviderForPlatform returns the stateless token provider for the
+// given OpenAI-compatible platform. Returns nil for unknown platforms.
+func (s *OpenAIGatewayService) resolveTokenProviderForPlatform(platform string) platformTokenProvider {
+	switch platform {
+	case PlatformDeepSeek:
+		return NewDeepSeekTokenProvider()
+	case PlatformMoonshot:
+		return NewMoonshotTokenProvider()
+	case PlatformGLM:
+		return NewGLMTokenProvider()
+	case PlatformQwen:
+		return NewQwenTokenProvider()
+	case PlatformSeedance:
+		return NewSeedanceTokenProvider()
+	default:
+		return nil
 	}
 }
 
@@ -3821,7 +3889,8 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	if contentType == "" {
 		contentType = "application/json"
 	}
-	c.Data(resp.StatusCode, contentType, body)
+	// 透传模式：保留上游错误 JSON 结构，但对 body 脱敏，去除上游渠道身份(host/url/key/IP)
+	c.Data(resp.StatusCode, contentType, []byte(sanitizeUpstreamErrorMessage(string(body))))
 
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", resp.StatusCode)
@@ -4474,6 +4543,14 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	customUA := account.GetOpenAIUserAgent()
 	if customUA != "" {
 		req.Header.Set("user-agent", customUA)
+	}
+
+	// Kimi For Coding 对客户端做白名单校验，需为 Coding Agent UA（前缀 claude-cli/）。
+	// 当 Moonshot 平台账号使用 api.kimi.com 端点且未自定义 UA 时，自动设置。
+	if account.Platform == PlatformMoonshot && customUA == "" {
+		if baseURL := account.GetCredential("base_url"); strings.Contains(baseURL, "api.kimi.com") {
+			req.Header.Set("user-agent", kimiCodingUserAgent)
+		}
 	}
 
 	// 若开启 ForceCodexCLI，则强制将上游 User-Agent 伪装为 Codex CLI。
@@ -6318,6 +6395,22 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		result.UpstreamModel,
 		result.Model,
 	)
+	// L3 防伪造:计费前把上游上报 output 封顶到模型物理上限(2026-06 gegemini 事件)。
+	// 同步 result.Usage(写 usage_log)与 tokens(算 cost),口径一致;原始(封顶前)值
+	// 留审计 + L2 上报 guard 检测伪造。
+	reportedOutputTokens := result.Usage.OutputTokens
+	if s.cfg != nil && s.cfg.Gateway.OutputCap.Enabled {
+		if capped, clamped := s.billingService.CapOutputTokens(billingModel, result.Usage.OutputTokens, result.Usage.ImageOutputTokens); clamped {
+			logger.L().With(
+				zap.String("component", "service.openai_gateway.output_cap"),
+				zap.String("billing_model", billingModel),
+				zap.Int("reported_output", result.Usage.OutputTokens),
+				zap.Int("capped_output", capped),
+			).Warn("output_tokens.capped_before_billing")
+			result.Usage.OutputTokens = capped
+			tokens.OutputTokens = capped
+		}
+	}
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
@@ -6531,6 +6624,27 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+
+	// L2:真实流量样本异步上报 guard(off 热路径,错误全吞)。completion_tokens 送封顶前原始 output。
+	if gr := GuardReporterFromConfig(s.cfg.Gateway.GuardReport); gr != nil {
+		billed := 0.0
+		if cost != nil {
+			billed = cost.TotalCost
+		}
+		gr.Enqueue(GuardSample{
+			Sub2apiAccountID: account.ID,
+			Model:            billingModel,
+			RequestedModel:   requestedModel,
+			ResponseModel:    result.UpstreamModel,
+			RequestID:        result.RequestID,
+			IsStream:         result.Stream,
+			StreamCompleted:  result.Stream && !result.ClientDisconnect,
+			PromptTokens:     result.Usage.InputTokens,
+			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output
+			TotalTokens:      result.Usage.InputTokens + reportedOutputTokens,
+			BilledAmount:     billed,
+		})
+	}
 
 	return nil
 }
