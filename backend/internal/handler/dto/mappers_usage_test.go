@@ -28,6 +28,43 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+// TestUsageLogFromService_PriceCurrencyFollowsBilledUpstreamModel 锁定:计价币种按"实际
+// 计费的上游模型"判定——发生模型映射时(如 claude→deepseek 按人民币计费)不被请求名误标成 $。
+// 只下发 price_currency,不暴露 upstream_model(普通用户 DTO 隐私约束仍成立)。
+func TestUsageLogFromService_PriceCurrencyFollowsBilledUpstreamModel(t *testing.T) {
+	t.Parallel()
+
+	// 映射场景:请求 claude-opus-4-8 → 上游 deepseek-v4-pro(人民币计费),用户端+管理端均判 CNY。
+	upstream := "deepseek-v4-pro"
+	mapped := &service.UsageLog{
+		RequestID:      "req_cny_map",
+		Model:          "claude-opus-4-8",
+		RequestedModel: "claude-opus-4-8",
+		UpstreamModel:  &upstream,
+	}
+	require.Equal(t, "CNY", UsageLogFromService(mapped).PriceCurrency)
+	require.Equal(t, "CNY", UsageLogFromServiceAdmin(mapped).PriceCurrency)
+
+	// 直连 deepseek(无映射):按 model 判 CNY。
+	direct := &service.UsageLog{RequestID: "req_cny_direct", Model: "deepseek-v4-pro"}
+	require.Equal(t, "CNY", UsageLogFromService(direct).PriceCurrency)
+
+	// 直连 claude(无映射):USD。
+	claude := &service.UsageLog{RequestID: "req_usd", Model: "claude-opus-4-8"}
+	require.Equal(t, "USD", UsageLogFromService(claude).PriceCurrency)
+
+	// 映射到海外模型:USD(即便走了映射,上游是美元口径)。
+	gpt := "gpt-5.4"
+	mappedUSD := &service.UsageLog{RequestID: "req_usd_map", Model: "claude-opus-4-8", UpstreamModel: &gpt}
+	require.Equal(t, "USD", UsageLogFromService(mappedUSD).PriceCurrency)
+
+	// 普通用户 DTO 隐私:JSON 里绝不出现 upstream_model。
+	userJSON, err := json.Marshal(UsageLogFromService(mapped))
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "upstream_model")
+	require.Contains(t, string(userJSON), `"price_currency":"CNY"`)
+}
+
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 

@@ -492,6 +492,10 @@ type UsageLog struct {
 	// BillingMode 计费模式：token/image
 	BillingMode *string `json:"billing_mode,omitempty"`
 
+	// PriceCurrency 该条用量成本的计价币种："CNY"（国产模型走人民币官方价）或 "USD"（默认）。
+	// 由后端按实际计费模型判定（service.ModelPriceCurrency），前端据此渲染 ¥/$ 符号。
+	PriceCurrency string `json:"price_currency"`
+
 	CreatedAt time.Time `json:"created_at"`
 
 	User         *User             `json:"user,omitempty"`

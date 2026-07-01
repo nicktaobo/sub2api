@@ -567,6 +567,7 @@ func TestAPIContracts(t *testing.T) {
 							"account_id": 200,
 								"request_id": "req_123",
 								"model": "claude-3",
+								"price_currency": "USD",
 								"request_type": "stream",
 								"openai_ws_mode": false,
 								"group_id": null,
