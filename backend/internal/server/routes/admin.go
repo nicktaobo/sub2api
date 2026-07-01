@@ -188,6 +188,8 @@ func registerAdminModelPricingRoutes(admin *gin.RouterGroup, h *handler.Handlers
 	{
 		g.GET("", h.Admin.ModelPricing.List)
 		g.PUT("", h.Admin.ModelPricing.Update)
+		g.POST("/refresh/preview", h.Admin.ModelPricing.RefreshPreview)
+		g.POST("/refresh/apply", h.Admin.ModelPricing.RefreshApply)
 	}
 }
 
