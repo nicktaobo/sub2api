@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -15,8 +16,10 @@ import (
 
 const defaultClaudeUsageURL = "https://api.anthropic.com/api/oauth/usage"
 
-// 默认 User-Agent，与用户抓包的请求一致
-const defaultUsageUserAgent = "claude-code/2.1.7"
+// 默认 User-Agent，复用项目统一的 Claude Code 真值源（claude/constants.go），
+// 与 identity_service 默认指纹、计费同步保持一致。旧值 "claude-code/2.1.7" 是过时离群值
+// （错前缀 claude-code/ + 错版本），打的同样是 api.anthropic.com，版本不一致会被 Anthropic 判第三方。
+const defaultUsageUserAgent = "claude-cli/" + claude.CLICurrentVersion + " (external, cli)"
 
 type claudeUsageService struct {
 	usageURL          string
