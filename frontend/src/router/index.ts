@@ -5,6 +5,7 @@
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useMerchantStore } from '@/stores/merchant'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useAdminComplianceStore } from '@/stores/adminCompliance'
@@ -897,6 +898,13 @@ router.beforeEach(async (to, _from, next) => {
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
+
+  // 商户分站（子用户）不参与平台级邀请返利：拦截 /affiliate 直达，跳回仪表盘。
+  // 后端 /user/aff 亦有 403 兜底，此处仅为前端体验。
+  if (to.path === '/affiliate' && useMerchantStore().isMerchantSite) {
+    next('/dashboard')
+    return
+  }
 
   if (to.path === '/setup') {
     try {
