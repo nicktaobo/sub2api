@@ -1909,15 +1909,18 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										stickyCacheMissReason = "session_limit"
 										// 会话限制已满，继续到负载感知选择
 									} else {
-										return &AccountSelectionResult{
-											Account: stickyAccount,
-											WaitPlan: &AccountWaitPlan{
-												AccountID:      stickyAccountID,
-												MaxConcurrency: stickyAccount.Concurrency,
-												Timeout:        cfg.StickySessionWaitTimeout,
-												MaxWaiting:     cfg.StickySessionMaxWaiting,
-											},
-										}, nil
+										// 必须经 newSelectionResult 进行 hydration：stickyAccount 来自
+										// 调度快照 bucket，是 buildSchedulerMetadataAccount 的"瘦身"版本
+										// （Credentials 仅留 model_mapping/api_key/project_id/oauth_type，
+										// 无 access_token/refresh_token，且 Proxy 为空）。直接返回会导致
+										// 等到槽位后 Forward 拿不到凭证、或绕过账号代理直连上游。
+										// 与本函数其它等待计划返回点保持一致。
+										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
+											AccountID:      stickyAccountID,
+											MaxConcurrency: stickyAccount.Concurrency,
+											Timeout:        cfg.StickySessionWaitTimeout,
+											MaxWaiting:     cfg.StickySessionMaxWaiting,
+										})
 									}
 								} else {
 									stickyCacheMissReason = "wait_queue_full"
@@ -1941,7 +1944,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 								stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
 						}
 					} else {
-						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						if s.cache != nil {
+							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						}
 						logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=account_cleared account_id=%d session=%s current_rpm=0 base_rpm=0",
 							stickyAccountID, shortSessionHash(sessionHash))
 					}
@@ -2049,7 +2054,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						"reason", "should_clear_sticky_session",
 						"session", shortSessionHash(sessionHash),
 					)
-					_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+					if s.cache != nil {
+						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+					}
 				}
 
 				// 注意：不再检查 isAccountInGroup，因为 accountByID 已经从按分组过滤的
@@ -8452,12 +8459,15 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					if !clientDisconnected {
 						restored := reverseToolNamesIfPresent(c, []byte(block))
 						if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
+							// 客户端断开：标记后继续 drain 上游计费。注意不要在此 break，
+							// 否则会跳过本事件下方的 usage 合并——断开那条事件（可能正是携带
+							// input/cache token 的 message_start）会漏计费。
 							clientDisconnected = true
 							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
-							break
+						} else {
+							flusher.Flush()
+							lastDataAt = time.Now()
 						}
-						flusher.Flush()
-						lastDataAt = time.Now()
 					}
 					if data != "" {
 						if firstTokenMs == nil && data != "[DONE]" {
