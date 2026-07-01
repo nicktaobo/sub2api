@@ -135,7 +135,7 @@
         </div>
 
         <!-- Promo Code Input (Optional) -->
-        <div v-if="promoCodeEnabled">
+        <div v-if="showPromoCode">
           <label for="promo_code" class="input-label">
             {{ t('auth.promoCodeLabel') }}
             <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
@@ -339,7 +339,7 @@ import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import RegisterAgreementModal from '@/components/auth/RegisterAgreementModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
-import { useAuthStore, useAppStore } from '@/stores'
+import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import {
   getPublicSettings,
   isWeChatWebOAuthEnabled,
@@ -372,6 +372,9 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const merchantStore = useMerchantStore()
+// 商户分站下隐藏优惠码框（易被误认为推荐返利码，商户子用户不参与平台返利）
+const showPromoCode = computed(() => promoCodeEnabled.value && !merchantStore.isMerchantSite)
 
 // ==================== State ====================
 
