@@ -981,3 +981,16 @@ func parseAnthropicContentBlockEvents(t *testing.T, raw string) []anthropicConte
 	}
 	return events
 }
+
+// shouldBillPartialGeminiNativeStream 的纯逻辑：与主路径 shouldBillPartialStream 同口径——
+// 仅当 streamRes 非 nil 且携带 usage、firstTokenMs 非 nil（已交付内容）时才计费。
+func TestShouldBillPartialGeminiNativeStream(t *testing.T) {
+	ms := 12
+	require.True(t, shouldBillPartialGeminiNativeStream(&geminiNativeStreamResult{usage: &ClaudeUsage{InputTokens: 10}, firstTokenMs: &ms}),
+		"已交付内容且有 usage：应计费")
+	require.False(t, shouldBillPartialGeminiNativeStream(&geminiNativeStreamResult{usage: &ClaudeUsage{InputTokens: 10}}),
+		"firstTokenMs 为 nil（未交付内容）：不计费")
+	require.False(t, shouldBillPartialGeminiNativeStream(&geminiNativeStreamResult{firstTokenMs: &ms}),
+		"usage 为 nil：不计费")
+	require.False(t, shouldBillPartialGeminiNativeStream(nil), "nil streamRes：不计费")
+}
