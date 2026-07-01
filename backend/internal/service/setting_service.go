@@ -1024,6 +1024,9 @@ func applyMerchantOverridesToPublicSettings(ctx context.Context, p *PublicSettin
 	p.ContactInfo = ""
 	p.ContactMethods = ""
 	p.DocURL = ""
+	// 主站余额提醒充值链接不下发给商户分站（商户用户不应被引导到主站充值；
+	// 该字段用户侧前端无消费方，真正用它的是后端邮件模板，置空无副作用），与 contact_* 同样隔离
+	p.BalanceLowNotifyRechargeURL = ""
 
 	// 主站自定义菜单/端点不漏出（CustomMenuItems / CustomEndpoints 是 JSON 字符串，置空 = 空数组解析）
 	p.CustomMenuItems = ""
