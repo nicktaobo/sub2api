@@ -50,6 +50,15 @@ CREATE TABLE IF NOT EXISTS atlas_schema_revisions (
 // 任何稳定的 int64 值都可以，只要不与同一数据库中的其他锁冲突即可。
 const migrationsAdvisoryLockID int64 = 694208311321144027
 const migrationsLockRetryInterval = 500 * time.Millisecond
+
+// migrationDDLLockTimeout 限制【事务型迁移】获取锁的最长等待时间。
+// 目的：大表 DDL（如 ALTER TABLE）申请 ACCESS EXCLUSIVE 锁时，若被在线长事务挡住，
+// 不再无限期排队（并把后续所有访问该表的查询一起堵在锁等待队列后面 → 线上停顿），
+// 而是快速失败：迁移回滚、部署显式报错，让运维改到低峰重试。
+// 注意：lock_timeout 仅约束“获取锁”的等待时长，不约束语句总运行时长，
+// 因此合法的长时间回填迁移不受影响（那属于 statement_timeout，此处刻意不设）。
+// CONCURRENTLY(_notx.sql) 路径不持长强锁，不适用、不改。
+const migrationDDLLockTimeout = "10s"
 const nonTransactionalMigrationSuffix = "_notx.sql"
 const paymentOrdersOutTradeNoUniqueMigration = "120_enforce_payment_orders_out_trade_no_unique_notx.sql"
 const paymentOrdersOutTradeNoUniqueIndex = "paymentorder_out_trade_no_unique"
@@ -232,6 +241,13 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("begin migration %s: %w", name, err)
+		}
+
+		// 在迁移事务内设置 lock_timeout（SET LOCAL 仅作用于本事务，提交/回滚后自动失效）：
+		// 让大表 DDL 的锁等待快速失败，避免长事务把在线流量堵在锁等待队列后面。详见 migrationDDLLockTimeout。
+		if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '"+migrationDDLLockTimeout+"'"); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("set lock_timeout for migration %s: %w", name, err)
 		}
 
 		// 执行迁移 SQL

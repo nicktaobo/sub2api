@@ -242,6 +242,9 @@ func TestApplyMigrationsFS_TransactionalMigration(t *testing.T) {
 		WithArgs("001_add_col.sql").
 		WillReturnError(sql.ErrNoRows)
 	mock.ExpectBegin()
+	// 事务型迁移先注入 lock_timeout（防大表 DDL 锁等待堵在线流量）
+	mock.ExpectExec("SET LOCAL lock_timeout = '10s'").
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ALTER TABLE t ADD COLUMN name TEXT").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
