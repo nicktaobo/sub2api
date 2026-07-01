@@ -15,14 +15,39 @@ func NewModelPricingHandler(pricingService *service.PricingService) *ModelPricin
 	return &ModelPricingHandler{pricingService: pricingService}
 }
 
-// List 返回当前覆盖表。GET /api/v1/admin/model-pricing
+// List 返回覆盖表 + 内置全量表(只读)。GET /api/v1/admin/model-pricing
+// entries=可编辑覆盖项;builtin=Claude/GPT/Gemini/国产 等内置默认价(只读展示)。
 func (h *ModelPricingHandler) List(c *gin.Context) {
-	cfg, err := h.pricingService.GetModelPricingOverrides(c.Request.Context())
+	cfg, err := h.pricingService.GetModelPricingView(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 	response.Success(c, cfg)
+}
+
+// RefreshPreview 拉取远程最新价表与当前内置表做 diff,返回预览(不落库)。
+// POST /api/v1/admin/model-pricing/refresh/preview
+func (h *ModelPricingHandler) RefreshPreview(c *gin.Context) {
+	preview, err := h.pricingService.PreviewRemotePricing(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, preview)
+}
+
+// RefreshApply 管理员确认后落库刷新内置全量表(走 ForceUpdate 同步链路)。
+// POST /api/v1/admin/model-pricing/refresh/apply
+//
+// 注:ForceUpdate 内部用自带的 30s background context(见 downloadPricingData),
+// 刻意不绑定请求 ctx——价表落盘是原子写,不应因管理员浏览器断连而中途取消。
+func (h *ModelPricingHandler) RefreshApply(c *gin.Context) {
+	if err := h.pricingService.ForceUpdate(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, h.pricingService.GetStatus())
 }
 
 // Update 整表覆盖写入并即时生效。PUT /api/v1/admin/model-pricing
