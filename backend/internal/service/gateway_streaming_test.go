@@ -419,7 +419,10 @@ func TestHandleStreamingResponse_SSEErrorEvent_ReturnsTypedErrorWithRawData(t *t
 	_ = pr.Close()
 
 	require.Error(t, err)
-	require.Nil(t, result)
+	// 内容产出前的 error 事件：现返回携带（空）usage 的 streamResult，但 firstTokenMs 为 nil，
+	// shouldBillPartialStream 判为不可计费——Forward 据此仍走 sseErr 失败透传/failover，不误计费。
+	require.NotNil(t, result)
+	require.False(t, shouldBillPartialStream(result), "内容产出前的 error 不应计费")
 
 	// typed error 必须可被 errors.As 匹配，RawData 必须保留上游 dataLine 原文
 	var sseErr *sseStreamErrorEventError

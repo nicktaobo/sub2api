@@ -5492,6 +5492,22 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if reqStream {
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
 		if err != nil {
+			// 流式中途出错且已产出内容（含上游 error 事件）：先走 PartialError 计费，
+			// 必须先于 sseErr/failover 判断——已写入内容时 handler 的 writer-size 检查会阻止
+			// failover，裸 failover 只会让整段已交付内容零计费。
+			if shouldBillPartialStream(streamResult) {
+				return &ForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					Usage:            *streamResult.usage,
+					Model:            originalModel,
+					UpstreamModel:    mappedModel,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     streamResult.firstTokenMs,
+					ClientDisconnect: streamResult.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			var sseErr *sseStreamErrorEventError
 			if errors.As(err, &sseErr) {
 				// 上游 HTTP 200 + SSE 流体内出现 event:error 帧。
@@ -5533,21 +5549,6 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					StatusCode:   403,
 					ResponseBody: body,
 				}
-			}
-			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
-			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
-			if shouldBillPartialStream(streamResult) {
-				return &ForwardResult{
-					RequestID:        resp.Header.Get("x-request-id"),
-					Usage:            *streamResult.usage,
-					Model:            originalModel,
-					UpstreamModel:    mappedModel,
-					Stream:           true,
-					Duration:         time.Since(startTime),
-					FirstTokenMs:     streamResult.firstTokenMs,
-					ClientDisconnect: streamResult.clientDisconnect,
-					PartialError:     true,
-				}, err
 			}
 			return nil, err
 		}
@@ -5809,6 +5810,21 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	if input.RequestStream {
 		streamResult, err := s.handleStreamingResponseAnthropicAPIKeyPassthrough(ctx, resp, c, account, input.StartTime, input.RequestModel)
 		if err != nil {
+			// 与主 Forward 流式路径同口径：已产出内容后中途出错（缺终止事件/读错误等），
+			// 对已累计 usage 走 PartialError 计费，避免透传账号漏计。
+			if shouldBillPartialStream(streamResult) {
+				return &ForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					Usage:            *streamResult.usage,
+					Model:            input.OriginalModel,
+					UpstreamModel:    input.RequestModel,
+					Stream:           true,
+					Duration:         time.Since(input.StartTime),
+					FirstTokenMs:     streamResult.firstTokenMs,
+					ClientDisconnect: streamResult.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamResult.usage
@@ -8452,7 +8468,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					if clientDisconnected {
 						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
 					}
-					return nil, err
+					// 上游 error 事件：携带已累计 usage 返回，已产出内容时由 Forward 走
+					// PartialError 计费；返回 nil 会让已交付 token 整段零计费。
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, err
 				}
 
 				for _, block := range outputBlocks {

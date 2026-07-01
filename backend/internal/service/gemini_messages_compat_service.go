@@ -1054,6 +1054,20 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	if req.Stream {
 		streamRes, err := s.handleStreamingResponse(c, resp, startTime, originalModel)
 		if err != nil {
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			if shouldBillPartialGeminiStream(streamRes) {
+				return &ForwardResult{
+					RequestID:     requestID,
+					Usage:         *streamRes.usage,
+					Model:         originalModel,
+					UpstreamModel: mappedModel,
+					Stream:        true,
+					Duration:      time.Since(startTime),
+					FirstTokenMs:  streamRes.firstTokenMs,
+					PartialError:  true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamRes.usage
@@ -1978,6 +1992,13 @@ type geminiStreamResult struct {
 	firstTokenMs *int
 }
 
+// shouldBillPartialGeminiStream 判断流式转发中途出错时，是否应对已产出的 usage 计费。
+// 与主路径 shouldBillPartialStream 同口径：仅当 streamRes 非 nil 且携带 usage、firstTokenMs
+// 非 nil（确实已向客户端交付过内容）时才计费；否则不计费、保留上层 failover 语义。
+func shouldBillPartialGeminiStream(streamRes *geminiStreamResult) bool {
+	return streamRes != nil && streamRes.usage != nil && streamRes.firstTokenMs != nil
+}
+
 func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context, resp *http.Response, originalModel string) (*ClaudeUsage, error) {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
@@ -2050,7 +2071,8 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("stream read error: %w", err)
+			// 带回已累计 usage（而非丢弃），供上层对已交付内容计费
+			return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", err)
 		}
 
 		if !strings.HasPrefix(line, "data:") {

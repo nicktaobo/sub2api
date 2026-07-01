@@ -1790,6 +1790,21 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		streamRes, err := s.handleClaudeStreamingResponse(c, resp, startTime, originalModel)
 		if err != nil {
 			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_error error=%v", prefix, err)
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			if shouldBillPartialAntigravityStream(streamRes) {
+				return &ForwardResult{
+					RequestID:        requestID,
+					Usage:            *streamRes.usage,
+					Model:            originalModel,
+					UpstreamModel:    billingModel,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     streamRes.firstTokenMs,
+					ClientDisconnect: streamRes.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamRes.usage
@@ -2502,6 +2517,21 @@ handleSuccess:
 		streamRes, err := s.handleGeminiStreamingResponse(c, resp, startTime)
 		if err != nil {
 			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_error error=%v", prefix, err)
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			if shouldBillPartialAntigravityStream(streamRes) {
+				return &ForwardResult{
+					RequestID:        requestID,
+					Usage:            *streamRes.usage,
+					Model:            originalModel,
+					UpstreamModel:    billingModel,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     streamRes.firstTokenMs,
+					ClientDisconnect: streamRes.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamRes.usage
@@ -3068,6 +3098,13 @@ type antigravityStreamResult struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
+// shouldBillPartialAntigravityStream 判断流式转发中途出错时，是否应对已产出的 usage 计费。
+// 与主路径 shouldBillPartialStream 同口径：仅当 streamRes 非 nil 且携带 usage、firstTokenMs
+// 非 nil（确实已向客户端交付过内容）时才计费；否则不计费、保留上层 failover 语义。
+func shouldBillPartialAntigravityStream(streamRes *antigravityStreamResult) bool {
+	return streamRes != nil && streamRes.usage != nil && streamRes.firstTokenMs != nil
+}
+
 // antigravityClientWriter 封装流式响应的客户端写入，自动检测断开并标记。
 // 断开后所有写入操作变为 no-op，调用方通过 Disconnected() 判断是否继续 drain 上游。
 type antigravityClientWriter struct {
@@ -3248,7 +3285,8 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 					return &antigravityStreamResult{usage: usage, firstTokenMs: firstTokenMs}, ev.err
 				}
 				sendErrorEvent("stream_read_error")
-				return nil, ev.err
+				// 带回已累计 usage（而非丢弃），供上层对已交付内容计费
+				return &antigravityStreamResult{usage: usage, firstTokenMs: firstTokenMs}, ev.err
 			}
 
 			lastDataAt = time.Now()
@@ -4115,10 +4153,12 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 				if errors.Is(ev.err, bufio.ErrTooLong) {
 					logger.LegacyPrintf("service.antigravity_gateway", "SSE line too long (antigravity): max_size=%d error=%v", maxLineSize, ev.err)
 					sendErrorEvent("response_too_large")
-					return &antigravityStreamResult{usage: convertUsage(nil), firstTokenMs: firstTokenMs}, ev.err
+					// 带回 processor 已累计的 usage，供上层对已交付内容计费
+					return &antigravityStreamResult{usage: finishUsage(), firstTokenMs: firstTokenMs}, ev.err
 				}
 				sendErrorEvent("stream_read_error")
-				return nil, fmt.Errorf("stream read error: %w", ev.err)
+				// 带回已累计 usage（而非丢弃），供上层对已交付内容计费
+				return &antigravityStreamResult{usage: finishUsage(), firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", ev.err)
 			}
 
 			lastDataAt = time.Now()
@@ -4144,7 +4184,8 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 			}
 			logger.LegacyPrintf("service.antigravity_gateway", "Stream data interval timeout (antigravity)")
 			sendErrorEvent("stream_timeout")
-			return &antigravityStreamResult{usage: convertUsage(nil), firstTokenMs: firstTokenMs}, fmt.Errorf("stream data interval timeout")
+			// 带回 processor 已累计的 usage（此前误用 convertUsage(nil) 丢弃），供上层对已交付内容计费
+			return &antigravityStreamResult{usage: finishUsage(), firstTokenMs: firstTokenMs}, fmt.Errorf("stream data interval timeout")
 
 		case <-keepaliveCh:
 			if cw.Disconnected() {

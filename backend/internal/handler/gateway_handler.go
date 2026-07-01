@@ -441,6 +441,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				accountReleaseFunc()
 			}
 			if err != nil {
+				// 流式部分交付后出错：对上游已产出/已交付的 token 计费（与成功分支同口径），
+				// 避免上游已产出、客户端已收到内容却整段零计费（writer-size 检查已禁止 failover）。
+				if result != nil && result.PartialError {
+					h.submitForwardUsageRecord(c, result, apiKey, subscription, account,
+						body, parsedReq.OutputEffort, parsedReq.ThinkingEnabled, channelMapping, reqModel,
+						fs.ForceCacheBilling, subject.UserID)
+				}
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
 					// 流式内容已写入客户端，无法撤销，禁止 failover 以防止流拼接腐化

@@ -1794,3 +1794,16 @@ func generateLargeUnwrapJSON(minSize int) []byte {
 	b, _ := json.Marshal(outer)
 	return b
 }
+
+// shouldBillPartialAntigravityStream 的纯逻辑：与主路径 shouldBillPartialStream 同口径——
+// 仅当 streamRes 非 nil、携带 usage 且已交付内容（firstTokenMs != nil）时才计费。
+func TestShouldBillPartialAntigravityStream(t *testing.T) {
+	ms := 12
+	require.True(t, shouldBillPartialAntigravityStream(&antigravityStreamResult{usage: &ClaudeUsage{InputTokens: 10}, firstTokenMs: &ms}),
+		"已交付内容且有 usage：应计费")
+	require.False(t, shouldBillPartialAntigravityStream(&antigravityStreamResult{usage: &ClaudeUsage{InputTokens: 10}}),
+		"firstTokenMs 为 nil（未交付内容）：不计费")
+	require.False(t, shouldBillPartialAntigravityStream(&antigravityStreamResult{firstTokenMs: &ms}),
+		"usage 为 nil：不计费")
+	require.False(t, shouldBillPartialAntigravityStream(nil), "nil streamRes：不计费")
+}
