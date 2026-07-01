@@ -390,15 +390,25 @@ func (s *MerchantService) AdminApproveWithdrawal(ctx context.Context, withdrawID
 	}
 
 	now := time.Now()
-	upd := tx.Client().MerchantWithdrawRequest.UpdateOneID(w.ID).
+	// CAS 守卫：仅当状态仍为 pending/approved 时才允许流转到 paid，杜绝并发审批/拒绝双花。
+	// affected==0 表示已被其它并发操作抢先流转 → 返回错误触发整事务回滚（撤销扣款/分类账）。
+	upd := tx.Client().MerchantWithdrawRequest.Update().
+		Where(
+			merchantwithdrawrequest.IDEQ(w.ID),
+			merchantwithdrawrequest.StatusIn("pending", "approved"),
+		).
 		SetStatus("paid").
 		SetLedgerID(ledgerEntry.ID).
 		SetProcessedAt(now)
 	if adminID > 0 {
 		upd = upd.SetAdminID(adminID)
 	}
-	if _, err := upd.Save(txCtx); err != nil {
+	affected, err := upd.Save(txCtx)
+	if err != nil {
 		return err
+	}
+	if affected == 0 {
+		return infraerrors.BadRequest("MERCHANT_WITHDRAW_INVALID_STATUS", "withdrawal was concurrently modified")
 	}
 
 	if err := s.writeAudit(txCtx, w.MerchantID, adminID, "withdraw_approved", "",
@@ -422,15 +432,24 @@ func (s *MerchantService) AdminRejectWithdrawal(ctx context.Context, withdrawID,
 			"withdrawal cannot be rejected in status "+w.Status)
 	}
 	now := time.Now()
-	upd := s.entClient.MerchantWithdrawRequest.UpdateOneID(w.ID).
+	// CAS 守卫：仅当状态仍为 pending/approved 时才允许流转到 rejected，避免与并发审批(paid)互相覆盖。
+	upd := s.entClient.MerchantWithdrawRequest.Update().
+		Where(
+			merchantwithdrawrequest.IDEQ(w.ID),
+			merchantwithdrawrequest.StatusIn("pending", "approved"),
+		).
 		SetStatus("rejected").
 		SetRejectReason(reason).
 		SetProcessedAt(now)
 	if adminID > 0 {
 		upd = upd.SetAdminID(adminID)
 	}
-	if _, err := upd.Save(ctx); err != nil {
+	affected, err := upd.Save(ctx)
+	if err != nil {
 		return err
+	}
+	if affected == 0 {
+		return infraerrors.BadRequest("MERCHANT_WITHDRAW_INVALID_STATUS", "withdrawal was concurrently modified")
 	}
 	_ = s.writeAudit(ctx, w.MerchantID, adminID, "withdraw_rejected",
 		fmt.Sprintf("withdraw_id=%d amount=%g", w.ID, w.Amount), "", reason)
