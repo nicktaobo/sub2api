@@ -607,9 +607,14 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		}
 	}
 
-	// 更新 IP 限制（空数组会清空设置）
-	apiKey.IPWhitelist = req.IPWhitelist
-	apiKey.IPBlacklist = req.IPBlacklist
+	// 更新 IP 限制：nil = 不改动（部分更新，如仅改状态/重置配额时保留原 IP 规则）；
+	// 非 nil（含显式空数组）= 覆盖/清空。修复：状态切换/重置配额曾因 req 未带该字段而误清空 IP 规则。
+	if req.IPWhitelist != nil {
+		apiKey.IPWhitelist = req.IPWhitelist
+	}
+	if req.IPBlacklist != nil {
+		apiKey.IPBlacklist = req.IPBlacklist
+	}
 
 	// Update rate limit configuration
 	if req.RateLimit5h != nil {
