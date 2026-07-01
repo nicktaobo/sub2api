@@ -248,6 +248,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 
 		if err != nil {
+			// 流式部分交付后出错：对已交付 token 计费（与成功分支同口径），避免整段零计费
+			// （内容已写出，writer-size 检查已禁止 failover）。
+			if result != nil && result.PartialError {
+				h.submitChatCompletionsUsageRecord(c, reqLog, result, apiKey, subscription, account, body, channelMapping, reqModel)
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				if c.Writer.Size() != writerSizeBeforeForward {
@@ -280,37 +285,54 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 
 		// 6. Record usage
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-				Result:             result,
-				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				APIKeyService:      h.apiKeyService,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
-			}); err != nil {
-				reqLog.Error("gateway.cc.record_usage_failed",
-					zap.Int64("account_id", account.ID),
-					zap.Error(err),
-				)
-			}
-		})
+		h.submitChatCompletionsUsageRecord(c, reqLog, result, apiKey, subscription, account, body, channelMapping, reqModel)
 		return
 	}
+}
+
+// submitChatCompletionsUsageRecord 异步提交一次 Chat Completions 用量计费记录。
+// 供"成功"与"流式部分交付后出错"两条路径共用同口径计费：上游已产出 token 即应计费，
+// 无论请求最终成功还是中途出错。
+func (h *GatewayHandler) submitChatCompletionsUsageRecord(
+	c *gin.Context,
+	reqLog *zap.Logger,
+	result *service.ForwardResult,
+	apiKey *service.APIKey,
+	subscription *service.UserSubscription,
+	account *service.Account,
+	body []byte,
+	channelMapping service.ChannelMappingResult,
+	reqModel string,
+) {
+	userAgent := c.GetHeader("User-Agent")
+	clientIP := ip.GetClientIP(c)
+	requestPayloadHash := service.HashUsageRequestPayload(body)
+	inboundEndpoint := GetInboundEndpoint(c)
+	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+
+	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+		if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+			Result:             result,
+			QuotaPlatform:      quotaPlatform,
+			APIKey:             apiKey,
+			User:               apiKey.User,
+			Account:            account,
+			Subscription:       subscription,
+			InboundEndpoint:    inboundEndpoint,
+			UpstreamEndpoint:   upstreamEndpoint,
+			UserAgent:          userAgent,
+			IPAddress:          clientIP,
+			RequestPayloadHash: requestPayloadHash,
+			APIKeyService:      h.apiKeyService,
+			ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+		}); err != nil {
+			reqLog.Error("gateway.cc.record_usage_failed",
+				zap.Int64("account_id", account.ID),
+				zap.Error(err),
+			)
+		}
+	})
 }
 
 // chatCompletionsErrorResponse writes an error in OpenAI Chat Completions format.

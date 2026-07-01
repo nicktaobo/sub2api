@@ -563,6 +563,12 @@ type ForwardResult struct {
 	ClientDisconnect bool // 客户端是否在流式传输过程中断开
 	ReasoningEffort  *string
 
+	// PartialError 标记：流式转发在已向客户端交付内容后中途出错（如上游断流、缺终止事件、
+	// 空闲超时）。此时 Usage 携带上游已产出的（部分）用量，上层应据此对已交付的 token
+	// 计费——否则上游已产出、客户端已收到内容却整段零计费。该结果同时携带非 nil error，
+	// 调用方仍应按失败处理（计入分组健康、不可 failover，因为内容已写出）。
+	PartialError bool
+
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount         int    // 生成的图片数量
 	ImageSize          string // 最终计费尺寸 "1K", "2K", "4K"
@@ -1903,15 +1909,18 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										stickyCacheMissReason = "session_limit"
 										// 会话限制已满，继续到负载感知选择
 									} else {
-										return &AccountSelectionResult{
-											Account: stickyAccount,
-											WaitPlan: &AccountWaitPlan{
-												AccountID:      stickyAccountID,
-												MaxConcurrency: stickyAccount.Concurrency,
-												Timeout:        cfg.StickySessionWaitTimeout,
-												MaxWaiting:     cfg.StickySessionMaxWaiting,
-											},
-										}, nil
+										// 必须经 newSelectionResult 进行 hydration：stickyAccount 来自
+										// 调度快照 bucket，是 buildSchedulerMetadataAccount 的"瘦身"版本
+										// （Credentials 仅留 model_mapping/api_key/project_id/oauth_type，
+										// 无 access_token/refresh_token，且 Proxy 为空）。直接返回会导致
+										// 等到槽位后 Forward 拿不到凭证、或绕过账号代理直连上游。
+										// 与本函数其它等待计划返回点保持一致。
+										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
+											AccountID:      stickyAccountID,
+											MaxConcurrency: stickyAccount.Concurrency,
+											Timeout:        cfg.StickySessionWaitTimeout,
+											MaxWaiting:     cfg.StickySessionMaxWaiting,
+										})
 									}
 								} else {
 									stickyCacheMissReason = "wait_queue_full"
@@ -1935,7 +1944,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 								stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
 						}
 					} else {
-						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						if s.cache != nil {
+							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						}
 						logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=account_cleared account_id=%d session=%s current_rpm=0 base_rpm=0",
 							stickyAccountID, shortSessionHash(sessionHash))
 					}
@@ -2043,7 +2054,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						"reason", "should_clear_sticky_session",
 						"session", shortSessionHash(sessionHash),
 					)
-					_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+					if s.cache != nil {
+						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+					}
 				}
 
 				// 注意：不再检查 isAccountInGroup，因为 accountByID 已经从按分组过滤的
@@ -5479,6 +5492,22 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if reqStream {
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
 		if err != nil {
+			// 流式中途出错且已产出内容（含上游 error 事件）：先走 PartialError 计费，
+			// 必须先于 sseErr/failover 判断——已写入内容时 handler 的 writer-size 检查会阻止
+			// failover，裸 failover 只会让整段已交付内容零计费。
+			if shouldBillPartialStream(streamResult) {
+				return &ForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					Usage:            *streamResult.usage,
+					Model:            originalModel,
+					UpstreamModel:    mappedModel,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     streamResult.firstTokenMs,
+					ClientDisconnect: streamResult.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			var sseErr *sseStreamErrorEventError
 			if errors.As(err, &sseErr) {
 				// 上游 HTTP 200 + SSE 流体内出现 event:error 帧。
@@ -5781,6 +5810,21 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	if input.RequestStream {
 		streamResult, err := s.handleStreamingResponseAnthropicAPIKeyPassthrough(ctx, resp, c, account, input.StartTime, input.RequestModel)
 		if err != nil {
+			// 与主 Forward 流式路径同口径：已产出内容后中途出错（缺终止事件/读错误等），
+			// 对已累计 usage 走 PartialError 计费，避免透传账号漏计。
+			if shouldBillPartialStream(streamResult) {
+				return &ForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					Usage:            *streamResult.usage,
+					Model:            input.OriginalModel,
+					UpstreamModel:    input.RequestModel,
+					Stream:           true,
+					Duration:         time.Since(input.StartTime),
+					FirstTokenMs:     streamResult.firstTokenMs,
+					ClientDisconnect: streamResult.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamResult.usage
@@ -8090,6 +8134,15 @@ type streamingResult struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
+// shouldBillPartialStream 判断流式转发中途出错时，是否应对已产出的 usage 计费。
+// 仅当：① streamResult 非 nil 且携带 usage；② firstTokenMs 非 nil（确实已向客户端
+// 交付过内容）——此时上游已产出可计费 token、内容不可撤销且禁止 failover，应计费。
+// 出错发生在产出任何内容之前（firstTokenMs == nil）或 streamResult 为 nil（如读错误
+// 触发的 failover）时返回 false，不计费、交由上层 failover/报错。
+func shouldBillPartialStream(streamResult *streamingResult) bool {
+	return streamResult != nil && streamResult.usage != nil && streamResult.firstTokenMs != nil
+}
+
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
@@ -8415,19 +8468,24 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					if clientDisconnected {
 						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
 					}
-					return nil, err
+					// 上游 error 事件：携带已累计 usage 返回，已产出内容时由 Forward 走
+					// PartialError 计费；返回 nil 会让已交付 token 整段零计费。
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, err
 				}
 
 				for _, block := range outputBlocks {
 					if !clientDisconnected {
 						restored := reverseToolNamesIfPresent(c, []byte(block))
 						if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
+							// 客户端断开：标记后继续 drain 上游计费。注意不要在此 break，
+							// 否则会跳过本事件下方的 usage 合并——断开那条事件（可能正是携带
+							// input/cache token 的 message_start）会漏计费。
 							clientDisconnected = true
 							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
-							break
+						} else {
+							flusher.Flush()
+							lastDataAt = time.Now()
 						}
-						flusher.Flush()
-						lastDataAt = time.Now()
 					}
 					if data != "" {
 						if firstTokenMs == nil && data != "[DONE]" {

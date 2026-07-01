@@ -3,6 +3,7 @@ package dto
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -581,6 +582,15 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	if requestedModel == "" {
 		requestedModel = l.Model
 	}
+	// 币种按"实际计费模型"判：发生模型映射时（如 claude-opus-4-8 → deepseek-v4-pro），
+	// 成本是按上游模型计的，币种须跟上游模型走，否则国产上游会被错标成 $。
+	// 只下发计价币种（CNY/USD），不暴露 upstream_model（普通用户 DTO 隐私约束仍成立）。
+	priceCurrencyModel := l.Model
+	if l.UpstreamModel != nil {
+		if up := strings.TrimSpace(*l.UpstreamModel); up != "" {
+			priceCurrencyModel = up
+		}
+	}
 	return UsageLog{
 		ID:                    l.ID,
 		UserID:                l.UserID,
@@ -625,11 +635,13 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		IPAddress:             l.IPAddress,
 		CacheTTLOverridden:    l.CacheTTLOverridden,
 		BillingMode:           l.BillingMode,
-		CreatedAt:             l.CreatedAt,
-		User:                  UserFromServiceShallow(l.User),
-		APIKey:                APIKeyFromService(l.APIKey),
-		Group:                 GroupFromServiceShallow(l.Group),
-		Subscription:          UserSubscriptionFromService(l.Subscription),
+		// 计价币种按实际计费模型判定：国产官方人民币价模型→CNY，其余→USD。
+		PriceCurrency: service.ModelPriceCurrency(priceCurrencyModel),
+		CreatedAt:     l.CreatedAt,
+		User:          UserFromServiceShallow(l.User),
+		APIKey:        APIKeyFromService(l.APIKey),
+		Group:         GroupFromServiceShallow(l.Group),
+		Subscription:  UserSubscriptionFromService(l.Subscription),
 	}
 }
 

@@ -236,6 +236,21 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 	if clientStream {
 		streamRes, err := s.handleChatCompletionsStreamingResponseFromGemini(c, resp, startTime, originalModel, account.Type == AccountTypeOAuth, includeUsage)
 		if err != nil {
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			if shouldBillPartialGeminiStream(streamRes) {
+				return &ForwardResult{
+					RequestID:       requestID,
+					Usage:           *streamRes.usage,
+					Model:           originalModel,
+					UpstreamModel:   mappedModel,
+					Stream:          true,
+					Duration:        time.Since(startTime),
+					FirstTokenMs:    streamRes.firstTokenMs,
+					ReasoningEffort: reasoningEffort,
+					PartialError:    true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamRes.usage
@@ -732,7 +747,8 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsStreamingResponseFrom
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("stream read error: %w", err)
+			// 带回已累计 usage（而非丢弃），供上层对已交付内容计费
+			return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", err)
 		}
 	}
 
