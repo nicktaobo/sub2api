@@ -533,3 +533,53 @@ func TestHandleStreamingResponse_SSEErrorEvent_NonJSONDataLine(t *testing.T) {
 	})
 	require.Equal(t, "", ExtractUpstreamErrorMessage([]byte(sseErr.RawData)))
 }
+
+// shouldBillPartialStream 的纯逻辑：仅当 streamResult 非 nil、携带 usage 且已交付内容
+// （firstTokenMs != nil）时才计费；空流/未交付/nil 一律不计费。
+func TestShouldBillPartialStream(t *testing.T) {
+	ms := 12
+	require.True(t, shouldBillPartialStream(&streamingResult{usage: &ClaudeUsage{InputTokens: 10}, firstTokenMs: &ms}),
+		"已交付内容且有 usage：应计费")
+	require.False(t, shouldBillPartialStream(&streamingResult{usage: &ClaudeUsage{InputTokens: 10}}),
+		"firstTokenMs 为 nil（未交付内容）：不计费")
+	require.False(t, shouldBillPartialStream(&streamingResult{firstTokenMs: &ms}),
+		"usage 为 nil：不计费")
+	require.False(t, shouldBillPartialStream(nil), "nil streamResult：不计费")
+}
+
+// 流式已交付内容后上游未发 [DONE] 直接断流：handleStreamingResponse 返回 error，
+// 但 streamResult 必须带回已产出的 usage 且满足 shouldBillPartialStream（供上层对已交付
+// token 计费，而非整段零计费）。这是国产模型漏计费修复依赖的契约。
+func TestHandleStreamingResponse_PartialDeliveryIsBillable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		// 交付 message_start（带 input/cache token）+ 一段内容 + message_delta（output token），
+		// 然后直接断流——没有 [DONE]。
+		_, _ = pw.Write([]byte("data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":40,\"cache_read_input_tokens\":60}}}\n\n"))
+		_, _ = pw.Write([]byte("data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n"))
+		_, _ = pw.Write([]byte("data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n"))
+	}()
+
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+
+	require.Error(t, err, "缺终止事件应返回 error")
+	require.Contains(t, err.Error(), "missing terminal event")
+	require.NotNil(t, result)
+	require.NotNil(t, result.usage)
+	require.Equal(t, 40, result.usage.InputTokens)
+	require.Equal(t, 60, result.usage.CacheReadInputTokens)
+	require.Equal(t, 7, result.usage.OutputTokens)
+	require.NotNil(t, result.firstTokenMs, "已交付内容，firstTokenMs 应被设置")
+	require.True(t, shouldBillPartialStream(result), "已交付内容 + 有 usage：必须可计费")
+}

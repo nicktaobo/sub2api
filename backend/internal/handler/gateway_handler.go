@@ -807,6 +807,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				accountReleaseFunc()
 			}
 			if err != nil {
+				// 流式部分交付后出错：对上游已产出/已交付的 token 计费（与成功分支同口径），
+				// 避免上游已产出、客户端已收到内容却整段零计费。随后继续正常失败处理
+				// （计入分组失败、不 failover——内容已写出，writer-size 检查已禁止 failover）。
+				if result != nil && result.PartialError {
+					h.submitForwardUsageRecord(c, result, currentAPIKey, currentSubscription, account,
+						attemptParsedReq.Body.Bytes(), attemptParsedReq.OutputEffort, attemptParsedReq.ThinkingEnabled,
+						channelMapping, reqModel, fs.ForceCacheBilling, subject.UserID)
+				}
 				// Beta policy block: return 400 immediately, no failover
 				var betaBlockedErr *service.BetaBlockedError
 				if errors.As(err, &betaBlockedErr) {
@@ -2167,6 +2175,70 @@ func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(reqLog *zap.Logger
 		zap.Float64("session_hash_legacy_read_hit_rate", metrics.SessionHashLegacyReadHitRate),
 		zap.Int64("metadata_legacy_fallback_total", metrics.MetadataLegacyFallbackTotal),
 	)
+}
+
+// submitForwardUsageRecord 异步提交一次用量计费记录。供"成功"与"流式部分交付后出错"
+// 两条路径共用同口径计费:上游已产出 token 即应计费,无论请求最终成功还是中途出错。
+// effort 填充与 RecordUsageInput 字段严格对齐成功分支(见 Messages 重试路径同名逻辑),
+// 避免部分计费与成功计费口径漂移。
+func (h *GatewayHandler) submitForwardUsageRecord(
+	c *gin.Context,
+	result *service.ForwardResult,
+	apiKey *service.APIKey,
+	subscription *service.UserSubscription,
+	account *service.Account,
+	requestPayload []byte,
+	outputEffort string,
+	thinkingEnabled bool,
+	channelMapping service.ChannelMappingResult,
+	reqModel string,
+	forceCacheBilling bool,
+	logUserID int64,
+) {
+	userAgent := c.GetHeader("User-Agent")
+	clientIP := ip.GetClientIP(c)
+	requestPayloadHash := service.HashUsageRequestPayload(requestPayload)
+	inboundEndpoint := GetInboundEndpoint(c)
+	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	if result.ReasoningEffort == nil {
+		result.ReasoningEffort = service.NormalizeClaudeOutputEffort(outputEffort)
+	}
+	// 国产模型 thinking-enabled 默认 effort 填充(与成功分支对称,详见成功路径注释)。
+	if result.ReasoningEffort == nil && thinkingEnabled {
+		protocolModel := result.UpstreamModel
+		if protocolModel == "" {
+			protocolModel = result.Model
+		}
+		result.ReasoningEffort = service.DefaultEffortForThinkingEnabled(protocolModel)
+	}
+	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+		if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+			Result:             result,
+			QuotaPlatform:      quotaPlatform,
+			APIKey:             apiKey,
+			User:               apiKey.User,
+			Account:            account,
+			Subscription:       subscription,
+			InboundEndpoint:    inboundEndpoint,
+			UpstreamEndpoint:   upstreamEndpoint,
+			UserAgent:          userAgent,
+			IPAddress:          clientIP,
+			RequestPayloadHash: requestPayloadHash,
+			ForceCacheBilling:  forceCacheBilling,
+			APIKeyService:      h.apiKeyService,
+			ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+		}); err != nil {
+			logger.L().With(
+				zap.String("component", "handler.gateway.messages"),
+				zap.Int64("user_id", logUserID),
+				zap.Int64("api_key_id", apiKey.ID),
+				zap.Any("group_id", apiKey.GroupID),
+				zap.String("model", reqModel),
+				zap.Int64("account_id", account.ID),
+			).Error("gateway.record_usage_failed", zap.Error(err))
+		}
+	})
 }
 
 func (h *GatewayHandler) submitUsageRecordTask(parent context.Context, task service.UsageRecordTask) {

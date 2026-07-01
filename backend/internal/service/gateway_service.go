@@ -563,6 +563,12 @@ type ForwardResult struct {
 	ClientDisconnect bool // 客户端是否在流式传输过程中断开
 	ReasoningEffort  *string
 
+	// PartialError 标记：流式转发在已向客户端交付内容后中途出错（如上游断流、缺终止事件、
+	// 空闲超时）。此时 Usage 携带上游已产出的（部分）用量，上层应据此对已交付的 token
+	// 计费——否则上游已产出、客户端已收到内容却整段零计费。该结果同时携带非 nil error，
+	// 调用方仍应按失败处理（计入分组健康、不可 failover，因为内容已写出）。
+	PartialError bool
+
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount         int    // 生成的图片数量
 	ImageSize          string // 最终计费尺寸 "1K", "2K", "4K"
@@ -5521,6 +5527,21 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					ResponseBody: body,
 				}
 			}
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			if shouldBillPartialStream(streamResult) {
+				return &ForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					Usage:            *streamResult.usage,
+					Model:            originalModel,
+					UpstreamModel:    mappedModel,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     streamResult.firstTokenMs,
+					ClientDisconnect: streamResult.clientDisconnect,
+					PartialError:     true,
+				}, err
+			}
 			return nil, err
 		}
 		usage = streamResult.usage
@@ -8088,6 +8109,15 @@ type streamingResult struct {
 	usage            *ClaudeUsage
 	firstTokenMs     *int
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
+}
+
+// shouldBillPartialStream 判断流式转发中途出错时，是否应对已产出的 usage 计费。
+// 仅当：① streamResult 非 nil 且携带 usage；② firstTokenMs 非 nil（确实已向客户端
+// 交付过内容）——此时上游已产出可计费 token、内容不可撤销且禁止 failover，应计费。
+// 出错发生在产出任何内容之前（firstTokenMs == nil）或 streamResult 为 nil（如读错误
+// 触发的 failover）时返回 false，不计费、交由上层 failover/报错。
+func shouldBillPartialStream(streamResult *streamingResult) bool {
+	return streamResult != nil && streamResult.usage != nil && streamResult.firstTokenMs != nil
 }
 
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
