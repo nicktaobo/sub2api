@@ -32,7 +32,13 @@ func computeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview) 
 }
 
 // computeBusinessHealth calculates business health score (0-100)
-// Components: Error Rate (50%) + TTFT (50%)
+// Components: Error Rate (100%)
+//
+// TTFT is intentionally NOT scored: for an LLM gateway, time-to-first-token
+// routinely runs into the tens of seconds (reasoning models, long context,
+// cross-border latency), so exceeding any fixed threshold is normal traffic
+// rather than a health regression. Latency percentiles are still surfaced on the
+// dashboard for visibility — they just no longer drive the score.
 func computeBusinessHealth(overview *OpsDashboardOverview) float64 {
 	// Error rate score: 1% → 100, 10% → 0 (linear)
 	// Combines request errors and upstream errors
@@ -48,22 +54,7 @@ func computeBusinessHealth(overview *OpsDashboardOverview) float64 {
 		}
 	}
 
-	// TTFT score: 1s → 100, 3s → 0 (linear)
-	// Time to first token is critical for user experience
-	ttftScore := 100.0
-	if overview.TTFT.P99 != nil {
-		p99 := float64(*overview.TTFT.P99)
-		if p99 > 1000 {
-			if p99 <= 3000 {
-				ttftScore = (3000 - p99) / 2000 * 100
-			} else {
-				ttftScore = 0
-			}
-		}
-	}
-
-	// Weighted combination: 50% error rate + 50% TTFT
-	return errorScore*0.5 + ttftScore*0.5
+	return errorScore
 }
 
 // computeInfraHealth calculates infrastructure health score (0-100)
@@ -109,7 +100,18 @@ func computeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
 		computeScore = (cpuScore + memScore) / 2
 	}
 
-	// Background jobs score
+	// Background jobs score: a job counts as failed only when its most recent
+	// run ended in error.
+	//
+	// We deliberately do NOT flag jobs as "stale" by a fixed time threshold.
+	// Cadences here span ~60s (metrics collector) to daily (cleanup), and several
+	// are admin-configurable cron schedules (cleanup, scheduled reports), so any
+	// fixed staleness window perpetually false-flags the infrequent jobs — the old
+	// 15-minute rule pinned this component ~3-4pts low year-round.
+	//
+	// Known gap: a job that silently stops emitting heartbeats (without recording an
+	// error) is currently NOT reflected here, and there is no heartbeat-staleness
+	// alert today either.
 	jobScore := 100.0
 	failedJobs := 0
 	totalJobs := 0
@@ -119,8 +121,6 @@ func computeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
 		}
 		totalJobs++
 		if hb.LastErrorAt != nil && (hb.LastSuccessAt == nil || hb.LastErrorAt.After(*hb.LastSuccessAt)) {
-			failedJobs++
-		} else if hb.LastSuccessAt != nil && now.Sub(*hb.LastSuccessAt) > 15*time.Minute {
 			failedJobs++
 		}
 	}
