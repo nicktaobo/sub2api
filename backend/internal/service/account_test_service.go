@@ -289,20 +289,15 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 
 	// Determine authentication method and API URL
 	var authToken string
-	var useBearer bool
 	var apiURL string
 
 	if account.IsOAuth() {
-		// OAuth or Setup Token - use Bearer token
-		useBearer = true
 		apiURL = testClaudeAPIURL
 		authToken = account.GetCredential("access_token")
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No access token available")
 		}
 	} else if account.Type == "apikey" {
-		// API Key - use x-api-key header
-		useBearer = false
 		authToken = account.GetCredential("api_key")
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No API key available")
@@ -344,7 +339,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	// 注：新版 Claude Code CLI 已取消 cch=... 签名字段，生产 buildUpstreamRequest 随之
 	// 不再注入/签名 cch（见 gateway_billing_block.go / issue #3358），故此处也不再签名。
 	isHaiku := strings.Contains(strings.ToLower(testModelID), "haiku")
-	if useBearer && !isHaiku {
+	if account.IsOAuth() && !isHaiku {
 		payloadBytes = rewriteSystemForNonClaudeCode(payloadBytes, claudeCodeSystemPrompt)
 	}
 
@@ -361,7 +356,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	// Set authentication header + Claude Code client mimicry
-	if useBearer {
+	if account.IsOAuth() {
 		// OAuth：复用生产 mimic 逻辑，强制注入与真实 Claude Code CLI 一致的指纹头
 		// （User-Agent / x-app / x-stainless-* / Accept / x-stainless-helper-method /
 		// x-client-request-id），并使用完整 mimic beta 集合。缺失任何"官方 CLI 才带"
@@ -379,7 +374,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 			req.Header.Set(key, value)
 		}
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
-		req.Header.Set("x-api-key", authToken)
+		setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
 	}
 
 	// Get proxy URL
