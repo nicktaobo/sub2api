@@ -125,6 +125,7 @@ const labelClass = computed(() => {
     glm: 'bg-rose-200/60 text-rose-800 dark:bg-rose-800/40 dark:text-rose-300',
     qwen: 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300',
     seedance: 'bg-amber-200/60 text-amber-800 dark:bg-amber-800/40 dark:text-amber-300',
+    grok: 'bg-zinc-300/70 text-zinc-800 dark:bg-zinc-700/60 dark:text-zinc-200',
   }
   return `${base} ${labelColors[props.platform || ''] || 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300'}`
 })
@@ -140,6 +141,7 @@ const BADGE_COLORS: Record<string, { sub: string; std: string }> = {
   glm:         { sub: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', std: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400' },
   qwen:        { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
   seedance:    { sub: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',        std: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  grok:        { sub: 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100',               std: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200' },
 }
 const BADGE_DEFAULT = { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400' }
 const badgeClass = computed(() => {

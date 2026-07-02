@@ -96,10 +96,19 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 	cache := &billingCacheStub{}
 	h := buildTestHandler(repo, cache)
 
-	body := `{"quotas":[
-		{"platform":"anthropic","daily_limit_usd":10.0,"weekly_limit_usd":null,"monthly_limit_usd":100.0},
-		{"platform":"openai","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}
-	]}`
+	// 覆盖全部允许平台（AllowedQuotaPlatforms 为单一权威来源），前两个带非 nil 上限。
+	quotaBodies := make([]string, 0, len(service.AllowedQuotaPlatforms))
+	for i, p := range service.AllowedQuotaPlatforms {
+		switch i {
+		case 0:
+			quotaBodies = append(quotaBodies, `{"platform":"`+p+`","daily_limit_usd":10.0,"weekly_limit_usd":null,"monthly_limit_usd":100.0}`)
+		case 1:
+			quotaBodies = append(quotaBodies, `{"platform":"`+p+`","daily_limit_usd":80.0,"weekly_limit_usd":300.0,"monthly_limit_usd":null}`)
+		default:
+			quotaBodies = append(quotaBodies, `{"platform":"`+p+`","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}`)
+		}
+	}
+	body := `{"quotas":[` + strings.Join(quotaBodies, ",") + `]}`
 	c, w := putReq(t, body)
 	h.UpdateUserPlatformQuotas(c)
 
@@ -109,13 +118,12 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 	if len(repo.upsertCalls) != 1 {
 		t.Fatalf("UpsertForUser should be called once, got %d", len(repo.upsertCalls))
 	}
-	if repo.upsertCalls[0].userID != 42 || len(repo.upsertCalls[0].records) != 2 {
+	if repo.upsertCalls[0].userID != 42 || len(repo.upsertCalls[0].records) != len(service.AllowedQuotaPlatforms) {
 		t.Errorf("unexpected upsert call: %+v", repo.upsertCalls[0])
 	}
-	// 缓存失效：请求中 2 个 platform + 软删除的其余 8 个 AllowedQuotaPlatforms（合并后共 10 个平台：
-	// gemini, antigravity, deepseek, moonshot, glm, qwen, seedance, grok）= 10 次
-	if len(cache.deleteCalls) != 10 {
-		t.Errorf("expected 10 cache delete calls, got %d: %+v", len(cache.deleteCalls), cache.deleteCalls)
+	// 缓存失效：按全部允许平台统一失效（AllowedQuotaPlatforms 为单一权威来源）。
+	if len(cache.deleteCalls) != len(service.AllowedQuotaPlatforms) {
+		t.Errorf("expected %d cache delete calls, got %d: %+v", len(service.AllowedQuotaPlatforms), len(cache.deleteCalls), cache.deleteCalls)
 	}
 }
 
@@ -155,7 +163,7 @@ func TestUpdateUserPlatformQuotas_RejectsNegativeLimit(t *testing.T) {
 func TestUpdateUserPlatformQuotas_RejectsTooManyEntries(t *testing.T) {
 	h := buildTestHandler(&upsertCapturingQuotaRepo{}, &billingCacheStub{})
 	body := `{"quotas":[
-		{"platform":"anthropic"},{"platform":"openai"},{"platform":"gemini"},{"platform":"antigravity"},{"platform":"anthropic"}
+		{"platform":"anthropic"},{"platform":"openai"},{"platform":"gemini"},{"platform":"antigravity"},{"platform":"grok"},{"platform":"anthropic"}
 	]}`
 	c, w := putReq(t, body)
 	h.UpdateUserPlatformQuotas(c)
