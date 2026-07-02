@@ -2806,7 +2806,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.Priority != nil {
 		account.Priority = *input.Priority
 	}
-	if input.RateMultiplier != nil {
+	// [本地定制,上游无] 影子计费倍率恒继承母账号(由 propagateRateMultiplierToShadows 同步),
+	// 不接受独立编辑——与上方 ProxyID 同语义,否则会出现"有时继承、有时独立"的漂移。
+	if input.RateMultiplier != nil && !account.IsCredentialShadow() {
 		if *input.RateMultiplier < 0 {
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
@@ -2858,6 +2860,13 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	// 影子自身 proxy 不可独立编辑(见上),故对影子的更新不触发传播。
 	if input.ProxyID != nil && !account.IsCredentialShadow() {
 		if err := s.propagateProxyToShadows(ctx, id, account.ProxyID); err != nil {
+			return nil, err
+		}
+	}
+
+	// [本地定制,上游无] 计费倍率变更同步传播到 spark 影子(影子倍率恒继承母账号,见上)。
+	if input.RateMultiplier != nil && !account.IsCredentialShadow() {
+		if err := s.propagateRateMultiplierToShadows(ctx, id, account.RateMultiplier); err != nil {
 			return nil, err
 		}
 	}
@@ -3025,6 +3034,15 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		}
 		for _, accountID := range input.AccountIDs {
 			if err := s.propagateProxyToShadows(ctx, accountID, effectiveProxyID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// [本地定制,上游无] 计费倍率变更传播到每个目标账号的 spark 影子(影子倍率恒继承母账号)。
+	if repoUpdates.RateMultiplier != nil {
+		for _, accountID := range input.AccountIDs {
+			if err := s.propagateRateMultiplierToShadows(ctx, accountID, repoUpdates.RateMultiplier); err != nil {
 				return nil, err
 			}
 		}
@@ -3268,6 +3286,13 @@ func (s *adminServiceImpl) CreateShadow(ctx context.Context, parentID int64, opt
 		Concurrency:     concurrency,
 		Schedulable:     true,
 	}
+	// [本地定制,上游无] 影子恒继承母账号计费倍率(RateMultiplier),与 ProxyID 同语义。本 fork 用该
+	// 倍率修正账号成本;若影子恒按 1.0 记账,母账号配非 1.0 倍率时影子流量的成本/毛利统计会系统性
+	// 记错。深拷贝避免共享指针;母账号后续变更由 propagateRateMultiplierToShadows 同步。
+	if parent.RateMultiplier != nil {
+		rm := *parent.RateMultiplier
+		shadow.RateMultiplier = &rm
+	}
 
 	// 5. 持久化（Create 填充 shadow.ID）。并发竞态:预查(步骤2)放行后另一请求抢先建成,本次会撞
 	// 一母一影唯一索引。复查确认确为"已存在"竞态时返回结构化 409 而非裸 500——外审 A/P1。
@@ -3303,6 +3328,28 @@ func (s *adminServiceImpl) CreateShadow(ctx context.Context, parentID int64, opt
 // Calling this for a non-parent account is a harmless no-op.
 func (s *adminServiceImpl) propagateProxyToShadows(ctx context.Context, parentID int64, proxyID *int64) error {
 	return propagateAccountProxyToShadows(ctx, s.accountRepo, parentID, proxyID)
+}
+
+// [本地定制,上游无] propagateRateMultiplierToShadows 把母账号计费倍率同步到其所有 spark 影子
+// (影子倍率恒继承母账号,不接受独立编辑,与 proxy 同语义)。本 fork 用 RateMultiplier 修正账号
+// 成本,影子若恒按 1.0 记账会系统性记错成本/毛利。fork 同步注意:上游无此函数及其调用点。
+func (s *adminServiceImpl) propagateRateMultiplierToShadows(ctx context.Context, parentID int64, rateMultiplier *float64) error {
+	shadows, err := s.accountRepo.ListShadowsByParent(ctx, parentID)
+	if err != nil {
+		return fmt.Errorf("list spark shadows for rate multiplier propagation: %w", err)
+	}
+	for _, shadow := range shadows {
+		if rateMultiplier != nil {
+			rm := *rateMultiplier
+			shadow.RateMultiplier = &rm
+		} else {
+			shadow.RateMultiplier = nil
+		}
+		if err := s.accountRepo.Update(ctx, shadow); err != nil {
+			return fmt.Errorf("update spark shadow %d rate multiplier: %w", shadow.ID, err)
+		}
+	}
+	return nil
 }
 
 // propagateAccountProxyToShadows 把母账号的 proxy 同步到其所有 spark 影子(影子 proxy 恒继承母账号)。

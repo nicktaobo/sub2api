@@ -693,6 +693,108 @@ func TestBulkUpdateAccounts_PropagatesProxyToShadow(t *testing.T) {
 	require.Equal(t, newProxy, *storedShadow.ProxyID)
 }
 
+// ── [本地定制,上游无] 影子计费倍率恒继承母账号(RateMultiplier,成本/毛利统计正确性) ──
+
+// TestCreateShadow_InheritsParentRateMultiplier 验证创建影子时继承母账号计费倍率:
+// 影子流量若恒按 1.0 记 account_rate_multiplier,母账号配非 1.0 倍率(历史实例 1.6)时
+// 成本/毛利统计会系统性记错。
+func TestCreateShadow_InheritsParentRateMultiplier(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("parent_multiplier_copied", func(t *testing.T) {
+		repo := newSparkShadowRepoStub()
+		svc := &adminServiceImpl{accountRepo: repo}
+		rm := 1.6
+		parent := &Account{
+			Name: "rm-parent", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			Status: StatusActive, RateMultiplier: &rm,
+			Credentials: map[string]any{"chatgpt_account_id": "org-rm"},
+		}
+		require.NoError(t, repo.Create(ctx, parent))
+
+		shadow, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "rm-shadow"})
+		require.NoError(t, err)
+		require.NotNil(t, shadow.RateMultiplier, "影子应继承母账号计费倍率")
+		require.Equal(t, 1.6, *shadow.RateMultiplier)
+		require.NotSame(t, parent.RateMultiplier, shadow.RateMultiplier, "应深拷贝而非共享指针")
+	})
+
+	t.Run("parent_nil_stays_nil", func(t *testing.T) {
+		repo := newSparkShadowRepoStub()
+		svc := &adminServiceImpl{accountRepo: repo}
+		parent := &Account{
+			Name: "rm-parent-nil", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			Status:      StatusActive,
+			Credentials: map[string]any{"chatgpt_account_id": "org-rm-nil"},
+		}
+		require.NoError(t, repo.Create(ctx, parent))
+
+		shadow, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "rm-shadow-nil"})
+		require.NoError(t, err)
+		require.Nil(t, shadow.RateMultiplier, "母账号未配倍率时影子保持 nil(按 1.0 计)")
+	})
+}
+
+// TestUpdateAccount_PropagatesRateMultiplierToShadow 验证母账号改倍率同步传播到影子,
+// 且影子自身的倍率不接受独立编辑(与 proxy 同"恒继承"语义,防漂移)。
+func TestUpdateAccount_PropagatesRateMultiplierToShadow(t *testing.T) {
+	ctx := context.Background()
+	repo := newSparkShadowRepoStub()
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	parent := &Account{
+		Name: "rm-up-parent", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Status:      StatusActive,
+		Credentials: map[string]any{"chatgpt_account_id": "org-rm-up"},
+	}
+	require.NoError(t, repo.Create(ctx, parent))
+	shadow, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "rm-up-shadow"})
+	require.NoError(t, err)
+
+	// 母账号改倍率 → 影子跟随。
+	newRM := 1.6
+	_, err = svc.UpdateAccount(ctx, parent.ID, &UpdateAccountInput{RateMultiplier: &newRM})
+	require.NoError(t, err)
+	storedShadow := repo.accounts[shadow.ID]
+	require.NotNil(t, storedShadow.RateMultiplier)
+	require.Equal(t, 1.6, *storedShadow.RateMultiplier, "母账号倍率变更应传播到影子")
+
+	// 对影子独立改倍率 → 被忽略,仍保持继承值。
+	independent := 0.5
+	_, err = svc.UpdateAccount(ctx, shadow.ID, &UpdateAccountInput{RateMultiplier: &independent})
+	require.NoError(t, err)
+	storedShadow = repo.accounts[shadow.ID]
+	require.NotNil(t, storedShadow.RateMultiplier)
+	require.Equal(t, 1.6, *storedShadow.RateMultiplier, "影子倍率不接受独立编辑")
+}
+
+// TestBulkUpdateAccounts_PropagatesRateMultiplierToShadow 验证批量改倍率同样传播到影子。
+func TestBulkUpdateAccounts_PropagatesRateMultiplierToShadow(t *testing.T) {
+	ctx := context.Background()
+	repo := newSparkShadowRepoStub()
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	parent := &Account{
+		Name: "rm-bulk-parent", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Status:      StatusActive,
+		Credentials: map[string]any{"chatgpt_account_id": "org-rm-bulk"},
+	}
+	require.NoError(t, repo.Create(ctx, parent))
+	shadow, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "rm-bulk-shadow"})
+	require.NoError(t, err)
+
+	newRM := 2.0
+	_, err = svc.BulkUpdateAccounts(ctx, &BulkUpdateAccountsInput{
+		AccountIDs:     []int64{parent.ID},
+		RateMultiplier: &newRM,
+	})
+	require.NoError(t, err)
+
+	storedShadow := repo.accounts[shadow.ID]
+	require.NotNil(t, storedShadow.RateMultiplier)
+	require.Equal(t, 2.0, *storedShadow.RateMultiplier, "批量倍率变更应传播到影子")
+}
+
 // ── 外审 P1/P2 加固:专用测试桩 ───────────────────────────────────────────
 
 // raceCreateRepoStub 模拟并发竞态:对影子的 Create 撞一母一影唯一索引(返回错误),
