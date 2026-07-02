@@ -5496,6 +5496,39 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			// 必须先于 sseErr/failover 判断——已写入内容时 handler 的 writer-size 检查会阻止
 			// failover，裸 failover 只会让整段已交付内容零计费。
 			if shouldBillPartialStream(streamResult) {
+				// 部分计费提前返回不能吞掉旧分支的副作用：上游 event:error 仍需记录
+				// ops 上游错误事件（供运维日志/告警定位上游真实错误）并打印失败日志，
+				// 口径与下方未交付内容时的 sseErr 分支一致。
+				var partialSSEErr *sseStreamErrorEventError
+				if errors.As(err, &partialSSEErr) {
+					partialBody := []byte(partialSSEErr.RawData)
+					partialMsg := sanitizeUpstreamErrorMessage(
+						strings.TrimSpace(extractUpstreamErrorMessage(partialBody)),
+					)
+					partialDetail := ""
+					if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+						maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+						if maxBytes <= 0 {
+							maxBytes = 2048
+						}
+						partialDetail = truncateString(partialSSEErr.RawData, maxBytes)
+					}
+					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+						Platform:           account.Platform,
+						AccountID:          account.ID,
+						AccountName:        account.Name,
+						UpstreamStatusCode: 403,
+						UpstreamRequestID:  resp.Header.Get("x-request-id"),
+						Kind:               "stream_error",
+						Message:            partialMsg,
+						Detail:             partialDetail,
+					})
+					logger.LegacyPrintf("service.gateway",
+						"[Forward] SSE error event in stream (partial delivery, billing delivered tokens): Account=%d(%s) RequestID=%s Body=%s",
+						account.ID, account.Name, resp.Header.Get("x-request-id"),
+						truncateString(partialSSEErr.RawData, 1000),
+					)
+				}
 				return &ForwardResult{
 					RequestID:        resp.Header.Get("x-request-id"),
 					Usage:            *streamResult.usage,
@@ -9707,7 +9740,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			ResponseModel:    result.UpstreamModel,
 			RequestID:        result.RequestID,
 			IsStream:         result.Stream,
-			StreamCompleted:  result.Stream && !result.ClientDisconnect,
+			StreamCompleted:  result.Stream && !result.ClientDisconnect && !result.PartialError,
 			PromptTokens:     reportedPromptTokens,
 			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output:伪造检测对齐 L3,排除图生 image token
 			TotalTokens:      reportedPromptTokens + reportedOutputTokens,

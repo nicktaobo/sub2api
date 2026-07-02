@@ -2986,3 +2986,92 @@ func TestHandleCompatErrorResponseCyberPolicyEarlyReturn(t *testing.T) {
 	require.NotContains(t, gotMsg, "Upstream request failed")
 	require.NotNil(t, GetOpsCyberPolicy(c))
 }
+
+// shouldBillPartialOpenAIPassthroughStream 的纯逻辑：仅当 streamResult 非 nil、携带 usage
+// 且已交付内容（firstTokenMs != nil）时才计费；未交付/nil 一律不计费（口径对齐主
+// Messages 路径的 shouldBillPartialStream）。
+func TestShouldBillPartialOpenAIPassthroughStream(t *testing.T) {
+	ms := 12
+	require.True(t, shouldBillPartialOpenAIPassthroughStream(&openaiStreamingResultPassthrough{usage: &OpenAIUsage{InputTokens: 10}, firstTokenMs: &ms}),
+		"已交付内容且有 usage：应计费")
+	require.False(t, shouldBillPartialOpenAIPassthroughStream(&openaiStreamingResultPassthrough{usage: &OpenAIUsage{InputTokens: 10}}),
+		"firstTokenMs 为 nil（未交付内容）：不计费")
+	require.False(t, shouldBillPartialOpenAIPassthroughStream(&openaiStreamingResultPassthrough{firstTokenMs: &ms}),
+		"usage 为 nil：不计费")
+	require.False(t, shouldBillPartialOpenAIPassthroughStream(nil), "nil streamResult：不计费")
+}
+
+// 透传流式已交付内容后上游 response.failed（携带 usage）：handleStreamingResponsePassthrough
+// 返回 error，但 streamResult 必须带回已产出的 usage 且满足 shouldBillPartialOpenAIPassthroughStream
+// （供 Forward 构造 PartialError 结果、上层对已交付 token 计费一次，而非整段零计费）。
+func TestOpenAIStreamingPassthrough_PartialDeliveryIsBillable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_partial"}}`,
+			"",
+			"event: response.output_text.delta",
+			`data: {"type":"response.output_text.delta","delta":"partial"}`,
+			"",
+			"event: response.failed",
+			`data: {"type":"response.failed","response":{"usage":{"input_tokens":40,"output_tokens":7,"input_tokens_details":{"cached_tokens":6}}},"error":{"code":"server_error","message":"upstream exploded mid-stream"}}`,
+			"",
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"rid-partial-billable"}},
+	}
+
+	result, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "", "")
+	require.Error(t, err, "已交付内容后 response.failed 应返回 error")
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "已交付内容后不允许 failover（内容已写出）")
+	require.NotNil(t, result)
+	require.NotNil(t, result.usage)
+	require.Equal(t, 40, result.usage.InputTokens)
+	require.Equal(t, 7, result.usage.OutputTokens)
+	require.Equal(t, 6, result.usage.CacheReadInputTokens)
+	require.NotNil(t, result.firstTokenMs, "已交付内容，firstTokenMs 应被设置")
+	require.True(t, shouldBillPartialOpenAIPassthroughStream(result), "已交付内容 + 有 usage：必须可部分计费")
+}
+
+// 产出任何内容前上游 response.failed：返回 failover error 供换账号重试，此时
+// streamResult 不满足部分计费条件（firstTokenMs == nil）——Forward 层据此 return nil,err，
+// 不产生 PartialError 结果，重试成功后按成功口径计费一次，不会双重入账。
+func TestOpenAIStreamingPassthrough_FailoverRetryDoesNotBillPartial(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_failover"}}`,
+			"",
+			"event: response.failed",
+			`data: {"type":"response.failed","response":{"usage":{"input_tokens":40,"output_tokens":0}},"error":{"message":"upstream processing failed"}}`,
+			"",
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"rid-failover-no-partial"}},
+	}
+
+	result, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "", "")
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr, "未交付内容时 response.failed 应触发 failover")
+	require.False(t, shouldBillPartialOpenAIPassthroughStream(result),
+		"failover 重试路径不得部分计费，否则重试成功后双重入账")
+	require.False(t, c.Writer.Written())
+}

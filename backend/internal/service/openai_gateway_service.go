@@ -247,13 +247,18 @@ type OpenAIForwardResult struct {
 	ServiceTier *string
 	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
 	// Stored for usage records display; nil means not provided / not applicable.
-	ReasoningEffort    *string
-	Stream             bool
-	OpenAIWSMode       bool
-	ResponseHeaders    http.Header
-	Duration           time.Duration
-	FirstTokenMs       *int
-	ClientDisconnect   bool
+	ReasoningEffort  *string
+	Stream           bool
+	OpenAIWSMode     bool
+	ResponseHeaders  http.Header
+	Duration         time.Duration
+	FirstTokenMs     *int
+	ClientDisconnect bool
+	// PartialError 标记：流式转发在已向客户端交付内容后中途出错（如上游断流、缺终止事件、
+	// 空闲超时）。此时 Usage 携带上游已产出的（部分）用量，上层应据此对已交付的 token
+	// 计费——否则上游已产出、客户端已收到内容却整段零计费。该结果同时携带非 nil error，
+	// 调用方仍应按失败处理（计入调度失败、不可 failover，因为内容已写出）。
+	PartialError       bool
 	ImageCount         int
 	ImageSize          string
 	ImageInputSize     string
@@ -3584,6 +3589,35 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
 		if err != nil {
+			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
+			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
+			// failover 错误不走部分计费——handler 会换账号重试，重试成功后按成功口径计费，
+			// 此处计费会造成双重入账（且 failover 仅在未交付内容时返回，本就不满足计费条件）。
+			var failoverErr *UpstreamFailoverError
+			if shouldBillPartialOpenAIPassthroughStream(result) && !errors.As(err, &failoverErr) {
+				partialResult := &OpenAIForwardResult{
+					RequestID:        resp.Header.Get("x-request-id"),
+					ResponseID:       strings.TrimSpace(result.responseID),
+					Usage:            *result.usage,
+					Model:            reqModel,
+					UpstreamModel:    upstreamPassthroughModel,
+					ServiceTier:      serviceTier,
+					ReasoningEffort:  reasoningEffort,
+					Stream:           true,
+					Duration:         time.Since(startTime),
+					FirstTokenMs:     result.firstTokenMs,
+					ClientDisconnect: result.clientDisconnect,
+					PartialError:     true,
+				}
+				if result.imageCount > 0 {
+					partialResult.ImageCount = result.imageCount
+					partialResult.ImageSize = imageSizeTier
+					partialResult.ImageInputSize = imageInputSize
+					partialResult.ImageOutputSizes = result.imageOutputSizes
+					partialResult.BillingModel = imageBillingModel
+				}
+				return partialResult, err
+			}
 			return nil, err
 		}
 		usage = result.usage
@@ -3946,6 +3980,16 @@ type openaiStreamingResultPassthrough struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
+	clientDisconnect bool // 客户端是否在流式传输过程中断开
+}
+
+// shouldBillPartialOpenAIPassthroughStream 判断 OpenAI /responses 透传流式中途出错时，
+// 是否应对已产出的 usage 计费。仅当：① streamResult 非 nil 且携带 usage；② firstTokenMs
+// 非 nil（确实已向客户端交付过内容）——此时上游已产出可计费 token、内容不可撤销且禁止
+// failover，应计费。出错发生在产出任何内容之前（firstTokenMs == nil）时返回 false，
+// 不计费、交由上层 failover/报错。口径对齐主 Messages 路径的 shouldBillPartialStream。
+func shouldBillPartialOpenAIPassthroughStream(streamResult *openaiStreamingResultPassthrough) bool {
+	return streamResult != nil && streamResult.usage != nil && streamResult.firstTokenMs != nil
 }
 
 type openaiNonStreamingResultPassthrough struct {
@@ -4153,6 +4197,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			responseID:       responseID,
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
+			clientDisconnect: clientDisconnected,
 		}
 	}
 
@@ -6638,7 +6683,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			ResponseModel:    result.UpstreamModel,
 			RequestID:        result.RequestID,
 			IsStream:         result.Stream,
-			StreamCompleted:  result.Stream && !result.ClientDisconnect,
+			StreamCompleted:  result.Stream && !result.ClientDisconnect && !result.PartialError,
 			PromptTokens:     result.Usage.InputTokens,
 			CompletionTokens: max(0, reportedOutputTokens-result.Usage.ImageOutputTokens), // 纯文本 output
 			TotalTokens:      result.Usage.InputTokens + reportedOutputTokens,
