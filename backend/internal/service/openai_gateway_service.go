@@ -229,6 +229,30 @@ type OpenAIUsage struct {
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
 }
 
+// SanitizeNegatives 把负值 token 字段清零并返回被清零的字段名（供审计日志）。
+// 上游格式异常/流截断解析可能产生负 token，直接参与计费会冲减费用甚至负扣费，
+// 计费与落库前必须兜底（历史上出过负 token 入账）。
+func (u *OpenAIUsage) SanitizeNegatives() []string {
+	var clamped []string
+	for _, f := range []struct {
+		name string
+		v    *int
+	}{
+		{"input_tokens", &u.InputTokens},
+		{"image_input_tokens", &u.ImageInputTokens},
+		{"output_tokens", &u.OutputTokens},
+		{"cache_creation_input_tokens", &u.CacheCreationInputTokens},
+		{"cache_read_input_tokens", &u.CacheReadInputTokens},
+		{"image_output_tokens", &u.ImageOutputTokens},
+	} {
+		if *f.v < 0 {
+			clamped = append(clamped, f.name)
+			*f.v = 0
+		}
+	}
+	return clamped
+}
+
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
 	RequestID  string
@@ -6455,6 +6479,16 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	account := input.Account
 	subscription := input.Subscription
 	ApplyOpenAIImageBillingResolution(result)
+
+	// 负 token 兜底:上游异常/流截断解析可能产生负值,参与计费会冲减费用,先清零并留审计。
+	if clamped := result.Usage.SanitizeNegatives(); len(clamped) > 0 {
+		logger.L().With(
+			zap.String("component", "service.openai_gateway.usage_sanitize"),
+			zap.Strings("fields", clamped),
+			zap.String("request_id", result.RequestID),
+			zap.String("model", result.Model),
+		).Warn("negative_usage_tokens.clamped")
+	}
 
 	// 计算实际的新输入token（减去缓存读取的token）
 	// 因为 input_tokens 包含了 cache_read_tokens，而缓存读取的token不应按输入价格计费

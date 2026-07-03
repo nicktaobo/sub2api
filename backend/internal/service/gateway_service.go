@@ -552,6 +552,31 @@ type ClaudeUsage struct {
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
 }
 
+// SanitizeNegatives 把负值 token 字段清零并返回被清零的字段名（供审计日志）。
+// 上游格式异常/流截断解析可能产生负 token，直接参与计费会冲减费用甚至负扣费，
+// 计费与落库前必须兜底（历史上出过负 token 入账）。
+func (u *ClaudeUsage) SanitizeNegatives() []string {
+	var clamped []string
+	for _, f := range []struct {
+		name string
+		v    *int
+	}{
+		{"input_tokens", &u.InputTokens},
+		{"output_tokens", &u.OutputTokens},
+		{"cache_creation_input_tokens", &u.CacheCreationInputTokens},
+		{"cache_read_input_tokens", &u.CacheReadInputTokens},
+		{"cache_creation_5m_tokens", &u.CacheCreation5mTokens},
+		{"cache_creation_1h_tokens", &u.CacheCreation1hTokens},
+		{"image_output_tokens", &u.ImageOutputTokens},
+	} {
+		if *f.v < 0 {
+			clamped = append(clamped, f.name)
+			*f.v = 0
+		}
+	}
+	return clamped
+}
+
 // ForwardResult 转发结果
 type ForwardResult struct {
 	RequestID string
@@ -9728,6 +9753,12 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	account := input.Account
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
+
+	// 负 token 兜底:上游异常/流截断解析可能产生负值,参与计费会冲减费用,先清零并留审计。
+	if clamped := result.Usage.SanitizeNegatives(); len(clamped) > 0 {
+		logger.LegacyPrintf("service.gateway", "negative usage tokens clamped to 0: fields=%v account=%d request=%s model=%s",
+			clamped, account.ID, result.RequestID, result.Model)
+	}
 
 	// 捕获 ForceCacheBilling 改写前的原始 input(下方粘性会话切换会把 InputTokens 清零),
 	// 供 L2 上报 guard 时如实反映 prompt 体量。
