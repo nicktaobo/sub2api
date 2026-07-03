@@ -17,6 +17,7 @@
 package handler
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -90,11 +91,23 @@ func (h *MerchantLogoHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	// 取 Content-Type 自报；要更严的话再 sniff 文件头（这里依赖前端 + 扩展名）
+	// Content-Type 自报只作快速拒绝，实际类型以文件头 sniff 为准（防伪造 MIME 上传非图片内容）
 	ct := strings.ToLower(strings.TrimSpace(strings.Split(header.Header.Get("Content-Type"), ";")[0]))
-	ext, ok := merchantLogoAllowed[ct]
-	if !ok {
+	if _, ok := merchantLogoAllowed[ct]; !ok {
 		response.BadRequest(c, "unsupported image type; allow png/jpeg/webp")
+		return
+	}
+	head := make([]byte, 512)
+	n, err := io.ReadFull(file, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		response.InternalError(c, "read file: "+err.Error())
+		return
+	}
+	head = head[:n]
+	sniffed := strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(head), ";")[0]))
+	ext, ok := merchantLogoAllowed[sniffed]
+	if !ok {
+		response.BadRequest(c, "file content is not a png/jpeg/webp image")
 		return
 	}
 
@@ -112,7 +125,7 @@ func (h *MerchantLogoHandler) Upload(c *gin.Context) {
 		response.InternalError(c, "write file: "+err.Error())
 		return
 	}
-	written, copyErr := io.Copy(out, file)
+	written, copyErr := io.Copy(out, io.MultiReader(bytes.NewReader(head), file))
 	_ = out.Close()
 	if copyErr != nil {
 		_ = os.Remove(dst)
