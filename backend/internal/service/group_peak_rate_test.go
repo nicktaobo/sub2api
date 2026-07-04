@@ -157,7 +157,7 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 
 	t.Run("peak hour amplifies token multiplier only", func(t *testing.T) {
 		now := at(15, 30) // 处于 [14:00, 18:00)
-		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, now)
+		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, nil, baseMultiplier, now)
 		if !approxEq(imageMultiplier, baseMultiplier) {
 			t.Fatalf("image multiplier must not be affected by peak: got %v, want %v", imageMultiplier, baseMultiplier)
 		}
@@ -168,7 +168,7 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 
 	t.Run("off-peak leaves both multipliers at base", func(t *testing.T) {
 		now := at(20, 0)
-		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, now)
+		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, nil, baseMultiplier, now)
 		if !approxEq(imageMultiplier, baseMultiplier) {
 			t.Fatalf("image multiplier: got %v, want %v", imageMultiplier, baseMultiplier)
 		}
@@ -183,7 +183,7 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 		indGroup.ImageRateMultiplier = 0.5
 		indKey := &APIKey{Group: indGroup}
 		now := at(15, 30)
-		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(indKey, baseMultiplier, now)
+		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(indKey, nil, baseMultiplier, now)
 		if !approxEq(imageMultiplier, 0.5) {
 			t.Fatalf("independent image multiplier: got %v, want 0.5", imageMultiplier)
 		}
@@ -194,12 +194,33 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 
 	t.Run("nil api key degrades to base multipliers", func(t *testing.T) {
 		now := at(15, 30)
-		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(nil, baseMultiplier, now)
+		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(nil, nil, baseMultiplier, now)
 		if !approxEq(tokenMultiplier, baseMultiplier) {
 			t.Fatalf("nil group token multiplier: got %v, want %v", tokenMultiplier, baseMultiplier)
 		}
 		if !approxEq(imageMultiplier, baseMultiplier) {
 			t.Fatalf("nil group image multiplier: got %v, want %v", imageMultiplier, baseMultiplier)
+		}
+	})
+
+	// 影子账号不吃高峰倍率，恒按母账号继承的倍率走（2026-07-05 产品口径）。
+	t.Run("shadow account skips peak factor even in peak hour", func(t *testing.T) {
+		now := at(15, 30) // 处于 [14:00, 18:00)
+		parentID := int64(42)
+		shadow := &Account{ParentAccountID: &parentID}
+		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, shadow, baseMultiplier, now)
+		if !approxEq(tokenMultiplier, baseMultiplier) {
+			t.Fatalf("shadow account token multiplier must stay at base: got %v, want %v", tokenMultiplier, baseMultiplier)
+		}
+		if !approxEq(imageMultiplier, baseMultiplier) {
+			t.Fatalf("shadow account image multiplier: got %v, want %v", imageMultiplier, baseMultiplier)
+		}
+
+		// 同时刻普通账号（母账号本身）仍正常吃高峰
+		parent := &Account{ID: parentID}
+		tokenMultiplier, _ = computePeakAwareMultipliers(apiKey, parent, baseMultiplier, now)
+		if want := baseMultiplier * 3.0; !approxEq(tokenMultiplier, want) {
+			t.Fatalf("non-shadow account should include peak factor: got %v, want %v", tokenMultiplier, want)
 		}
 	})
 }
