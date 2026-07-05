@@ -629,3 +629,202 @@ func TestIsSSEResponseBody(t *testing.T) {
 	require.True(t, isSSEResponseBody("application/json", []byte("\n\ndata: {\"x\":1}"))) // 按 body 嗅探
 	require.False(t, isSSEResponseBody("application/json", []byte(`{"object":"chat.completion"}`)))
 }
+
+// ---- gpt-image-* 经 CC 直转的图片识别与计费口径(2026-07 group 69 少收事故回归) ----
+
+func TestForwardAsRawChatCompletions_DetectsImageOutputNonStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-image-2","messages":[{"role":"user","content":"draw a dot"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload := testPNGBase64(t, 6, 4, 8192)
+	// 按 test1122/subrouter 系上游实测格式:markdown data URI 内嵌 content,
+	// usage 以 output_tokens_details.image_tokens 上报图像 token。
+	upstreamJSON := `{"id":"chatcmpl_img","object":"chat.completion","model":"gpt-image-2","choices":[{"index":0,"message":{"role":"assistant","content":"![image_1](data:image/png;base64,` + payload + `)"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1584,"total_tokens":1589,"output_tokens_details":{"image_tokens":1584}}}`
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_img_json"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, []string{"6x4"}, result.ImageOutputSizes)
+	require.Equal(t, 1584, result.Usage.ImageOutputTokens)
+	require.Equal(t, 1584, result.Usage.OutputTokens)
+	// 响应原样透传给客户端
+	require.Contains(t, rec.Body.String(), "data:image/png;base64,")
+}
+
+func TestForwardAsRawChatCompletions_DetectsImageOutputStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-image-2","messages":[{"role":"user","content":"draw a dot"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload := testPNGBase64(t, 9, 2, 8192)
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_img","object":"chat.completion.chunk","model":"gpt-image-2","choices":[{"index":0,"delta":{"role":"assistant","content":"![image_1](data:image/png;base64,` + payload + `)"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_img","object":"chat.completion.chunk","model":"gpt-image-2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		"",
+		`data: {"id":"chatcmpl_img","object":"chat.completion.chunk","model":"gpt-image-2","choices":[],"usage":{"prompt_tokens":5,"completion_tokens":1584,"total_tokens":1589,"output_tokens_details":{"image_tokens":1584}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_img_sse"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, []string{"9x2"}, result.ImageOutputSizes)
+	require.Equal(t, 1584, result.Usage.ImageOutputTokens)
+	require.Contains(t, rec.Body.String(), "data: [DONE]")
+}
+
+func TestForwardAsRawChatCompletions_ImageTokensFallbackWhenNoDataURI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-image-2","messages":[{"role":"user","content":"draw"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	// 上游以 URL 交付,content 里没有 data URI,但 image_tokens 明确非零 → 兜底按 1 张计。
+	upstreamJSON := `{"id":"chatcmpl_img_url","object":"chat.completion","model":"gpt-image-2","choices":[{"index":0,"message":{"role":"assistant","content":"![image](https://cdn.example.com/img/abc.png)"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1056,"total_tokens":1061,"output_tokens_details":{"image_tokens":1056}}}`
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_img_url"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, result.ImageCount)
+	require.Empty(t, result.ImageOutputSizes)
+	require.Equal(t, 1056, result.Usage.ImageOutputTokens)
+	_ = rec
+}
+
+func TestForwardAsRawChatCompletions_TextResponseNoImageCount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"deepseek-chat","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamJSON := `{"id":"chatcmpl_txt","object":"chat.completion","model":"deepseek-chat","choices":[{"index":0,"message":{"role":"assistant","content":"普通文本回复"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":7,"total_tokens":10}}`
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_txt"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.Zero(t, result.ImageCount)
+	require.Zero(t, result.Usage.ImageOutputTokens)
+	require.Equal(t, 3, result.Usage.InputTokens)
+	require.Equal(t, 7, result.Usage.OutputTokens)
+	_ = rec
+}
+
+func TestForwardAsRawChatCompletions_TextModelEchoedImageNotBilledPerImage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// 文本模型(非 gpt-image-*)复读用户贴的真图 data URI:不得切图片计费。
+	body := []byte(`{"model":"deepseek-chat","messages":[{"role":"user","content":"repeat"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload := testPNGBase64(t, 10, 10, 8192)
+	upstreamJSON := `{"id":"chatcmpl_echo","object":"chat.completion","model":"deepseek-chat","choices":[{"index":0,"message":{"role":"assistant","content":"你贴的图:![img](data:image/png;base64,` + payload + `)"},"finish_reason":"stop"}],"usage":{"prompt_tokens":800,"completion_tokens":900,"total_tokens":1700}}`
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_echo"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.Zero(t, result.ImageCount)
+	require.Empty(t, result.ImageOutputSizes)
+	require.Equal(t, 800, result.Usage.InputTokens)
+	require.Equal(t, 900, result.Usage.OutputTokens)
+	_ = rec
+}
+
+func TestForwardAsRawChatCompletions_TextModelEchoedImageNotBilledPerImageStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"deepseek-chat","messages":[{"role":"user","content":"repeat"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload := testPNGBase64(t, 10, 10, 8192)
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_echo","object":"chat.completion.chunk","model":"deepseek-chat","choices":[{"index":0,"delta":{"content":"![img](data:image/png;base64,` + payload + `)"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_echo","object":"chat.completion.chunk","model":"deepseek-chat","choices":[],"usage":{"prompt_tokens":800,"completion_tokens":900,"total_tokens":1700}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_echo_sse"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.Zero(t, result.ImageCount)
+	require.Empty(t, result.ImageOutputSizes)
+	_ = rec
+}

@@ -325,6 +325,17 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+	// 图片识别:上游可能把生成图以 data URI 内嵌在 delta.content 流式返回,
+	// 不识别会落 token 计费,绕过分组按张定价。喂入的是 gjson 提取后的
+	// delta 内容(解转义、跨 chunk 续拼),按 choice index 分扫描器。
+	// 仅对图片模型(gpt-image-*)启用:普通文本聊天不扫描、不切图片计费,
+	// 防止用户贴图被模型复读时误按张收费。
+	imageBillingEligible := isOpenAIImageGenerationModel(billingModel) || isOpenAIImageGenerationModel(originalModel)
+	var imageScanners map[int64]*chatImageDataURIScanner
+	if imageBillingEligible {
+		imageScanners = make(map[int64]*chatImageDataURIScanner)
+	}
+	sawDone := false
 
 	writeLine := func(line string) {
 		if clientDisconnected {
@@ -361,6 +372,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	for scanner.Scan() {
 		line := scanner.Text()
 		refusalDetector.ObserveSSELine(line)
+		imagePayload := ""
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
 			if trimmedPayload != "[DONE]" {
@@ -368,10 +380,15 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
 				}
+				if imageBillingEligible {
+					imagePayload = payload
+				}
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed
 				}
+			} else {
+				sawDone = true
 			}
 		}
 
@@ -385,12 +402,17 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		if !clientDisconnected && clientOutputStarted {
 			c.Writer.Flush()
 		}
+		// 扫描放在向客户端写出/flush 之后,不给转发链路加首字延迟。
+		if imagePayload != "" {
+			feedChatImageStreamChunk(imageScanners, imagePayload)
+		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+	scanErr := scanner.Err()
+	if scanErr != nil {
+		if !errors.Is(scanErr, context.Canceled) && !errors.Is(scanErr, context.DeadlineExceeded) {
 			logger.L().Warn("openai chat_completions raw: stream read error",
-				zap.Error(err),
+				zap.Error(scanErr),
 				zap.String("request_id", requestID),
 			)
 		}
@@ -417,17 +439,35 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 	}
 
+	// 伪造超额 image_tokens 会绕过 L3 output cap,先按子集语义钳制。
+	clampCCImageOutputTokens(&usage)
+
+	imageCount := 0
+	var imageOutputSizes []string
+	if imageBillingEligible {
+		// 流正常收尾([DONE] 且无读错误)才计入停在末尾的未闭合 payload;
+		// 截断流的半张图不计费。
+		cleanEnd := sawDone && scanErr == nil
+		imageCount, imageOutputSizes = finishChatImageStreamScanners(imageScanners, cleanEnd)
+		if imageCount == 0 && usage.ImageOutputTokens > 0 {
+			// 上游明确上报了图像 token 但交付形式未被识别(如 URL),保守按 1 张计。
+			imageCount = 1
+		}
+	}
+
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     serviceTier,
-		Stream:          true,
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
+		RequestID:        requestID,
+		Usage:            usage,
+		Model:            originalModel,
+		BillingModel:     billingModel,
+		UpstreamModel:    upstreamModel,
+		ReasoningEffort:  reasoningEffort,
+		ServiceTier:      serviceTier,
+		Stream:           true,
+		Duration:         time.Since(startTime),
+		FirstTokenMs:     firstTokenMs,
+		ImageCount:       imageCount,
+		ImageOutputSizes: imageOutputSizes,
 	}, nil
 }
 
@@ -455,19 +495,13 @@ func isOpenAIChatUsageOnlyStreamChunk(payload string) bool {
 // extractCCStreamUsage 从单个 CC 流式 chunk 的 payload 中提取 usage 字段。
 // CC 协议中 usage 仅出现在末尾 chunk（且仅当 include_usage 生效时），
 // 但上游可能在多个 chunk 中重复——总是用最新值。
+// 复用 openAIUsageFromGJSON:兼容 prompt/completion 与 input/output 两套字段名,
+// 并覆盖 output_tokens_details.image_tokens(gpt-image-* 经 CC 直转的图像 token)。
 func extractCCStreamUsage(payload string) *OpenAIUsage {
-	usageResult := gjson.Get(payload, "usage")
-	if !usageResult.Exists() || !usageResult.IsObject() {
-		return nil
+	if u, ok := openAIUsageFromGJSON(gjson.Get(payload, "usage")); ok {
+		return &u
 	}
-	u := OpenAIUsage{
-		InputTokens:  int(gjson.Get(payload, "usage.prompt_tokens").Int()),
-		OutputTokens: int(gjson.Get(payload, "usage.completion_tokens").Int()),
-	}
-	if cached := gjson.Get(payload, "usage.prompt_tokens_details.cached_tokens"); cached.Exists() {
-		u.CacheReadInputTokens = int(cached.Int())
-	}
-	return &u
+	return nil
 }
 
 // bufferRawChatCompletions 透传上游 CC 非流式 JSON 响应。
@@ -495,22 +529,41 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	// 直接透传 SSE 会让非流式客户端解析失败，且 json 解析 usage 失败导致零计费。
 	// 检测到 SSE 时聚合成单个 Chat Completions JSON 响应（含 content/reasoning/usage）。
 	respContentType := resp.Header.Get("Content-Type")
+	var sseUsage *OpenAIUsage
 	if isSSEResponseBody(respContentType, respBody) {
 		if assembled, ok := aggregateChatCompletionsSSEToJSON(respBody, originalModel); ok {
+			// usage 以原始 SSE 为准:聚合经 apicompat.ChatUsage 往返会丢
+			// image_tokens 等细节字段,丢了就断掉图片计费的 usage 兜底。
+			sseUsage = extractCCSSEFinalUsage(respBody)
 			respBody = assembled
 			respContentType = "application/json"
 		}
 	}
 
-	var ccResp apicompat.ChatCompletionsResponse
+	// 统一走 gjson 提取:除 prompt/completion/cached 外还覆盖
+	// output_tokens_details.image_tokens(gpt-image-* 经 CC 直转时的图像 token)。
 	var usage OpenAIUsage
-	if err := json.Unmarshal(respBody, &ccResp); err == nil && ccResp.Usage != nil {
-		usage = OpenAIUsage{
-			InputTokens:  ccResp.Usage.PromptTokens,
-			OutputTokens: ccResp.Usage.CompletionTokens,
-		}
-		if ccResp.Usage.PromptTokensDetails != nil {
-			usage.CacheReadInputTokens = ccResp.Usage.PromptTokensDetails.CachedTokens
+	if parsed, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
+		usage = parsed
+	}
+	if sseUsage != nil {
+		usage = *sseUsage
+	}
+	// 伪造超额 image_tokens 会绕过 L3 output cap,先按子集语义钳制。
+	clampCCImageOutputTokens(&usage)
+
+	// 图片识别:上游可能把生成图以 data URI 内嵌在 message.content 返回,
+	// 不识别会落 token 计费,绕过分组按张定价。仅扫 choices 子树,
+	// 喂入 gjson 提取后的字段字符串(解 JSON 转义)。
+	// 仅对图片模型(gpt-image-*)启用:普通文本聊天不扫描、不切图片计费,
+	// 防止用户贴图被模型复读时误按张收费。
+	imageCount := 0
+	var imageOutputSizes []string
+	if isOpenAIImageGenerationModel(billingModel) || isOpenAIImageGenerationModel(originalModel) {
+		imageCount, imageOutputSizes = detectChatCompletionsImageOutputs(gjson.GetBytes(respBody, "choices"))
+		if imageCount == 0 && usage.ImageOutputTokens > 0 {
+			// 上游明确上报了图像 token 但交付形式未被识别(如 URL),保守按 1 张计。
+			imageCount = 1
 		}
 	}
 
@@ -526,15 +579,17 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	_, _ = c.Writer.Write(respBody)
 
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     serviceTier,
-		Stream:          false,
-		Duration:        time.Since(startTime),
+		RequestID:        requestID,
+		Usage:            usage,
+		Model:            originalModel,
+		BillingModel:     billingModel,
+		UpstreamModel:    upstreamModel,
+		ReasoningEffort:  reasoningEffort,
+		ServiceTier:      serviceTier,
+		Stream:           false,
+		Duration:         time.Since(startTime),
+		ImageCount:       imageCount,
+		ImageOutputSizes: imageOutputSizes,
 	}, nil
 }
 
