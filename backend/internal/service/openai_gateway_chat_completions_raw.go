@@ -582,10 +582,10 @@ func aggregateChatCompletionsSSEToJSON(body []byte, fallbackModel string) ([]byt
 		}
 		for _, ch := range chunk.Choices {
 			if ch.Delta.Content != nil {
-				contentSB.WriteString(*ch.Delta.Content)
+				_, _ = contentSB.WriteString(*ch.Delta.Content)
 			}
 			if ch.Delta.ReasoningContent != nil {
-				reasoningSB.WriteString(*ch.Delta.ReasoningContent)
+				_, _ = reasoningSB.WriteString(*ch.Delta.ReasoningContent)
 			}
 			if ch.FinishReason != nil && *ch.FinishReason != "" {
 				finishReason = *ch.FinishReason

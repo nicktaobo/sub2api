@@ -208,7 +208,7 @@ func selectPendingAffOutboxForUpdate(ctx context.Context, tx *sql.Tx, limit int)
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close()
+	defer func() { _ = rs.Close() }()
 	out := make([]affOutboxRow, 0, limit)
 	for rs.Next() {
 		var r affOutboxRow

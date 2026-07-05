@@ -107,13 +107,13 @@ func (s *MerchantService) GetMerchantStats(ctx context.Context, merchantID int64
 
 // AdminMerchantStats admin 视角看某个商户的全量统计（区分利润 vs 本金）。
 type AdminMerchantStats struct {
-	TotalProfit          float64 `json:"total_profit"`            // user_markup_share credit sum（核心利润）
-	CurrentBalance       float64 `json:"current_balance"`         // owner.balance 当前可用现金
-	TotalSelfRecharge    float64 `json:"total_self_recharge"`     // self_recharge credit sum（本金）
-	TotalPayToUser       float64 `json:"total_pay_to_user"`       // pay_to_user debit sum
-	TotalRefundFromUser  float64 `json:"total_refund_from_user"`  // refund_from_user credit sum
-	TotalWithdrawn       float64 `json:"total_withdrawn"`         // 已提现 paid
-	PendingWithdraw      float64 `json:"pending_withdraw"`        // 审核中 pending+approved
+	TotalProfit          float64 `json:"total_profit"`           // user_markup_share credit sum（核心利润）
+	CurrentBalance       float64 `json:"current_balance"`        // owner.balance 当前可用现金
+	TotalSelfRecharge    float64 `json:"total_self_recharge"`    // self_recharge credit sum（本金）
+	TotalPayToUser       float64 `json:"total_pay_to_user"`      // pay_to_user debit sum
+	TotalRefundFromUser  float64 `json:"total_refund_from_user"` // refund_from_user credit sum
+	TotalWithdrawn       float64 `json:"total_withdrawn"`        // 已提现 paid
+	PendingWithdraw      float64 `json:"pending_withdraw"`       // 审核中 pending+approved
 	SubUserCount         int     `json:"sub_user_count"`
 	SubUserTotalBalance  float64 `json:"sub_user_total_balance"`  // 子用户余额合计
 	SubUserTotalRecharge float64 `json:"sub_user_total_recharge"` // 子用户累计充值

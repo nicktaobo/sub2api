@@ -27,7 +27,7 @@ import (
 //   - GLM 官方: https://open.bigmodel.cn  →  https://open.bigmodel.cn/api/anthropic/v1/messages
 //   - GLM 中转: https://relay.orbitai.cc  →  https://relay.orbitai.cc/v1/messages
 //   - Qwen 官方: https://dashscope.aliyuncs.com/compatible-mode/v1
-//       →  https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy/v1/messages
+//     →  https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy/v1/messages
 func buildAnthropicDirectMessagesURL(account *Account) string {
 	switch account.Platform {
 	case PlatformDeepSeek:
@@ -452,12 +452,12 @@ func (s *OpenAIGatewayService) handleAnthropicDirectBufferedSSE(
 				if b.typ == "" {
 					b.typ = "thinking"
 				}
-				b.sb.WriteString(gjson.Get(data, "delta.thinking").String())
+				_, _ = b.sb.WriteString(gjson.Get(data, "delta.thinking").String())
 			case "text_delta", "":
 				if b.typ == "" {
 					b.typ = "text"
 				}
-				b.sb.WriteString(gjson.Get(data, "delta.text").String())
+				_, _ = b.sb.WriteString(gjson.Get(data, "delta.text").String())
 			}
 
 		case "message_delta":

@@ -48,11 +48,11 @@ type ProfitRow struct {
 
 // ProfitSummaryQuery 查询参数。
 type ProfitSummaryQuery struct {
-	Start         time.Time
-	End           time.Time
-	GroupBy       ProfitGroupBy
-	AttributeID   int64 // GroupBy=attribute 时必填，对应分公司或销售的 user_attribute_definitions.id
-	Limit         int   // 仅 user 维度生效（防止千万级用户全返），默认 200
+	Start       time.Time
+	End         time.Time
+	GroupBy     ProfitGroupBy
+	AttributeID int64 // GroupBy=attribute 时必填，对应分公司或销售的 user_attribute_definitions.id
+	Limit       int   // 仅 user 维度生效（防止千万级用户全返），默认 200
 }
 
 // ProfitSummary 总览 + 明细。

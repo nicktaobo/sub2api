@@ -29,17 +29,17 @@ import (
 
 // MerchantService 商户系统的核心 service。
 type MerchantService struct {
-	cfg                *config.Config
-	entClient          *dbent.Client
-	repo               MerchantRepository
-	domainRepo         MerchantDomainRepository
-	ledgerRepo         MerchantLedgerRepository
-	auditLogRepo       MerchantAuditLogRepository
-	groupMarkupRepo    MerchantGroupMarkupRepository
-	groupCostRepo      MerchantGroupCostRepository
-	groupRepo          GroupRepository
-	userRepo           UserRepository
-	pricingService     *MerchantPricingService // 用于失效缓存
+	cfg             *config.Config
+	entClient       *dbent.Client
+	repo            MerchantRepository
+	domainRepo      MerchantDomainRepository
+	ledgerRepo      MerchantLedgerRepository
+	auditLogRepo    MerchantAuditLogRepository
+	groupMarkupRepo MerchantGroupMarkupRepository
+	groupCostRepo   MerchantGroupCostRepository
+	groupRepo       GroupRepository
+	userRepo        UserRepository
+	pricingService  *MerchantPricingService // 用于失效缓存
 }
 
 // NewMerchantService DI 构造函数。
@@ -591,7 +591,7 @@ func (s *MerchantService) PayToUser(ctx context.Context, merchantID, subUserID i
 	}
 	idem := fmt.Sprintf("pay_to_user:%d:%d:%d", merchantID, subUserID, time.Now().UnixNano())
 	refType := MerchantRefTypePaymentOrder // 概念上不指向 payment_order；标记为通用
-	_ = refType                             // ledger ref_type/ref_id 留 NULL（PayToUser 不创建 payment_order）
+	_ = refType                            // ledger ref_type/ref_id 留 NULL（PayToUser 不创建 payment_order）
 	cuID := subUserID
 	if err := s.ledgerRepo.Insert(txCtx, &MerchantLedgerEntry{
 		MerchantID:         merchantID,
@@ -899,13 +899,13 @@ func (s *MerchantService) ListDomains(ctx context.Context, merchantID int64) ([]
 
 // SubUserSummary 子用户摘要，给 owner 后台列表用。
 type SubUserSummary struct {
-	ID             int64     `json:"id"`
-	Email          string    `json:"email"`
-	Username       string    `json:"username"`
-	Balance        float64   `json:"balance"`
-	Status         string    `json:"status"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastActiveAt   *time.Time `json:"last_active_at,omitempty"`
+	ID           int64      `json:"id"`
+	Email        string     `json:"email"`
+	Username     string     `json:"username"`
+	Balance      float64    `json:"balance"`
+	Status       string     `json:"status"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 }
 
 // ListSubUsers 列出某商户的子用户（按 parent_merchant_id 过滤）。
@@ -957,7 +957,7 @@ func (s *MerchantService) ListSubUsers(ctx context.Context, merchantID int64, se
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]*SubUserSummary, 0, limit)
 	for rows.Next() {
@@ -1121,10 +1121,10 @@ func (s *MerchantService) MarkDomainVerified(ctx context.Context, merchantID, do
 
 // DNSSetupInfo 给 owner 后台展示 DNS 配置指引用。
 type DNSSetupInfo struct {
-	ServerIP     string `json:"server_ip"`      // A 记录 VALUE
-	HasServerIP  bool   `json:"has_server_ip"`  // 平台是否配置了 IP（否则前端提示联系管理员）
+	ServerIP      string `json:"server_ip"`       // A 记录 VALUE
+	HasServerIP   bool   `json:"has_server_ip"`   // 平台是否配置了 IP（否则前端提示联系管理员）
 	TXTHostPrefix string `json:"txt_host_prefix"` // "_domain-verify"
-	SkipDNSVerify bool  `json:"skip_dns_verify"` // dev 模式标记
+	SkipDNSVerify bool   `json:"skip_dns_verify"` // dev 模式标记
 }
 
 // GetDNSSetupInfo 返回平台 DNS 配置元数据（owner 后台用）。

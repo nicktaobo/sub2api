@@ -79,7 +79,7 @@ func (r *merchantLedgerRepository) List(ctx context.Context, merchantID int64, o
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]*service.MerchantLedgerEntry, 0, limit)
 	for rows.Next() {

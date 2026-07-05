@@ -449,7 +449,6 @@ func (h *MerchantHandler) DeleteDomain(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true})
 }
 
-
 // paginatedOwner 与 admin.paginated 同形态。这里复制一份避免跨包依赖。
 func paginatedOwner[T any](rows []T, total int, offset, limit int) gin.H {
 	if limit <= 0 {

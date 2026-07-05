@@ -81,13 +81,13 @@ const (
 	// outbox/ledger source 枚举（RFC §4.2.2.3）
 	MerchantSourceUserMarkupShare = "user_markup_share"
 	MerchantSourceSelfRecharge    = "self_recharge"
-	MerchantSourcePayToUser         = "pay_to_user"
-	MerchantSourceRefundFromUser    = "refund_from_user" // 商户从子用户撤回余额，回到 owner.balance
-	MerchantSourceRedeemCreate      = "redeem_create"
-	MerchantSourceRedeemRefund      = "redeem_refund"
-	MerchantSourceAdminRecharge     = "admin_recharge"
-	MerchantSourceAdminRefund       = "admin_refund"
-	MerchantSourceOwnerUsageDebit   = "owner_usage_debit"
+	MerchantSourcePayToUser       = "pay_to_user"
+	MerchantSourceRefundFromUser  = "refund_from_user" // 商户从子用户撤回余额，回到 owner.balance
+	MerchantSourceRedeemCreate    = "redeem_create"
+	MerchantSourceRedeemRefund    = "redeem_refund"
+	MerchantSourceAdminRecharge   = "admin_recharge"
+	MerchantSourceAdminRefund     = "admin_refund"
+	MerchantSourceOwnerUsageDebit = "owner_usage_debit"
 
 	// ledger ref_type 枚举
 	MerchantRefTypePaymentOrder      = "payment_order"

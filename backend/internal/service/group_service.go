@@ -37,7 +37,6 @@ type GroupRepository interface {
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 }
 
-
 // GroupSortOrderUpdate 分组排序更新
 type GroupSortOrderUpdate struct {
 	ID        int64 `json:"id"`

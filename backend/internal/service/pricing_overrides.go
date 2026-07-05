@@ -63,7 +63,7 @@ func (s *PricingService) loadOverrides() []modelPricingOverride {
 	s.overrideMu.RUnlock()
 
 	// 缓存过期：singleflight 合并并发读，只有一个 goroutine 真打 DB，其余共享结果（防惊群）。
-	v, _, _ := s.overrideSF.Do("model_pricing_overrides", func() (interface{}, error) {
+	v, _, _ := s.overrideSF.Do("model_pricing_overrides", func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		raw, err := s.settingRepo.GetValue(ctx, SettingKeyModelPricingOverrides)

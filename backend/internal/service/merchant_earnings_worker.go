@@ -206,7 +206,7 @@ func selectPendingOutboxForUpdate(ctx context.Context, tx *sql.Tx, limit int) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]outboxRow, 0, limit)
 	for rows.Next() {
 		var (

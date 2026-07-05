@@ -156,7 +156,7 @@ func (j *MerchantReconcileJob) scanPendingIntents(ctx context.Context) ([]pendin
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]pendingIntent, 0, j.batchLimit)
 	for rows.Next() {
 		var (
