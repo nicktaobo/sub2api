@@ -141,6 +141,33 @@ func TestGetModelPricing_FallbackWarnLoggedOncePerModel(t *testing.T) {
 	require.Equal(t, 1, got, "同一模型的 fallback warn 应只打一条,实际日志:\n%s", buf.String())
 }
 
+// Gemini 系列:LiteLLM 价表没有 cache_creation_input_token_cost,策略层补
+// "缓存写入价=输入价"(仅对有缓存读取价的型号),模型列表"缓存创建价格"列才有值。
+func TestApplyModelSpecificPricingPolicy_GeminiCacheWriteFill(t *testing.T) {
+	svc := newTestBillingService()
+
+	base := &ModelPricing{InputPricePerToken: 1.25e-6, OutputPricePerToken: 1e-5, CacheReadPricePerToken: 1.25e-7}
+	got := svc.applyModelSpecificPricingPolicy("gemini-2.5-pro", base)
+	require.InDelta(t, 1.25e-6, got.CacheCreationPricePerToken, 1e-12)
+	require.Zero(t, base.CacheCreationPricePerToken, "补值必须走 clone,不能改动共享原件")
+
+	// 带前缀形态(models/、gemini/)也应识别为 gemini
+	got = svc.applyModelSpecificPricingPolicy("models/gemini-3.1-pro-preview", &ModelPricing{InputPricePerToken: 2e-6, CacheReadPricePerToken: 2e-7})
+	require.InDelta(t, 2e-6, got.CacheCreationPricePerToken, 1e-12)
+
+	// 无缓存读取价(视为不支持缓存)→ 不补,列保持空
+	got = svc.applyModelSpecificPricingPolicy("gemini-3-pro-image-preview", &ModelPricing{InputPricePerToken: 2e-6})
+	require.Zero(t, got.CacheCreationPricePerToken)
+
+	// 已有写入价(如渠道/覆盖表配置)→ 不覆盖
+	got = svc.applyModelSpecificPricingPolicy("gemini-2.5-flash", &ModelPricing{InputPricePerToken: 3e-7, CacheReadPricePerToken: 3e-8, CacheCreationPricePerToken: 9e-7})
+	require.InDelta(t, 9e-7, got.CacheCreationPricePerToken, 1e-12)
+
+	// 非 gemini 模型不受此策略影响
+	got = svc.applyModelSpecificPricingPolicy("claude-sonnet-4", &ModelPricing{InputPricePerToken: 3e-6, CacheReadPricePerToken: 3e-7})
+	require.Zero(t, got.CacheCreationPricePerToken)
+}
+
 // 去重按"每模型"而非全局:不同模型各打一条;大小写变体经入口 ToLower 归一,视为同一条目。
 func TestGetModelPricing_FallbackWarnPerModelNotGlobal(t *testing.T) {
 	svc := newTestBillingService()
@@ -872,6 +899,66 @@ func TestCalculateImageCost(t *testing.T) {
 	require.InDelta(t, 0.134*3, cost.ActualCost, 1e-10)
 }
 
+func TestCalculateVideoCostUsesSeparateConfig(t *testing.T) {
+	svc := newTestBillingService()
+
+	imagePrice := 0.4
+	videoPrice := 0.08
+	imageCost := svc.CalculateImageCost("grok-imagine-video", "2K", 1, &ImagePriceConfig{Price2K: &imagePrice}, 1.0)
+	videoCost := svc.CalculateVideoCost("grok-imagine-video", "480p", 1, 10, &VideoPriceConfig{Price480P: &videoPrice}, 0.5)
+
+	require.InDelta(t, 0.4, imageCost.TotalCost, 1e-10)
+	require.InDelta(t, 0.8, videoCost.TotalCost, 1e-10)
+	require.InDelta(t, 0.4, videoCost.ActualCost, 1e-10)
+	require.Equal(t, string(BillingModeVideo), videoCost.BillingMode)
+}
+
+func TestCalculateVideoCostBillsPerSecond(t *testing.T) {
+	svc := newTestBillingService()
+
+	oneSecond := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, nil, 1.0)
+	fifteenSeconds := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 15, nil, 1.0)
+	// duration <=0 时按上游默认 8 秒计费，超出上限按 15 秒收敛。
+	defaultDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 0, nil, 1.0)
+	clampedDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 999, nil, 1.0)
+
+	require.InDelta(t, 0.07, oneSecond.TotalCost, 1e-10)
+	require.InDelta(t, 0.07*15, fifteenSeconds.TotalCost, 1e-10)
+	require.InDelta(t, 0.07*8, defaultDuration.TotalCost, 1e-10)
+	require.InDelta(t, 0.07*15, clampedDuration.TotalCost, 1e-10)
+}
+
+func TestCalculateGrokImagineImageCostUsesDefaultRateCard(t *testing.T) {
+	svc := newTestBillingService()
+
+	standard1K := svc.CalculateImageCost("grok-imagine-image", "1K", 1, nil, 1.0)
+	standard2K := svc.CalculateImageCost("grok-imagine-image", "2K", 1, nil, 1.0)
+	quality1K := svc.CalculateImageCost("grok-imagine-image-quality", "1K", 1, nil, 1.0)
+	quality2K := svc.CalculateImageCost("grok-imagine-image-quality", "2K", 1, nil, 1.0)
+
+	require.InDelta(t, 0.02, standard1K.TotalCost, 1e-10)
+	require.InDelta(t, 0.02, standard2K.TotalCost, 1e-10)
+	require.InDelta(t, 0.05, quality1K.TotalCost, 1e-10)
+	require.InDelta(t, 0.07, quality2K.TotalCost, 1e-10)
+}
+
+func TestCalculateGrokImagineVideoCostUsesDefaultRateCard(t *testing.T) {
+	svc := newTestBillingService()
+
+	// 默认价目为 xAI 官方每秒价格，按 1 秒时长验证每秒单价。
+	standard480P := svc.CalculateVideoCost("grok-imagine-video", "480p", 1, 1, nil, 1.0)
+	standard720P := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, nil, 1.0)
+	video15_480P := svc.CalculateVideoCost("grok-imagine-video-1.5", "480p", 1, 1, nil, 1.0)
+	video15_720P := svc.CalculateVideoCost("grok-imagine-video-1.5", "720p", 1, 1, nil, 1.0)
+	video15_1080P := svc.CalculateVideoCost("grok-imagine-video-1.5", "1080p", 1, 1, nil, 1.0)
+
+	require.InDelta(t, 0.05, standard480P.TotalCost, 1e-10)
+	require.InDelta(t, 0.07, standard720P.TotalCost, 1e-10)
+	require.InDelta(t, 0.08, video15_480P.TotalCost, 1e-10)
+	require.InDelta(t, 0.14, video15_720P.TotalCost, 1e-10)
+	require.InDelta(t, 0.25, video15_1080P.TotalCost, 1e-10)
+}
+
 func TestIsModelSupported(t *testing.T) {
 	svc := newTestBillingService()
 
@@ -961,6 +1048,22 @@ func TestCalculateCostWithLongContext_PropagatesError(t *testing.T) {
 	_, err := svc.CalculateCostWithLongContext("unknown-model", tokens, 1.0, 200000, 2.0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "pricing not found")
+}
+
+func TestGetModelPricing_Grok45OfficialFallback(t *testing.T) {
+	svc := newTestBillingService()
+
+	for _, model := range []string{"grok", "grok-latest", "grok-4.5", "grok-4.5-latest", "grok-build-latest"} {
+		model := model
+		t.Run(model, func(t *testing.T) {
+			pricing, err := svc.GetModelPricing(model)
+			require.NoError(t, err)
+			require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-12)
+			require.InDelta(t, 6e-6, pricing.OutputPricePerToken, 1e-12)
+			require.InDelta(t, 0.5e-6, pricing.CacheReadPricePerToken, 1e-12)
+			require.False(t, pricing.SupportsCacheBreakdown)
+		})
+	}
 }
 
 func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {

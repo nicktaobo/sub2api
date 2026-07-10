@@ -356,6 +356,7 @@ import { useAuthStore, useAppStore, useMerchantStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ContactMethodsBar from '@/components/common/ContactMethodsBar.vue'
+import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
 
@@ -371,12 +372,15 @@ const siteName = computed(() =>
   'Sub2API'
 )
 const siteLogo = computed(() =>
-  (merchantStore.isMerchantSite && merchantStore.siteLogo) ||
-  appStore.cachedPublicSettings?.site_logo ||
-  appStore.siteLogo ||
-  ''
+  sanitizeUrl(
+    (merchantStore.isMerchantSite && merchantStore.siteLogo) ||
+      appStore.cachedPublicSettings?.site_logo ||
+      appStore.siteLogo ||
+      '',
+    { allowRelative: true, allowDataUrl: true },
+  )
 )
-const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const contactMethods = computed(() => appStore.cachedPublicSettings?.contact_methods || [])
 
 // 终端示例里的 API 域名：优先后台配置的 api_base_url，否则用当前站点 origin

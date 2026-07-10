@@ -61,6 +61,7 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
+	BatchImage       *BatchImageHandler
 
 	// MERCHANT-SYSTEM v1.0
 	MerchantBrand *MerchantBrandHandler
