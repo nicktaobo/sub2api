@@ -814,3 +814,74 @@ func TestRelay_OnTurnComplete_RealOpenAIStream_FirstTokenMs(t *testing.T) {
 	require.NotNil(t, result.FirstTokenMs)
 	require.Greater(t, *result.FirstTokenMs, 0)
 }
+
+// lateFrameUpstreamConn 模拟客户端断开后仍延迟返回 usage 帧的上游：
+// ReadFrame 故意忽略 ctx 取消，保证 waitRelayExit 超时兜底返回后，
+// 上游读 goroutine 仍会解析该帧并写 relayState（复现主流程读与其并发的场景）。
+type lateFrameUpstreamConn struct {
+	frameDelay time.Duration
+	payload    []byte
+	reads      atomic.Int32
+}
+
+func (c *lateFrameUpstreamConn) ReadFrame(_ context.Context) (coderws.MessageType, []byte, error) {
+	if c.reads.Add(1) > 1 {
+		return coderws.MessageText, nil, io.EOF
+	}
+	time.Sleep(c.frameDelay)
+	return coderws.MessageText, append([]byte(nil), c.payload...), nil
+}
+
+func (c *lateFrameUpstreamConn) WriteFrame(_ context.Context, _ coderws.MessageType, _ []byte) error {
+	return nil
+}
+
+func (c *lateFrameUpstreamConn) Close() error {
+	return nil
+}
+
+// TestRelay_DrainTimeoutLateUsageWrite_NoDataRace 回归覆盖 relayState 数据竞争：
+// 客户端优雅断开后 waitRelayExit 兜底超时返回，主流程 enrichResult 读取计费 usage 快照，
+// 而上游读 goroutine 随后仍在解析迟到的 terminal usage 帧并累加同一 relayState。
+// 修复（relayState.mu）前该用例在 -race 下必然报 data race（计费可能读到撕裂值）。
+func TestRelay_DrainTimeoutLateUsageWrite_NoDataRace(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, true)
+	upstreamConn := &lateFrameUpstreamConn{
+		frameDelay: 200 * time.Millisecond,
+		payload:    []byte(`{"type":"response.completed","response":{"id":"resp_late","usage":{"input_tokens":7,"output_tokens":3}}}`),
+	}
+
+	lateFrameProcessed := make(chan struct{}, 1)
+	result, relayExit := Relay(
+		context.Background(),
+		clientConn,
+		upstreamConn,
+		[]byte(`{"type":"response.create","model":"gpt-4o","input":[]}`),
+		RelayOptions{
+			UpstreamDrainTimeout: 10 * time.Millisecond,
+			OnTrace: func(event RelayTraceEvent) {
+				// 迟到帧走 drop 分支时 relayState 写入已完成，据此确认读写对都已发生。
+				if event.Stage == "drop_downstream_frame" {
+					select {
+					case lateFrameProcessed <- struct{}{}:
+					default:
+					}
+				}
+			},
+		},
+	)
+
+	require.NotNil(t, relayExit)
+	require.Equal(t, "client_disconnected", relayExit.Stage)
+	// 兜底超时早于迟到帧，计费快照不应包含迟到 usage。
+	require.Equal(t, Usage{}, result.Usage)
+
+	// 等待上游读 goroutine 完成迟到 usage 写入，确保 -race 能观测到完整的读写对。
+	select {
+	case <-lateFrameProcessed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("late upstream usage frame was never processed")
+	}
+}

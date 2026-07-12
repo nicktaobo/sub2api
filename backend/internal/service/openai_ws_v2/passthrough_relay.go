@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -81,6 +82,9 @@ type RelayTraceEvent struct {
 }
 
 type relayState struct {
+	// mu 保护下方全部可变字段：runUpstreamToClient goroutine 经 observeUpstreamMessage 写入，
+	// 主流程在 waitRelayExit 超时兜底路径下可能与其并发，enrichResult 读取时必须持锁取快照。
+	mu                sync.Mutex
 	usage             Usage
 	requestModel      string
 	lastResponseID    string
@@ -622,6 +626,11 @@ func observeUpstreamMessage(
 	}
 	now := nowFn()
 
+	// 持锁覆盖整段 state 变更（firstTokenMs / usage 累加 / turn timing / terminal 字段），
+	// 与主流程 enrichResult 的读取互斥，避免 waitRelayExit 超时兜底路径下的数据竞争。
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
 	if state.firstTokenMs == nil && isTokenEvent(eventType) {
 		ms := int(now.Sub(startAt).Milliseconds())
 		if ms >= 0 {
@@ -734,6 +743,8 @@ func openAIWSRelayCloneIntPtr(v *int) *int {
 	return &cloned
 }
 
+// parseUsageAndAccumulate 会累加写 state.usage，并发场景下调用方必须已持有 state.mu
+// （生产路径由 observeUpstreamMessage 持锁调用）。
 func parseUsageAndAccumulate(
 	state *relayState,
 	message []byte,
@@ -843,11 +854,14 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 	if state == nil {
 		return
 	}
+	// waitRelayExit 超时兜底路径下 runUpstreamToClient 可能仍在写 state，持锁取快照避免读到撕裂值。
+	state.mu.Lock()
+	defer state.mu.Unlock()
 	result.RequestModel = state.requestModel
 	result.Usage = state.usage
 	result.RequestID = state.lastResponseID
 	result.TerminalEventType = state.terminalEventType
-	result.FirstTokenMs = state.firstTokenMs
+	result.FirstTokenMs = openAIWSRelayCloneIntPtr(state.firstTokenMs)
 }
 
 func isDisconnectError(err error) bool {
