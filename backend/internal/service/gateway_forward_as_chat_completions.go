@@ -55,6 +55,14 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		return nil, fmt.Errorf("convert responses to anthropic: %w", err)
 	}
 
+	// fork 定制说明：此路径刻意不接 apicompat.NewAnthropicResponsesToolContext
+	// （对比 gateway_forward_as_responses.go 的回程还原）。CC 入站工具经
+	// convertChatToolsToResponses 只保留 type=function（custom/tool_search/
+	// namespace 在请求边即被丢弃），上下文恒为 nil；且本路径出口是 Chat
+	// Completions，custom_tool_call 无法表达（非流式 ResponsesToChatCompletions
+	// 会直接丢项），保持 function_call 降级即为正确形态。不变式测试见
+	// apicompat.TestChatCompletionsToResponses_CodexToolTypesNeverSurvive。
+
 	// 3. Force upstream streaming
 	anthropicReq.Stream = true
 	reqStream := true

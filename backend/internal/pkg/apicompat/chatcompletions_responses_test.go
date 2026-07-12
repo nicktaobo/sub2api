@@ -202,6 +202,38 @@ func TestChatCompletionsToResponses_ToolStrict(t *testing.T) {
 	}
 }
 
+// fork 定制不变式测试：CC 入站的工具声明经 ChatCompletionsToResponses 只会保留
+// type=function，codex 工具链类型（custom/tool_search/namespace）在请求边即被
+// 丢弃，因此 NewAnthropicResponsesToolContext(resp.Tools) 恒为 nil。
+// gateway_forward_as_chat_completions.go 与 gemini_chat_completions_compat_service.go
+// 两条 CC 转发路径正是依赖该不变式，刻意不接回程还原上下文（CC 出口也无法表达
+// custom_tool_call）。若本测试失败，说明转换器开始透传 codex 工具类型，必须同步
+// 复核上述两个调用方的回程语义。
+func TestChatCompletionsToResponses_CodexToolTypesNeverSurvive(t *testing.T) {
+	body := []byte(`{
+		"model": "gpt-5",
+		"messages": [{"role": "user", "content": "Hi"}],
+		"tools": [
+			{"type": "custom", "custom": {"name": "apply_patch", "description": "Freeform patch"}},
+			{"type": "tool_search"},
+			{"type": "namespace", "name": "repo", "tools": [{"type": "function", "name": "search"}]},
+			{"type": "function", "function": {"name": "ping", "parameters": {"type": "object"}}}
+		]
+	}`)
+	var req ChatCompletionsRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+
+	resp, err := ChatCompletionsToResponses(&req)
+	require.NoError(t, err)
+
+	require.Len(t, resp.Tools, 1, "非 function 工具必须在请求边被丢弃")
+	assert.Equal(t, "function", resp.Tools[0].Type)
+	assert.Equal(t, "ping", resp.Tools[0].Name)
+
+	assert.Nil(t, NewAnthropicResponsesToolContext(resp.Tools),
+		"CC 路径的回程还原上下文必须恒为 nil；否则需复核两条 CC 转发路径的接线决策")
+}
+
 func TestChatCompletionsToResponses_LegacyFunctionDefaultsStrictFalse(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model:    "gpt-4o",
