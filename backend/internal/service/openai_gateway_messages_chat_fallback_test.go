@@ -346,6 +346,94 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamReadErrorSkipsFinalize(t *
 	require.NotContains(t, out, "event: message_stop", "no synthetic completion after a broken read")
 }
 
+// Billing regression: an upstream that reports stream usage with the
+// input_tokens/output_tokens naming (instead of prompt/completion_tokens)
+// parses to a non-nil all-zero apicompat.ChatUsage, so the finalize-stage
+// response.completed event used to overwrite the correct scan.Usage with
+// zeros — zero-billing the whole request. scan.Usage must win.
+func TestForwardAsAnthropic_ForceChatCompletionsStreamingUsageInputOutputNamingNotZeroed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_u","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_u","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		"",
+		`data: {"id":"chatcmpl_u","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"input_tokens":7,"output_tokens":9,"input_tokens_details":{"cached_tokens":2}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_msg_chat_alt_usage"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	out := rec.Body.String()
+	require.Contains(t, out, "event: message_stop")
+
+	require.Equal(t, 7, result.Usage.InputTokens, "input_tokens-named usage must not be zeroed by finalize")
+	require.Equal(t, 9, result.Usage.OutputTokens, "output_tokens-named usage must not be zeroed by finalize")
+	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
+}
+
+// Billing regression: even with canonical prompt/completion_tokens naming, the
+// finalize-stage overwrite went through apicompat.ChatUsage which drops
+// image_tokens — losing per-image billing detail. scan.Usage (which keeps
+// ImageOutputTokens) must survive finalization untouched.
+func TestForwardAsAnthropic_ForceChatCompletionsStreamingUsageKeepsImageOutputTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"draw a cat"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_i","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_i","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		"",
+		`data: {"id":"chatcmpl_i","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":4,"completion_tokens":10,"total_tokens":14,"completion_tokens_details":{"image_tokens":8}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_msg_chat_img_usage"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.Equal(t, 4, result.Usage.InputTokens)
+	require.Equal(t, 10, result.Usage.OutputTokens)
+	require.Equal(t, 8, result.Usage.ImageOutputTokens, "finalize must not drop image_tokens from scan.Usage")
+}
+
 // Gate regression: an API-key account whose upstream is confirmed to support
 // the Responses API must keep using /v1/responses, never the CC fallback.
 func TestForwardAsAnthropic_ResponsesSupportedAccountStillUsesResponsesEndpoint(t *testing.T) {

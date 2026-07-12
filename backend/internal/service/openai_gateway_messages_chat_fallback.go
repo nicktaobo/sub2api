@@ -232,8 +232,15 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	// Finalize CC→Responses stream (emit response.completed)
 	finalEvents := apicompat.FinalizeChatCompletionsResponsesStream(ccState)
 	for _, rEvent := range finalEvents {
-		if rEvent.Response != nil && rEvent.Response.Usage != nil {
+		// 计费以 scan.Usage 为准（gjson 直提原始 SSE：兼容 input/output_tokens
+		// 异名上游、保留 image_tokens），仅当扫描阶段没拿到任何用量时才用终态
+		// 事件的转换值兜底（对齐 responses 兄弟路径的口径）。终态 Usage 经
+		// apicompat.ChatUsage 往返只认 prompt/completion_tokens 命名，异名上游
+		// 会得到非 nil 全零值，无条件覆盖会把正确用量清零导致整笔零计费。
+		if usage == (OpenAIUsage{}) && rEvent.Response != nil && rEvent.Response.Usage != nil {
 			usage = copyOpenAIUsageFromResponsesUsage(rEvent.Response.Usage)
+			// 兜底值同样过负值钳制，防止异常转换结果冲减费用。
+			usage.SanitizeNegatives()
 		}
 		if clientDisconnected {
 			continue
