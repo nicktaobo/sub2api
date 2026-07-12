@@ -70,17 +70,20 @@ func buildAnthropicDirectMessagesURL(account *Account) string {
 }
 
 // normalizeAnthropicDirectInputUsage 把直连上游的 usage 归一为主路径计费口径
-// （input_tokens 含 cache_read，下游 actualInput = input_tokens - cache_read）。
+// （input_tokens 为总输入，下游 actualInput = input_tokens - cache_read - cache_creation，
+// 见 RecordUsage 的三桶互斥拆分）。cache_read 与 cache_creation 必须同口径一并加回，
+// 只加 cache_read 会在 cache_creation 非零时被下游减法多扣一次，真实 input 被钳 0 少收钱。
 //
 //   - DeepSeek（已实测 api.deepseek.com：input=71、cache_read=2944 对应 3015 token
-//     prompt）：input_tokens 永远只报缓存未命中数，必须无条件加回 cache_read；
-//     条件判断 (input < cache_read) 会在新增内容超过缓存前缀时漏计。
+//     prompt）：input_tokens 永远只报缓存未命中数，必须无条件加回 cache_read 与
+//     cache_creation；条件判断 (input < cache) 会在新增内容超过缓存前缀时漏计。
 //   - 其他平台（Kimi 等）：usage 语义未实测（仓库内 Kimi fixture 显示 input_tokens
-//     疑似总量口径），仅在 input_tokens < cache_read（明显为未命中口径）时加回，
-//     避免总量口径上游把缓存前缀按全价+缓存价双重计费。
+//     疑似总量口径），仅在 input_tokens < cache_read + cache_creation（明显为未命中
+//     口径）时加回，避免总量口径上游把缓存前缀按全价+缓存价双重计费。
 func normalizeAnthropicDirectInputUsage(platform string, usage *OpenAIUsage) {
-	if platform == PlatformDeepSeek || usage.InputTokens < usage.CacheReadInputTokens {
-		usage.InputTokens += usage.CacheReadInputTokens
+	cacheTokens := usage.CacheReadInputTokens + usage.CacheCreationInputTokens
+	if platform == PlatformDeepSeek || usage.InputTokens < cacheTokens {
+		usage.InputTokens += cacheTokens
 	}
 }
 
