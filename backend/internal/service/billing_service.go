@@ -987,6 +987,17 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 
 	pricing = s.applyModelSpecificPricingPolicy(input.Model, pricing)
 
+	// fork 定制（合并上游时注意保留）：GPT-5.6 的长上下文默认倍率（272K 阈值，
+	// input×2.0 / output×1.5）只应作用于内置 / LiteLLM 官方定价。渠道定价是与
+	// 客户约定的固定单价，渠道侧显式表达长上下文分层的唯一方式是区间定价
+	// （Intervals）；未配区间的 flat 约定价不得被默认倍率静默加价（无论倍率来自
+	// applyModelSpecificPricingPolicy 注入还是 BasePricing 继承）。
+	// gpt-5.4 / gpt-5.5 在合并前渠道 flat 价即应用长上下文倍率，维持既有计费口径不变。
+	if resolved.Source == PricingSourceChannel && len(resolved.Intervals) == 0 &&
+		isOpenAIGPT56Model(normalizeKnownOpenAICodexModel(input.Model)) {
+		pricing = stripLongContextPricing(pricing)
+	}
+
 	// 长上下文定价仅在无区间定价时应用（区间定价已包含上下文分层）
 	applyLongCtx := len(resolved.Intervals) == 0
 
@@ -1208,6 +1219,23 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 			cloned.LongContextOutputMultiplier = openAIGPT54LongContextOutputMultiplier
 		}
 	}
+	return &cloned
+}
+
+// stripLongContextPricing 返回清除长上下文倍率字段后的定价副本（fork 定制辅助，
+// 见 calculateTokenCost 中渠道 flat 约定价的说明）。字段本就为空时原样返回；
+// 需要修改时克隆，避免污染 fallbackPrices / 预解析 ResolvedPricing 中的共享指针。
+func stripLongContextPricing(pricing *ModelPricing) *ModelPricing {
+	if pricing == nil ||
+		(pricing.LongContextInputThreshold <= 0 &&
+			pricing.LongContextInputMultiplier <= 0 &&
+			pricing.LongContextOutputMultiplier <= 0) {
+		return pricing
+	}
+	cloned := *pricing
+	cloned.LongContextInputThreshold = 0
+	cloned.LongContextInputMultiplier = 0
+	cloned.LongContextOutputMultiplier = 0
 	return &cloned
 }
 

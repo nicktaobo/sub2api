@@ -252,8 +252,153 @@ func TestCalculateCostUnified_UsesPreResolvedPricing(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GPT-5.6 长上下文默认倍率 × 渠道约定价（fork 定制回归，见 calculateTokenCost）
+// ---------------------------------------------------------------------------
+
+// 渠道 flat 约定价的 GPT-5.6：总上下文超过 272K 默认阈值时，不得叠加默认
+// 2x/1.5x 长上下文倍率（渠道价是与客户约定的固定单价）。
+// 回归场景：合并上游后 applyModelSpecificPricingPolicy 扩到 GPT-5.6 +
+// BasePricing 继承内置长上下文字段，导致渠道 flat 价超 272K 被静默按 2x/1.5x 多收。
+func TestCalculateCostUnified_GPT56ChannelFlatPricingSkipsDefaultLongContext(t *testing.T) {
+	cs := newTestChannelServiceWithTokenPricing(t, "gpt-5.6-sol", &ChannelModelPricing{
+		BillingMode:    BillingModeToken,
+		InputPrice:     testPtrFloat64(1e-6),
+		OutputPrice:    testPtrFloat64(2e-6),
+		CacheReadPrice: testPtrFloat64(1e-7),
+	})
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(cs, bs)
+	groupID := int64(1)
+
+	// 总上下文 = 100000 input + 200000 cache_read = 300000 > 272000
+	tokens := UsageTokens{InputTokens: 100000, CacheReadTokens: 200000, OutputTokens: 1000}
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "gpt-5.6-sol",
+		GroupID:        &groupID,
+		Tokens:         tokens,
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+
+	expectedInput := 100000 * 1e-6
+	expectedCacheRead := 200000 * 1e-7
+	expectedOutput := 1000 * 2e-6
+	require.InDelta(t, expectedInput, cost.InputCost, 1e-10,
+		"channel flat input price must not be multiplied by default long-context policy")
+	require.InDelta(t, expectedCacheRead, cost.CacheReadCost, 1e-10,
+		"channel flat cache-read price must not be multiplied by default long-context policy")
+	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10,
+		"channel flat output price must not be multiplied by default long-context policy")
+	require.InDelta(t, expectedInput+expectedCacheRead+expectedOutput, cost.TotalCost, 1e-10)
+}
+
+// 渠道显式配置了长上下文分层（区间定价）的 GPT-5.6：区间价照常生效。
+func TestCalculateCostUnified_GPT56ChannelIntervalPricingStillApplies(t *testing.T) {
+	maxTokens := 272000
+	cs := newTestChannelServiceWithTokenPricing(t, "gpt-5.6-sol", &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		Intervals: []PricingInterval{
+			{MinTokens: 0, MaxTokens: &maxTokens, InputPrice: testPtrFloat64(1e-6), OutputPrice: testPtrFloat64(2e-6)},
+			{MinTokens: 272000, InputPrice: testPtrFloat64(2e-6), OutputPrice: testPtrFloat64(3e-6)},
+		},
+	})
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(cs, bs)
+	groupID := int64(1)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "gpt-5.6-sol",
+		GroupID:        &groupID,
+		Tokens:         UsageTokens{InputTokens: 300000, OutputTokens: 1000},
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+
+	// 300000 > 272000 命中第二区间；区间价已含上下文分层，不再叠加长上下文倍率
+	expected := 300000*2e-6 + 1000*3e-6
+	require.InDelta(t, expected, cost.TotalCost, 1e-10)
+}
+
+// 内置/兜底定价的 GPT-5.6：默认长上下文倍率维持上游行为（对齐官方价）。
+func TestCalculateCostUnified_GPT56BuiltinPricingKeepsDefaultLongContext(t *testing.T) {
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(nil, bs)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "gpt-5.6-sol",
+		Tokens:         UsageTokens{InputTokens: 300000, OutputTokens: 1000},
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+
+	// fallback gpt-5.6-sol: input 5e-6, output 30e-6；超 272K 后 input×2.0 / output×1.5
+	expectedInput := 300000 * 5e-6 * 2.0
+	expectedOutput := 1000 * 30e-6 * 1.5
+	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
+	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
+}
+
+// gpt-5.4 / gpt-5.5 渠道 flat 价：合并前长上下文倍率即对渠道价生效，
+// 本次 fork 定制只针对 GPT-5.6，存量计费口径必须保持不变。
+func TestCalculateCostUnified_GPT54And55ChannelFlatPricingKeepsLongContext(t *testing.T) {
+	for _, model := range []string{"gpt-5.4", "gpt-5.5"} {
+		t.Run(model, func(t *testing.T) {
+			cs := newTestChannelServiceWithTokenPricing(t, model, &ChannelModelPricing{
+				BillingMode: BillingModeToken,
+				InputPrice:  testPtrFloat64(1e-6),
+				OutputPrice: testPtrFloat64(2e-6),
+			})
+			bs := newTestBillingService()
+			resolver := NewModelPricingResolver(cs, bs)
+			groupID := int64(1)
+
+			cost, err := bs.CalculateCostUnified(CostInput{
+				Ctx:            context.Background(),
+				Model:          model,
+				GroupID:        &groupID,
+				Tokens:         UsageTokens{InputTokens: 300000, OutputTokens: 1000},
+				RateMultiplier: 1.0,
+				Resolver:       resolver,
+			})
+			require.NoError(t, err)
+
+			// 既有口径：超 272K 后渠道价也叠加 input×2.0 / output×1.5
+			expectedInput := 300000 * 1e-6 * 2.0
+			expectedOutput := 1000 * 2e-6 * 1.5
+			require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
+			require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+// newTestChannelServiceWithTokenPricing 构造带单条 token 模式渠道定价的 ChannelService
+// （groupID 固定为 1）。
+func newTestChannelServiceWithTokenPricing(t *testing.T, model string, pricing *ChannelModelPricing) *ChannelService {
+	t.Helper()
+	return newTestChannelServiceWithCache(t, &channelCache{
+		pricingByGroupModel: map[channelModelKey]*ChannelModelPricing{
+			{groupID: 1, model: model}: pricing,
+		},
+		channelByGroupID: map[int64]*Channel{
+			1: {ID: 1, Status: StatusActive},
+		},
+		groupPlatform:           map[int64]string{1: ""},
+		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
+		mappingByGroupModel:     map[channelModelKey]string{},
+		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
+		byID:                    map[int64]*Channel{},
+	})
+}
 
 // newTestChannelServiceWithCache creates a ChannelService with a pre-populated
 // cache snapshot, bypassing the repository layer entirely.
