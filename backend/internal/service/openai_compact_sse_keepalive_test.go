@@ -179,6 +179,39 @@ func TestOpenAICompactKeepaliveAdjustedWrittenSize_ExcludesHeartbeatBytes(t *tes
 	require.Contains(t, rec.Body.String(), ": keepalive\n\n")
 }
 
+// 回归：停止函数必须还原被替换前的 c.Writer，不留残留包装器——否则外层
+// 池化捕获 writer（ops 中间件）因 c.Writer 非池化对象而不恢复原 writer，
+// 残留包装器跨请求引用已归还 sync.Pool 的对象。
+func TestStartOpenAICompactSSEKeepalive_StopRestoresWriter(t *testing.T) {
+	c, _ := newCompactBridgeTestContext(t, true)
+	original := c.Writer
+	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	require.NotSame(t, original, c.Writer, "启动后应已安装 keepalive 包装器")
+
+	stop()
+	require.Same(t, original, c.Writer, "停止后必须还原被替换前的 writer")
+	stop() // 幂等
+	require.Same(t, original, c.Writer)
+
+	// no-op 路径（未标记客户端流式）：c.Writer 不被替换，stop 不产生副作用。
+	c2, _ := newCompactBridgeTestContext(t, false)
+	original2 := c2.Writer
+	stop2 := StartOpenAICompactSSEKeepalive(c2, time.Hour)
+	require.Same(t, original2, c2.Writer)
+	stop2()
+	require.Same(t, original2, c2.Writer)
+}
+
+// 停止前 c.Writer 已被更下游替换成其他 writer：还原逻辑不得覆盖它。
+func TestStartOpenAICompactSSEKeepalive_StopKeepsForeignWriter(t *testing.T) {
+	c, _ := newCompactBridgeTestContext(t, true)
+	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	foreign := &openAICompactKeepaliveWriter{ResponseWriter: c.Writer, k: &openAICompactSSEKeepalive{writer: c.Writer, stop: make(chan struct{})}}
+	c.Writer = foreign
+	stop()
+	require.Same(t, foreign, c.Writer, "c.Writer 已非本包装器时不得覆盖")
+}
+
 // fast policy block 在心跳未提交时保持 403 JSON 原语义。
 func TestWriteOpenAIFastPolicyBlockedResponse_BeforeKeepaliveCommit(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
