@@ -161,6 +161,9 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				user.FieldLastLoginAt,
 				user.FieldLastActiveAt,
 				user.FieldRpmLimit,
+				// MERCHANT-SYSTEM v1.0：中间件 merchant suspended 拦截与 batch_image
+				// merchant 子用户守卫都依赖该字段，漏选会导致守卫静默失效。
+				user.FieldParentMerchantID,
 			)
 			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
 				gq.Select(group.FieldID)

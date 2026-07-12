@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -275,6 +276,48 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 	require.Equal(t, apiKey.Name, roundTrip.Name)
 	require.NotNil(t, roundTrip.Group)
 	require.Equal(t, apiKey.Group.MessagesDispatchModelConfig, roundTrip.Group.MessagesDispatchModelConfig)
+}
+
+// 回归：merchant 子用户标记必须经快照往返保留，否则缓存命中路径拿到的
+// apiKey.User.ParentMerchantID 恒为 nil，merchant suspended 拦截与
+// batch_image merchant 子用户守卫全部失效。
+func TestAPIKeyService_SnapshotRoundTrip_PreservesParentMerchantID(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	merchantID := int64(77)
+	apiKey := &APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "k-roundtrip-merchant",
+		Name:   "Merchant Sub-User Key",
+		Status: StatusActive,
+		User: &User{
+			ID:               2,
+			Status:           StatusActive,
+			Role:             RoleUser,
+			Balance:          10,
+			Concurrency:      3,
+			ParentMerchantID: &merchantID,
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	require.NotNil(t, snapshot)
+	require.NotNil(t, snapshot.User.ParentMerchantID)
+	require.Equal(t, merchantID, *snapshot.User.ParentMerchantID)
+
+	// 走 JSON 序列化往返，模拟 L2 Redis 存取路径。
+	raw, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: snapshot})
+	require.NoError(t, err)
+	var decoded APIKeyAuthCacheEntry
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+
+	roundTrip, ok, err := svc.applyAuthCacheEntry(apiKey.Key, &decoded)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.User)
+	require.NotNil(t, roundTrip.User.ParentMerchantID)
+	require.Equal(t, merchantID, *roundTrip.User.ParentMerchantID)
 }
 
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {

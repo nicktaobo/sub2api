@@ -234,11 +234,17 @@ func batchImageOwnerFromContext(c *gin.Context) (service.BatchImageOwner, bool) 
 	if !ok || apiKey == nil || apiKey.ID <= 0 || apiKey.UserID <= 0 {
 		return service.BatchImageOwner{}, false
 	}
-	return service.BatchImageOwner{
+	owner := service.BatchImageOwner{
 		UserID:   apiKey.UserID,
 		APIKeyID: apiKey.ID,
 		GroupID:  apiKey.GroupID,
-	}, true
+	}
+	// 透传 merchant 子用户标记：batch_image 结算不走 merchant 加价/返佣/ledger，
+	// Submit 侧依赖该字段拒绝 merchant 子用户（见 ErrBatchImageMerchantSubUserForbidden）。
+	if apiKey.User != nil {
+		owner.ParentMerchantID = apiKey.User.ParentMerchantID
+	}
+	return owner, true
 }
 
 func batchImageError(c *gin.Context, err error) {

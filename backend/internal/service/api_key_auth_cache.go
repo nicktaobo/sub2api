@@ -52,6 +52,11 @@ type APIKeyAuthUserSnapshot struct {
 	// UserGroupRPMOverride 该 API Key 对应的 (user, group) 专属 RPM 覆盖值。
 	// nil = 无 override（回退到 group/user 级）；0 = 不限流；>0 = 专属上限。
 	UserGroupRPMOverride *int `json:"user_group_rpm_override,omitempty"`
+
+	// ParentMerchantID 非空表示 merchant 子用户（users.parent_merchant_id）。
+	// 中间件 merchant suspended 拦截与 batch_image merchant 子用户守卫都依赖该字段，
+	// 必须进 snapshot，否则缓存命中路径拿到的 apiKey.User 缺字段、守卫静默失效。
+	ParentMerchantID *int64 `json:"parent_merchant_id,omitempty"`
 }
 
 // APIKeyAuthGroupSnapshot 分组快照

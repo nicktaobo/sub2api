@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 14 // v14: include group video pricing fields
+const apiKeyAuthSnapshotVersion = 15 // v15: include user parent_merchant_id (merchant sub-user guards)
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -235,6 +235,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			BalanceNotifyExtraEmails:   apiKey.User.BalanceNotifyExtraEmails,
 			TotalRecharged:             apiKey.User.TotalRecharged,
 			RPMLimit:                   apiKey.User.RPMLimit,
+			ParentMerchantID:           apiKey.User.ParentMerchantID,
 		},
 	}
 
@@ -327,6 +328,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			TotalRecharged:             snapshot.User.TotalRecharged,
 			RPMLimit:                   snapshot.User.RPMLimit,
 			UserGroupRPMOverride:       snapshot.User.UserGroupRPMOverride,
+			ParentMerchantID:           snapshot.User.ParentMerchantID,
 		},
 	}
 	if snapshot.Group != nil {

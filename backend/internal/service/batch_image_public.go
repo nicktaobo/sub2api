@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -78,7 +79,18 @@ type BatchImageOwner struct {
 	UserID   int64
 	APIKeyID int64
 	GroupID  *int64
+	// ParentMerchantID 非空表示 merchant 子用户（users.parent_merchant_id），
+	// 由 handler 从鉴权上下文的 apiKey.User 透传，用于 Submit 资格校验。
+	ParentMerchantID *int64
 }
+
+// ErrBatchImageMerchantSubUserForbidden merchant 子用户禁止使用批量生图。
+// batch_image 结算管线目前完全绕过本地 merchant 定制体系：不走 merchant 加价
+// （ApplyUsageMarkup）、不走消费返佣（ApplyConsumptionRebate）、不写 merchant
+// outbox/ledger（对照 applyUsageBillingEffects），也不计入 user_platform_quotas
+// 与 API Key 日限额。放行会静默漏掉整套 merchant 计费与限额。
+// TODO: 待 batch_image 结算路径移植上述 merchant hook 后放开此守卫。
+var ErrBatchImageMerchantSubUserForbidden = infraerrors.New(http.StatusForbidden, "BATCH_IMAGE_MERCHANT_SUB_USER_FORBIDDEN", "batch image API is not available for merchant sub-users")
 
 type BatchImagePublicService struct {
 	Repo              BatchImageRepository
@@ -203,6 +215,10 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 	normalized, err := s.validateSubmitRequest(req)
 	if err != nil {
 		return nil, err
+	}
+	// merchant 子用户一律拒绝：见 ErrBatchImageMerchantSubUserForbidden 注释。
+	if owner.ParentMerchantID != nil {
+		return nil, ErrBatchImageMerchantSubUserForbidden
 	}
 	// 与 ListModels 使用同一鉴权谓词（AllowBatchImageGeneration + Platform==Gemini），
 	// 避免两个入口校验口径不一致留下防御纵深缺口。

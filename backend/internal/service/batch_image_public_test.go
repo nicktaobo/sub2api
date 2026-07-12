@@ -25,6 +25,35 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.ErrorIs(t, err, ErrBatchImageDisabled)
 	})
 
+	t.Run("rejects merchant sub user before creating job or hold", func(t *testing.T) {
+		// batch_image 结算不走 merchant 加价/返佣/ledger，也不计平台限额，
+		// merchant 子用户必须在提交入口被整体拒绝（见 ErrBatchImageMerchantSubUserForbidden）。
+		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
+		merchantID := int64(9)
+		owner := testBatchImageOwner()
+		owner.ParentMerchantID = &merchantID
+
+		_, err := svc.Submit(ctx, owner, validBatchImageSubmitRequest(), "")
+		require.ErrorIs(t, err, ErrBatchImageMerchantSubUserForbidden)
+		// 守卫必须在建 job / 冻结余额 / 入队之前生效，不留任何副作用。
+		require.Empty(t, repo.jobs)
+		require.Empty(t, queue.enqueued)
+		require.Empty(t, gemini.submits)
+		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
+		require.Empty(t, billing.reserves)
+	})
+
+	t.Run("merchant guard does not affect normal users", func(t *testing.T) {
+		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
+		owner := testBatchImageOwner()
+		require.Nil(t, owner.ParentMerchantID)
+
+		got, err := svc.Submit(ctx, owner, validBatchImageSubmitRequest(), "")
+		require.NoError(t, err)
+		require.Len(t, repo.jobs, 1)
+		require.Equal(t, "queued", got.Status)
+	})
+
 	t.Run("accepts valid request stores refs and enqueues once", func(t *testing.T) {
 		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
 
