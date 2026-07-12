@@ -645,6 +645,73 @@ func TestResponsesToChatCompletionsRequest_ToolSearchToolChoiceMapsToProxy(t *te
 	assert.Empty(t, out.ToolChoice)
 }
 
+// namespace 子工具已被摊平为 "<namespace>__<name>" 声明，客户端按原始
+// namespace+裸子工具名强制选择时必须重定向到摊平名，不能因裸名未声明而
+// 静默丢弃（丢弃会把强制调用退化为自动选择）。
+func TestResponsesToChatCompletionsRequest_NamespaceToolChoiceMapsToFlattenedName(t *testing.T) {
+	out, err := ResponsesToChatCompletionsRequest(&ResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hi"`),
+		Tools: []ResponsesTool{
+			{Type: "namespace", Name: "gmail", Tools: []ResponsesTool{{Type: "function", Name: "send"}}},
+		},
+		ToolChoice: json.RawMessage(`{"type":"function","name":"send","namespace":"gmail"}`),
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"function","function":{"name":"gmail__send"}}`, string(out.ToolChoice))
+
+	// 摊平名超长带截断哈希时同样按 flattenNamespaceToolName 反查命中。
+	longNS := "very_long_namespace_prefix_for_testing_purposes"
+	longName := "and_a_rather_long_tool_name_too"
+	out, err = ResponsesToChatCompletionsRequest(&ResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hi"`),
+		Tools: []ResponsesTool{
+			{Type: "namespace", Name: longNS, Tools: []ResponsesTool{{Type: "function", Name: longName}}},
+		},
+		ToolChoice: json.RawMessage(`{"type":"function","name":"` + longName + `","namespace":"` + longNS + `"}`),
+	})
+	require.NoError(t, err)
+	flat := flattenNamespaceToolName(longNS, longName)
+	assert.JSONEq(t, `{"type":"function","function":{"name":"`+flat+`"}}`, string(out.ToolChoice))
+
+	// namespace+name 组合不存在时没有可指向的摊平工具，维持丢弃。
+	out, err = ResponsesToChatCompletionsRequest(&ResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hi"`),
+		Tools: []ResponsesTool{
+			{Type: "namespace", Name: "gmail", Tools: []ResponsesTool{{Type: "function", Name: "send"}}},
+		},
+		ToolChoice: json.RawMessage(`{"type":"function","name":"missing","namespace":"gmail"}`),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, out.ToolChoice, "namespace 下不存在的子工具名必须丢弃")
+
+	// namespace 本身不存在时同样丢弃。
+	out, err = ResponsesToChatCompletionsRequest(&ResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hi"`),
+		Tools: []ResponsesTool{
+			{Type: "namespace", Name: "gmail", Tools: []ResponsesTool{{Type: "function", Name: "send"}}},
+		},
+		ToolChoice: json.RawMessage(`{"type":"function","name":"send","namespace":"crm"}`),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, out.ToolChoice, "不存在的 namespace 必须丢弃")
+
+	// 不带 namespace 的裸子工具名不做猜测性匹配，维持现行丢弃行为。
+	out, err = ResponsesToChatCompletionsRequest(&ResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hi"`),
+		Tools: []ResponsesTool{
+			{Type: "namespace", Name: "gmail", Tools: []ResponsesTool{{Type: "function", Name: "send"}}},
+		},
+		ToolChoice: json.RawMessage(`{"type":"function","name":"send"}`),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, out.ToolChoice, "缺 namespace 的裸子工具名不做猜测性重定向")
+}
+
 // 客户端请求在原生 Responses API 上合法（namespace 子工具按 namespace+name 路由），
 // 是摊平转换让名字产生歧义；歧义无法消除时必须显式拒绝整个请求（400），而不是
 // 静默降级——否则重复声明发给上游、回程还原到错误工具，问题只能靠抓包定位。

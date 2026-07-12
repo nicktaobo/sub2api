@@ -39,7 +39,11 @@ func ResponsesToAnthropicRequest(req *ResponsesRequest) (*AnthropicRequest, erro
 
 	// Convert tools
 	if len(req.Tools) > 0 {
-		out.Tools = convertResponsesToAnthropicTools(req.Tools)
+		tools, err := convertResponsesToAnthropicTools(req.Tools)
+		if err != nil {
+			return nil, fmt.Errorf("convert tools: %w", err)
+		}
+		out.Tools = tools
 	}
 
 	// Convert tool_choice (reverse of convertAnthropicToolChoiceToResponses)
@@ -138,6 +142,29 @@ func convertResponsesInputToAnthropic(instructions string, inputRaw json.RawMess
 			if item.Arguments != "" {
 				input = json.RawMessage(item.Arguments)
 			}
+			name := item.Name
+			// fork 定制：namespace 子工具的历史调用带 namespace 字段，需与请求
+			// 方向的摊平命名保持一致（见 namespaceChildrenToAnthropicTools）。
+			if item.Namespace != "" {
+				name = flattenNamespaceToolName(item.Namespace, name)
+			}
+			block := AnthropicContentBlock{
+				Type:  "tool_use",
+				ID:    fromResponsesCallIDToAnthropic(item.CallID),
+				Name:  name,
+				Input: input,
+			}
+			blockJSON, _ := json.Marshal([]AnthropicContentBlock{block})
+			messages = append(messages, AnthropicMessage{
+				Role:    "assistant",
+				Content: blockJSON,
+			})
+
+		case item.Type == "custom_tool_call":
+			// fork 定制：custom/freeform 工具的历史调用，自由文本 input 包进降级
+			// schema 的 {"input": ...} 参数（对齐 chat 桥 buildChatMessagesFromItems），
+			// 模型才能把历史与当前工具定义对上。
+			input, _ := json.Marshal(map[string]string{"input": item.Input})
 			block := AnthropicContentBlock{
 				Type:  "tool_use",
 				ID:    fromResponsesCallIDToAnthropic(item.CallID),
@@ -150,8 +177,24 @@ func convertResponsesInputToAnthropic(instructions string, inputRaw json.RawMess
 				Content: blockJSON,
 			})
 
-		case item.Type == "function_call_output":
+		case item.Type == "tool_search_call":
+			// fork 定制：tool_search 历史调用还原为降级代理 function 的 tool_use
+			// （见 convertResponsesToAnthropicTools 的 tool_search 分支）。
+			block := AnthropicContentBlock{
+				Type:  "tool_use",
+				ID:    fromResponsesCallIDToAnthropic(item.CallID),
+				Name:  toolSearchProxyName,
+				Input: toolSearchCallArgumentsJSON(item.Arguments),
+			}
+			blockJSON, _ := json.Marshal([]AnthropicContentBlock{block})
+			messages = append(messages, AnthropicMessage{
+				Role:    "assistant",
+				Content: blockJSON,
+			})
+
+		case item.Type == "function_call_output" || item.Type == "custom_tool_call_output" || item.Type == "tool_search_output":
 			// function_call_output → user message with tool_result block
+			// （custom_tool_call_output / tool_search_output 同口径，fork 定制）
 			outputContent := item.Output
 			if outputContent == "" {
 				outputContent = "(empty)"
@@ -521,7 +564,23 @@ func parseContentBlocks(raw json.RawMessage) []AnthropicContentBlock {
 
 // convertResponsesToAnthropicTools maps Responses API tools to Anthropic format.
 // Reverse of convertAnthropicToolsToResponses.
-func convertResponsesToAnthropicTools(tools []ResponsesTool) []AnthropicTool {
+//
+// fork 定制（codex 0.14x 工具链，对齐 chat 桥 responsesToolsToChatTools 语义）：
+// namespace 子工具摊平为 "<namespace>__<name>" 顶层工具、custom/freeform 工具降级
+// 为单一 input 字符串参数、tool_search 降级为同名代理 function。摊平/代理名与已
+// 声明工具撞名时歧义不可消除，显式返回错误而非静默把非法 type 透传给上游（严格
+// 上游会 400，子工具列表整个丢失）。回程还原见 AnthropicResponsesToolContext。
+func convertResponsesToAnthropicTools(tools []ResponsesTool) ([]AnthropicTool, error) {
+	// 顶层 function/custom 工具名集合，用于摊平名/代理名撞名检测。
+	topLevel := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		if (t.Type == "function" || t.Type == "custom") && t.Name != "" {
+			topLevel[t.Name] = true
+		}
+	}
+	flatOwner := make(map[string]NamespacedToolName)
+	toolSearchDeclared := false
+
 	var out []AnthropicTool
 	for _, t := range tools {
 		switch t.Type {
@@ -537,11 +596,35 @@ func convertResponsesToAnthropicTools(tools []ResponsesTool) []AnthropicTool {
 				InputSchema: normalizeAnthropicInputSchema(t.Parameters),
 			})
 		case "custom":
+			// custom/freeform 工具与 chat 桥同口径降级：Anthropic 协议同样无法
+			// 表达自由文本输入（及其 grammar 约束），退化为单一 input 字符串参数，
+			// 回程再从 arguments 的 input 字段还原（见 extractCustomToolCallInput）。
 			out = append(out, AnthropicTool{
 				Name:        t.Name,
 				Description: t.Description,
-				InputSchema: normalizeAnthropicInputSchema(t.Parameters),
+				InputSchema: json.RawMessage(customToolInputSchema),
 			})
+		case "tool_search":
+			// 代理不能改名（codex 的模型侧按 tool_search 这个名字调用），与客户端
+			// 声明的同名工具无法区分，必须显式拒绝；重复声明去重即可。
+			if topLevel[toolSearchProxyName] {
+				return nil, fmt.Errorf("built-in tool_search conflicts with a declared tool named %q; this upstream cannot disambiguate them, rename the tool", toolSearchProxyName)
+			}
+			if toolSearchDeclared {
+				continue
+			}
+			toolSearchDeclared = true
+			out = append(out, AnthropicTool{
+				Name:        toolSearchProxyName,
+				Description: "Search and load Codex tools, plugins, connectors, and MCP namespaces for the current task.",
+				InputSchema: json.RawMessage(toolSearchProxySchema),
+			})
+		case "namespace":
+			flattened, err := namespaceChildrenToAnthropicTools(t, topLevel, flatOwner)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, flattened...)
 		default:
 			// Pass through unknown tool types
 			out = append(out, AnthropicTool{
@@ -552,7 +635,45 @@ func convertResponsesToAnthropicTools(tools []ResponsesTool) []AnthropicTool {
 			})
 		}
 	}
-	return out
+	return out, nil
+}
+
+// namespaceChildrenToAnthropicTools 将 namespace 工具的子 function 工具摊平为顶层
+// Anthropic 工具，名字加 "<namespace>__" 前缀（与 chat 桥 namespaceChildrenToChatTools
+// 完全同口径）。摊平名与顶层工具或其他 namespace 撞名时返回错误（歧义不可消除，
+// 显式拒绝）；同一 (namespace, 子工具) 的重复声明去重后不算冲突。
+func namespaceChildrenToAnthropicTools(tool ResponsesTool, topLevel map[string]bool, flatOwner map[string]NamespacedToolName) ([]AnthropicTool, error) {
+	if tool.Name == "" {
+		return nil, nil
+	}
+	children := tool.Tools
+	if len(children) == 0 {
+		children = tool.Children
+	}
+	var out []AnthropicTool
+	for _, child := range children {
+		if child.Type != "function" || child.Name == "" {
+			continue
+		}
+		flat := flattenNamespaceToolName(tool.Name, child.Name)
+		entry := NamespacedToolName{Namespace: tool.Name, Name: child.Name}
+		if topLevel[flat] {
+			return nil, fmt.Errorf("namespace tool %q/%q flattens to %q which conflicts with a top-level tool of the same name; this upstream cannot disambiguate them, rename one of the tools", tool.Name, child.Name, flat)
+		}
+		if prev, ok := flatOwner[flat]; ok {
+			if prev == entry {
+				continue
+			}
+			return nil, fmt.Errorf("namespace tools %q/%q and %q/%q both flatten to %q; this upstream cannot disambiguate them, rename one of the tools", prev.Namespace, prev.Name, tool.Name, child.Name, flat)
+		}
+		flatOwner[flat] = entry
+		out = append(out, AnthropicTool{
+			Name:        flat,
+			Description: child.Description,
+			InputSchema: normalizeAnthropicInputSchema(child.Parameters),
+		})
+	}
+	return out, nil
 }
 
 // normalizeAnthropicInputSchema ensures input_schema is a valid object schema.
@@ -622,18 +743,30 @@ func convertResponsesToAnthropicToolChoice(raw json.RawMessage) (json.RawMessage
 			Name string `json:"name"`
 		} `json:"function"`
 	}
-	if err := json.Unmarshal(raw, &tc); err == nil && tc.Type == "function" {
-		name := strings.TrimSpace(tc.Name)
-		if name == "" {
-			name = strings.TrimSpace(tc.Function.Name)
+	if err := json.Unmarshal(raw, &tc); err == nil {
+		switch tc.Type {
+		// fork 定制：custom 工具已降级为 function 工具（见
+		// convertResponsesToAnthropicTools），指向它的 tool_choice 同样按具名转换。
+		case "function", "custom":
+			name := strings.TrimSpace(tc.Name)
+			if name == "" {
+				name = strings.TrimSpace(tc.Function.Name)
+			}
+			if name == "" {
+				return raw, nil
+			}
+			return json.Marshal(map[string]string{
+				"type": "tool",
+				"name": name,
+			})
+		case "tool_search":
+			// fork 定制：tool_search 已降级为同名代理 function，强制选择它同样
+			// 指向代理工具，静默透传会被上游按非法 type 拒绝。
+			return json.Marshal(map[string]string{
+				"type": "tool",
+				"name": toolSearchProxyName,
+			})
 		}
-		if name == "" {
-			return raw, nil
-		}
-		return json.Marshal(map[string]string{
-			"type": "tool",
-			"name": name,
-		})
 	}
 
 	// Pass through unknown

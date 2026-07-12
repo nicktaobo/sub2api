@@ -235,8 +235,15 @@ type ResponsesInputItem struct {
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
 	ID        string `json:"id,omitempty"`
+	// type=function_call 且来源为 namespace 子工具时的归属命名空间（codex 0.14x
+	// 按 namespace+name 路由，历史调用需按请求方向的摊平命名还原，见
+	// convertResponsesInputToAnthropic）。
+	Namespace string `json:"namespace,omitempty"`
 
-	// type=function_call_output
+	// type=custom_tool_call 的自由文本输入。
+	Input string `json:"input,omitempty"`
+
+	// type=function_call_output / custom_tool_call_output / tool_search_output
 	Output string `json:"output,omitempty"`
 }
 

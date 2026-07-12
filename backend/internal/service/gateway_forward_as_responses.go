@@ -50,6 +50,9 @@ func (s *GatewayService) ForwardAsResponses(
 	if err != nil {
 		return nil, fmt.Errorf("convert responses to anthropic: %w", err)
 	}
+	// fork 定制：codex 0.14x 工具链回程还原上下文（custom/tool_search/namespace，
+	// 见 apicompat.AnthropicResponsesToolContext），无相关工具时为 nil。
+	toolCtx := apicompat.NewAnthropicResponsesToolContext(responsesReq.Tools)
 
 	// 3. Force upstream streaming (Anthropic works best with streaming)
 	anthropicReq.Stream = true
@@ -182,9 +185,9 @@ func (s *GatewayService) ForwardAsResponses(
 	var result *ForwardResult
 	var handleErr error
 	if clientStream {
-		result, handleErr = s.handleResponsesStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
+		result, handleErr = s.handleResponsesStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, toolCtx, startTime)
 	} else {
-		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
+		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, toolCtx, startTime)
 	}
 
 	return result, handleErr
@@ -231,6 +234,7 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	originalModel string,
 	mappedModel string,
 	reasoningEffort *string,
+	toolCtx *apicompat.AnthropicResponsesToolContext,
 	startTime time.Time,
 ) (*ForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
@@ -332,8 +336,8 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 		}
 	}
 
-	// Convert to Responses format
-	responsesResp := apicompat.AnthropicToResponsesResponse(finalResp)
+	// Convert to Responses format（fork 定制：带工具还原上下文）
+	responsesResp := apicompat.AnthropicToResponsesResponseWithTools(finalResp, toolCtx)
 	responsesResp.Model = originalModel // Use original model name
 
 	if s.responseHeaderFilter != nil {
@@ -371,6 +375,7 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 	originalModel string,
 	mappedModel string,
 	reasoningEffort *string,
+	toolCtx *apicompat.AnthropicResponsesToolContext,
 	startTime time.Time,
 ) (*ForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
@@ -386,6 +391,8 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 
 	state := apicompat.NewAnthropicEventToResponsesState()
 	state.Model = originalModel
+	// fork 定制：codex 工具调用按请求声明的工具类型还原（custom/tool_search/namespace）。
+	state.ToolContext = toolCtx
 	var usage ClaudeUsage
 	var firstTokenMs *int
 	firstChunk := true

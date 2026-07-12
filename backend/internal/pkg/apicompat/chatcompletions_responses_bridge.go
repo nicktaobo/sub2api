@@ -717,7 +717,8 @@ func flattenNamespaceToolName(namespace, name string) string {
 // responsesToolChoiceToChatToolChoice 把 Responses 的 tool_choice 转为 chat 形态。
 // declared 是转换后实际声明的 chat 工具名集合：具名选择项仅在目标工具幸存时转发，
 // 服务端工具（web_search 等）的选择项随工具本身丢弃——指向未声明工具的 tool_choice
-// 会被 chat 上游 400 拒绝。返回 nil 表示丢弃 tool_choice。
+// 会被 chat 上游 400 拒绝。namespace 子工具的选择项按摊平名重定向（子工具本身已被
+// 摊平声明）。返回 nil 表示丢弃 tool_choice。
 func responsesToolChoiceToChatToolChoice(raw json.RawMessage, declared map[string]bool) json.RawMessage {
 	var choice map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &choice); err != nil {
@@ -744,7 +745,19 @@ func responsesToolChoiceToChatToolChoice(raw json.RawMessage, declared map[strin
 		return nil
 	}
 	if !declared[name] {
-		return nil
+		// namespace 子工具的强制选择携带原始 namespace+裸子工具名，而 declared
+		// 中只有摊平名（见 namespaceChildrenToChatTools）；按摊平名反查命中时
+		// 改指摊平工具，否则静默丢弃会把强制调用退化为自动选择。仍未命中
+		//（namespace+name 不存在）维持现行丢弃行为。
+		ns := rawString(choice["namespace"])
+		if ns == "" {
+			return nil
+		}
+		flat := flattenNamespaceToolName(ns, name)
+		if !declared[flat] {
+			return nil
+		}
+		name = flat
 	}
 	out, err := json.Marshal(map[string]any{
 		"type": "function",

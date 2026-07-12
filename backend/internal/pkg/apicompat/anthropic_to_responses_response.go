@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -12,10 +13,66 @@ import (
 // Non-streaming: AnthropicResponse → ResponsesResponse
 // ---------------------------------------------------------------------------
 
+// AnthropicResponsesToolContext 汇总 /v1/responses → Anthropic 回退路径回程还原
+// codex 0.14x 工具调用所需的请求侧上下文（fork 定制，对齐 chat 桥的
+// CustomTools / ToolSearchDeclared / NamespaceTools 语义）：custom 工具的调用还原
+// 为 custom_tool_call 项、tool_search 代理调用还原为 tool_search_call 项、namespace
+// 子工具的摊平名调用还原为带 namespace 字段的 function_call 项。codex 只按这些项
+// 类型路由，一律还原为 function_call 会报 unsupported call。
+type AnthropicResponsesToolContext struct {
+	CustomTools    map[string]bool
+	ToolSearch     bool
+	NamespaceTools map[string]NamespacedToolName
+}
+
+// NewAnthropicResponsesToolContext 从 Responses 请求的工具声明构造回程还原上下文，
+// 复用 chat 桥的收集口径。没有任何需要还原的工具时返回 nil（nil 上下文按纯
+// function_call 还原，与历史行为一致）。
+func NewAnthropicResponsesToolContext(tools []ResponsesTool) *AnthropicResponsesToolContext {
+	if len(tools) == 0 {
+		return nil
+	}
+	ctx := &AnthropicResponsesToolContext{
+		CustomTools:    CustomToolNames(tools),
+		ToolSearch:     HasToolSearchTool(tools),
+		NamespaceTools: NamespaceToolNames(tools),
+	}
+	if len(ctx.CustomTools) == 0 && !ctx.ToolSearch && len(ctx.NamespaceTools) == 0 {
+		return nil
+	}
+	return ctx
+}
+
+// classifyToolUse 按请求声明判定 tool_use 应还原成的 Responses 项类型，返回
+// (项类型, 还原后的工具名, namespace)。nil 上下文安全，等价于纯 function_call。
+// 判定顺序与 chat 桥 announceChatToolItem 一致（请求方向的撞名拒绝保证无歧义）。
+func (ctx *AnthropicResponsesToolContext) classifyToolUse(name string) (itemType, itemName, namespace string) {
+	if ctx == nil {
+		return "function_call", name, ""
+	}
+	if ctx.CustomTools[name] {
+		return "custom_tool_call", name, ""
+	}
+	if ctx.ToolSearch && name == toolSearchProxyName {
+		return "tool_search_call", name, ""
+	}
+	if ns, ok := ctx.NamespaceTools[name]; ok {
+		return "function_call", ns.Name, ns.Namespace
+	}
+	return "function_call", name, ""
+}
+
 // AnthropicToResponsesResponse converts an Anthropic Messages response into a
 // Responses API response. This is the reverse of ResponsesToAnthropic and
 // enables Anthropic upstream responses to be returned in OpenAI Responses format.
 func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
+	return AnthropicToResponsesResponseWithTools(resp, nil)
+}
+
+// AnthropicToResponsesResponseWithTools 同 AnthropicToResponsesResponse，但按
+// 请求侧工具上下文还原 codex 工具调用形态（fork 定制，见
+// AnthropicResponsesToolContext）。toolCtx 为 nil 时行为与原函数一致。
+func AnthropicToResponsesResponseWithTools(resp *AnthropicResponse, toolCtx *AnthropicResponsesToolContext) *ResponsesResponse {
 	id := resp.ID
 	if id == "" {
 		id = generateResponsesID()
@@ -55,14 +112,7 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 			if len(block.Input) > 0 {
 				args = string(block.Input)
 			}
-			outputs = append(outputs, ResponsesOutput{
-				Type:      "function_call",
-				ID:        generateItemID(),
-				CallID:    toResponsesCallID(block.ID),
-				Name:      block.Name,
-				Arguments: args,
-				Status:    "completed",
-			})
+			outputs = append(outputs, responsesOutputForAnthropicToolUse(block, args, toolCtx))
 		}
 	}
 
@@ -116,6 +166,33 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 	return out
 }
 
+// responsesOutputForAnthropicToolUse 把一个 tool_use 块按请求侧工具上下文还原为
+// Responses 输出项（fork 定制，见 AnthropicResponsesToolContext）。
+func responsesOutputForAnthropicToolUse(block AnthropicContentBlock, args string, toolCtx *AnthropicResponsesToolContext) ResponsesOutput {
+	itemType, name, namespace := toolCtx.classifyToolUse(block.Name)
+	out := ResponsesOutput{
+		Type:   itemType,
+		ID:     generateItemID(),
+		CallID: toResponsesCallID(block.ID),
+		Status: "completed",
+	}
+	switch itemType {
+	case "custom_tool_call":
+		// custom 调用的 arguments 是降级 schema 包裹的 {"input": ...}，还原为
+		// 自由文本输入（见 extractCustomToolCallInput）。
+		out.Name = name
+		out.Input = extractCustomToolCallInput(args)
+	case "tool_search_call":
+		// codex 只在项类型为 tool_search_call 时执行 tool search，arguments 原样回传。
+		out.Arguments = args
+	default:
+		out.Name = name
+		out.Namespace = namespace
+		out.Arguments = args
+	}
+	return out
+}
+
 // anthropicStopReasonToResponsesStatus maps Anthropic stop_reason to Responses status.
 func anthropicStopReasonToResponsesStatus(stopReason string, blocks []AnthropicContentBlock) string {
 	switch stopReason {
@@ -148,7 +225,7 @@ type AnthropicEventToResponsesState struct {
 	// Current output tracking
 	OutputIndex     int
 	CurrentItemID   string
-	CurrentItemType string // "message" | "function_call" | "reasoning"
+	CurrentItemType string // "message" | "function_call" | "custom_tool_call" | "tool_search_call" | "reasoning"
 
 	// For message output: accumulate text parts
 	ContentIndex int
@@ -156,6 +233,16 @@ type AnthropicEventToResponsesState struct {
 	// For function_call: track per-output info
 	CurrentCallID string
 	CurrentName   string
+	// fork 定制：namespace 子工具调用还原出的归属命名空间（见 ToolContext）。
+	CurrentNamespace string
+	// fork 定制：累积当前工具调用的 input_json_delta。custom 调用的 input 与
+	// tool_search 调用的 arguments 无法增量还原，收尾时一次性下发；function_call
+	// 的 output_item.done 也需带全量 arguments 供 codex 物化调用。
+	CurrentArgs strings.Builder
+
+	// ToolContext 是请求侧工具上下文（fork 定制，见 AnthropicResponsesToolContext）。
+	// nil 时所有 tool_use 按 function_call 还原，与历史行为一致。
+	ToolContext *AnthropicResponsesToolContext
 
 	// Usage from message_start / message_delta. InputTokens here follows
 	// Anthropic semantics (excludes cached tokens); they are added back when
@@ -295,19 +382,25 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 		// Close previous item if any
 		events = append(events, closeCurrentResponsesItem(state)...)
 
+		// fork 定制：按请求声明的工具类型还原 codex 工具调用形态（对齐 chat 桥
+		// announceChatToolItem，见 AnthropicResponsesToolContext）。
+		itemType, name, namespace := state.ToolContext.classifyToolUse(evt.ContentBlock.Name)
 		state.CurrentItemID = generateItemID()
-		state.CurrentItemType = "function_call"
+		state.CurrentItemType = itemType
 		state.CurrentCallID = toResponsesCallID(evt.ContentBlock.ID)
-		state.CurrentName = evt.ContentBlock.Name
+		state.CurrentName = name
+		state.CurrentNamespace = namespace
+		state.CurrentArgs.Reset()
 
 		events = append(events, makeResponsesEvent(state, "response.output_item.added", &ResponsesStreamEvent{
 			OutputIndex: state.OutputIndex,
 			Item: &ResponsesOutput{
-				Type:   "function_call",
-				ID:     state.CurrentItemID,
-				CallID: state.CurrentCallID,
-				Name:   state.CurrentName,
-				Status: "in_progress",
+				Type:      itemType,
+				ID:        state.CurrentItemID,
+				CallID:    state.CurrentCallID,
+				Name:      state.CurrentName,
+				Namespace: state.CurrentNamespace,
+				Status:    "in_progress",
 			},
 		}))
 	}
@@ -345,6 +438,13 @@ func anthToResHandleContentBlockDelta(evt *AnthropicStreamEvent, state *Anthropi
 
 	case "input_json_delta":
 		if evt.Delta.PartialJSON == "" {
+			return nil
+		}
+		// fork 定制：累积全量参数（收尾项需要）；custom 调用的 input 与
+		// tool_search 的 arguments 无法增量还原，流中不产出增量事件，收尾时
+		// 一次性下发（见 anthToResHandleContentBlockStop）。
+		_, _ = state.CurrentArgs.WriteString(evt.Delta.PartialJSON)
+		if state.CurrentItemType == "custom_tool_call" || state.CurrentItemType == "tool_search_call" {
 			return nil
 		}
 		return []ResponsesStreamEvent{makeResponsesEvent(state, "response.function_call_arguments.delta", &ResponsesStreamEvent{
@@ -385,10 +485,38 @@ func anthToResHandleContentBlockStop(evt *AnthropicStreamEvent, state *Anthropic
 				ItemID:      state.CurrentItemID,
 				CallID:      state.CurrentCallID,
 				Name:        state.CurrentName,
+				Arguments:   currentResponsesToolArguments(state),
 			}),
 		}
 		events = append(events, closeCurrentResponsesItem(state)...)
 		return events
+
+	case "custom_tool_call":
+		// fork 定制：custom 调用按 custom_tool_call 生命周期收尾，input 在此处
+		// 一次性下发（流中不产出增量，对齐 chat 桥 closeChatToolItems）。
+		input := extractCustomToolCallInput(currentResponsesToolArguments(state))
+		var events []ResponsesStreamEvent
+		if input != "" {
+			events = append(events, makeResponsesEvent(state, "response.custom_tool_call_input.delta", &ResponsesStreamEvent{
+				OutputIndex: state.OutputIndex,
+				ItemID:      state.CurrentItemID,
+				Delta:       input,
+			}))
+		}
+		events = append(events, makeResponsesEvent(state, "response.custom_tool_call_input.done", &ResponsesStreamEvent{
+			OutputIndex: state.OutputIndex,
+			ItemID:      state.CurrentItemID,
+			CallID:      state.CurrentCallID,
+			Name:        state.CurrentName,
+			Input:       input,
+		}))
+		events = append(events, closeCurrentResponsesItem(state)...)
+		return events
+
+	case "tool_search_call":
+		// fork 定制：tool_search 调用按 tool_search_call 项收尾，codex 从
+		// output_item.done 物化该调用（无参数增量事件，对齐 chat 桥）。
+		return closeCurrentResponsesItem(state)
 
 	case "message":
 		// Emit output_text.done (text block is done, but message item stays open for potential more blocks)
@@ -449,25 +577,51 @@ func closeCurrentResponsesItem(state *AnthropicEventToResponsesState) []Response
 		return nil
 	}
 
-	itemType := state.CurrentItemType
-	itemID := state.CurrentItemID
+	item := &ResponsesOutput{
+		Type:   state.CurrentItemType,
+		ID:     state.CurrentItemID,
+		Status: "completed",
+	}
+	// fork 定制：工具调用项的 output_item.done 带完整 call 载荷，codex 从该事件
+	// 物化调用（custom/tool_search 流中不产出增量，全量只在这里下发）。
+	switch state.CurrentItemType {
+	case "function_call":
+		item.CallID = state.CurrentCallID
+		item.Name = state.CurrentName
+		item.Namespace = state.CurrentNamespace
+		item.Arguments = currentResponsesToolArguments(state)
+	case "custom_tool_call":
+		item.CallID = state.CurrentCallID
+		item.Name = state.CurrentName
+		item.Input = extractCustomToolCallInput(currentResponsesToolArguments(state))
+	case "tool_search_call":
+		item.CallID = state.CurrentCallID
+		item.Arguments = currentResponsesToolArguments(state)
+	}
 
 	// Reset
 	state.CurrentItemType = ""
 	state.CurrentItemID = ""
 	state.CurrentCallID = ""
 	state.CurrentName = ""
+	state.CurrentNamespace = ""
+	state.CurrentArgs.Reset()
 	state.OutputIndex++
 	state.ContentIndex = 0
 
 	return []ResponsesStreamEvent{makeResponsesEvent(state, "response.output_item.done", &ResponsesStreamEvent{
 		OutputIndex: state.OutputIndex - 1, // Use the index before increment
-		Item: &ResponsesOutput{
-			Type:   itemType,
-			ID:     itemID,
-			Status: "completed",
-		},
+		Item:        item,
 	})}
+}
+
+// currentResponsesToolArguments 返回当前工具调用累积的全量 arguments，空时兜底 "{}"。
+func currentResponsesToolArguments(state *AnthropicEventToResponsesState) string {
+	args := strings.TrimSpace(state.CurrentArgs.String())
+	if args == "" {
+		return "{}"
+	}
+	return args
 }
 
 func makeResponsesCreatedEvent(state *AnthropicEventToResponsesState) ResponsesStreamEvent {

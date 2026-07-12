@@ -24,7 +24,7 @@ func requireObjectInputSchema(t *testing.T, schema json.RawMessage) map[string]j
 	return parsed
 }
 
-func TestResponsesToAnthropic_CustomGrammarToolUsesObjectSchema(t *testing.T) {
+func TestResponsesToAnthropic_CustomGrammarToolDegradesToInputSchema(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-5.2",
 		"input": "apply this patch",
@@ -52,7 +52,9 @@ func TestResponsesToAnthropic_CustomGrammarToolUsesObjectSchema(t *testing.T) {
 	assert.Equal(t, "apply_patch", tool.Name)
 	assert.Equal(t, "Apply a patch to the working tree", tool.Description)
 	requireObjectInputSchema(t, tool.InputSchema)
-	assert.JSONEq(t, `{"type":"object","properties":{}}`, string(tool.InputSchema))
+	// custom/freeform 工具与 chat 桥同口径降级为单一 input 字符串参数
+	// （见 customToolInputSchema），回程再从 input 字段还原自由文本。
+	assert.JSONEq(t, customToolInputSchema, string(tool.InputSchema))
 
 	wire, err := json.Marshal(tool)
 	require.NoError(t, err)
@@ -61,31 +63,33 @@ func TestResponsesToAnthropic_CustomGrammarToolUsesObjectSchema(t *testing.T) {
 	assert.NotContains(t, string(wire), `"grammar"`)
 }
 
-func TestResponsesToAnthropic_CustomToolPreservesSchemaParameters(t *testing.T) {
-	tools := convertResponsesToAnthropicTools([]ResponsesTool{{
+func TestResponsesToAnthropic_CustomToolIgnoresParametersAndDegradesToInputSchema(t *testing.T) {
+	// custom 工具即使带 Parameters 也统一降级（对齐 chat 桥 responsesToolsToChatTools）：
+	// 回程按 custom_tool_call 还原时只认 {"input": ...} 包裹，保留原 schema 会让
+	// input 提取失配。
+	tools, err := convertResponsesToAnthropicTools([]ResponsesTool{{
 		Type:        "custom",
 		Name:        "edit_file",
 		Description: "Edit a file",
 		Parameters:  json.RawMessage(`{"type":"object","properties":{"patch":{"type":"string"}},"required":["patch"]}`),
 	}})
+	require.NoError(t, err)
 
 	require.Len(t, tools, 1)
 	assert.Empty(t, tools[0].Type)
 	assert.Equal(t, "edit_file", tools[0].Name)
-
-	schema := requireObjectInputSchema(t, tools[0].InputSchema)
-	assert.JSONEq(t, `{"patch":{"type":"string"}}`, string(schema["properties"]))
-	assert.JSONEq(t, `["patch"]`, string(schema["required"]))
+	assert.JSONEq(t, customToolInputSchema, string(tools[0].InputSchema))
 }
 
 func TestResponsesToAnthropic_FunctionToolSchemaUnchanged(t *testing.T) {
 	parameters := json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}`)
-	tools := convertResponsesToAnthropicTools([]ResponsesTool{{
+	tools, err := convertResponsesToAnthropicTools([]ResponsesTool{{
 		Type:        "function",
 		Name:        "get_weather",
 		Description: "Get weather",
 		Parameters:  parameters,
 	}})
+	require.NoError(t, err)
 
 	require.Len(t, tools, 1)
 	assert.Empty(t, tools[0].Type)
@@ -95,7 +99,7 @@ func TestResponsesToAnthropic_FunctionToolSchemaUnchanged(t *testing.T) {
 }
 
 func TestResponsesToAnthropic_MixedToolsProduceValidAnthropicTools(t *testing.T) {
-	tools := convertResponsesToAnthropicTools([]ResponsesTool{
+	tools, err := convertResponsesToAnthropicTools([]ResponsesTool{
 		{
 			Type:       "function",
 			Name:       "read_file",
@@ -109,6 +113,7 @@ func TestResponsesToAnthropic_MixedToolsProduceValidAnthropicTools(t *testing.T)
 			Type: "web_search",
 		},
 	})
+	require.NoError(t, err)
 
 	require.Len(t, tools, 3)
 	assert.Empty(t, tools[0].Type)
@@ -117,7 +122,7 @@ func TestResponsesToAnthropic_MixedToolsProduceValidAnthropicTools(t *testing.T)
 
 	assert.Empty(t, tools[1].Type)
 	assert.Equal(t, "apply_patch", tools[1].Name)
-	assert.JSONEq(t, `{"type":"object","properties":{}}`, string(tools[1].InputSchema))
+	assert.JSONEq(t, customToolInputSchema, string(tools[1].InputSchema))
 
 	assert.Equal(t, "web_search_20250305", tools[2].Type)
 	assert.Equal(t, "web_search", tools[2].Name)
@@ -125,10 +130,11 @@ func TestResponsesToAnthropic_MixedToolsProduceValidAnthropicTools(t *testing.T)
 }
 
 func TestResponsesToAnthropic_DefaultToolNormalizesInputSchema(t *testing.T) {
-	tools := convertResponsesToAnthropicTools([]ResponsesTool{{
+	tools, err := convertResponsesToAnthropicTools([]ResponsesTool{{
 		Type: "local_shell",
 		Name: "shell",
 	}})
+	require.NoError(t, err)
 
 	require.Len(t, tools, 1)
 	assert.Equal(t, "local_shell", tools[0].Type)
