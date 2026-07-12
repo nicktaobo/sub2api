@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -505,3 +507,122 @@ func (r *fakeBatchImageBillingRepo) applyHold(cmd *BatchImageBalanceHoldCommand,
 var _ UsageBillingRepository = (*fakeBatchImageBillingRepo)(nil)
 var _ BatchImagePricingResolver = (*fakeBatchImagePricingResolver)(nil)
 var _ = strings.TrimSpace
+
+// ── BATCH-IMAGE-QUOTA（fork 定制）：结算消费计入平台限额与 API Key 限额窗口 ──
+
+// fakeBatchImageQuotaCache 供结算限额测试使用：GetUserPlatformQuotaCache 返回预置 entry
+//（HasUserPlatformQuotaLimit 守卫判定用），Incr 记录调用参数（复用 incrCall）。
+type fakeBatchImageQuotaCache struct {
+	BillingCache
+	entry *UserPlatformQuotaCacheEntry
+	incrs []incrCall
+}
+
+func (f *fakeBatchImageQuotaCache) GetUserPlatformQuotaCache(_ context.Context, _ int64, _ string) (*UserPlatformQuotaCacheEntry, bool, error) {
+	if f.entry == nil {
+		return nil, false, nil
+	}
+	return f.entry, true, nil
+}
+
+func (f *fakeBatchImageQuotaCache) IncrUserPlatformQuotaUsageCache(_ context.Context, userID int64, platform string, cost float64, ttl time.Duration, markDirty bool) error {
+	f.incrs = append(f.incrs, incrCall{userID, platform, cost, ttl, markDirty})
+	return nil
+}
+
+// fakeBatchImageQuotaDBRepo 记录 IncrementUsageWithReset 直写（flusher 关闭时的降级路径）。
+type fakeBatchImageQuotaDBRepo struct {
+	fakeQuotaRepo
+	incrs []incrCall
+}
+
+func (f *fakeBatchImageQuotaDBRepo) IncrementUsageWithReset(_ context.Context, userID int64, platform string, cost float64, _ time.Time) error {
+	f.incrs = append(f.incrs, incrCall{userID: userID, platform: platform, cost: cost})
+	return nil
+}
+
+type fakeBatchImageAPIKeyQuotaUpdater struct {
+	rateLimitIDs   []int64
+	rateLimitCosts []float64
+}
+
+func (f *fakeBatchImageAPIKeyQuotaUpdater) UpdateQuotaUsed(_ context.Context, _ int64, _ float64) error {
+	return nil
+}
+
+func (f *fakeBatchImageAPIKeyQuotaUpdater) UpdateRateLimitUsage(_ context.Context, apiKeyID int64, cost float64) error {
+	f.rateLimitIDs = append(f.rateLimitIDs, apiKeyID)
+	f.rateLimitCosts = append(f.rateLimitCosts, cost)
+	return nil
+}
+
+func TestBatchImageSettlementService_SettleAccruesPlatformQuotaAndRateLimit(t *testing.T) {
+	repo := newFakeBatchImageRepository()
+	job := testSettlingBatchImageJob("imgbatch_quota")
+	job.SuccessCount = 3
+	job.FailCount = 2
+	job.ItemCount = 5
+	repo.jobs[job.BatchID] = job
+	daily := 10.0
+	quotaCache := &fakeBatchImageQuotaCache{entry: &UserPlatformQuotaCacheEntry{
+		DailyLimitUSD: &daily,
+		SchemaVersion: UserPlatformQuotaCacheSchemaV1,
+	}}
+	quotaRepo := &fakeBatchImageQuotaDBRepo{}
+	cfg := &config.Config{}
+	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
+	billingCache := &BillingCacheService{cache: quotaCache, cfg: cfg, userPlatformQuotaRepo: quotaRepo}
+	apiKeyQuota := &fakeBatchImageAPIKeyQuotaUpdater{}
+	svc := &BatchImageSettlementService{
+		Repo:         repo,
+		BillingRepo:  &fakeBatchImageBillingRepo{},
+		Pricing:      &fakeBatchImagePricingResolver{unitPrice: 0.25},
+		BillingCache: billingCache,
+		APIKeyQuota:  apiKeyQuota,
+	}
+
+	result, err := svc.Settle(context.Background(), job.BatchID)
+	require.NoError(t, err)
+	require.Equal(t, 0.75, result.ActualCost)
+	require.Equal(t, BatchImageJobStatusCompleted, repo.jobs[job.BatchID].Status)
+	// 平台限额：实际消费同步累加进 user×platform quota（Redis 口径，对齐主计费路径）。
+	require.Len(t, quotaCache.incrs, 1)
+	require.Equal(t, job.UserID, quotaCache.incrs[0].userID)
+	require.Equal(t, PlatformGemini, quotaCache.incrs[0].platform)
+	require.InDelta(t, 0.75, quotaCache.incrs[0].cost, 1e-12)
+	// flusher 未启用（默认）：降级直写 DB。
+	require.Len(t, quotaRepo.incrs, 1)
+	require.Equal(t, job.UserID, quotaRepo.incrs[0].userID)
+	require.Equal(t, PlatformGemini, quotaRepo.incrs[0].platform)
+	require.InDelta(t, 0.75, quotaRepo.incrs[0].cost, 1e-12)
+	// API Key 限额窗口：DB 原子累加。
+	require.Equal(t, []int64{321}, apiKeyQuota.rateLimitIDs)
+	require.InDelta(t, 0.75, apiKeyQuota.rateLimitCosts[0], 1e-12)
+}
+
+func TestBatchImageSettlementService_ZeroCostSettlementSkipsQuotaAccrual(t *testing.T) {
+	repo := newFakeBatchImageRepository()
+	job := testSettlingBatchImageJob("imgbatch_quota_zero")
+	job.SuccessCount = 0
+	job.FailCount = 3
+	job.ItemCount = 3
+	repo.jobs[job.BatchID] = job
+	quotaCache := &fakeBatchImageQuotaCache{}
+	quotaRepo := &fakeBatchImageQuotaDBRepo{}
+	cfg := &config.Config{}
+	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
+	apiKeyQuota := &fakeBatchImageAPIKeyQuotaUpdater{}
+	svc := &BatchImageSettlementService{
+		Repo:         repo,
+		BillingRepo:  &fakeBatchImageBillingRepo{},
+		Pricing:      &fakeBatchImagePricingResolver{unitPrice: 0.25},
+		BillingCache: &BillingCacheService{cache: quotaCache, cfg: cfg, userPlatformQuotaRepo: quotaRepo},
+		APIKeyQuota:  apiKeyQuota,
+	}
+
+	_, err := svc.Settle(context.Background(), job.BatchID)
+	require.NoError(t, err)
+	require.Empty(t, quotaCache.incrs)
+	require.Empty(t, quotaRepo.incrs)
+	require.Empty(t, apiKeyQuota.rateLimitIDs)
+}

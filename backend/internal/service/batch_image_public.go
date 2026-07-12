@@ -87,8 +87,9 @@ type BatchImageOwner struct {
 // ErrBatchImageMerchantSubUserForbidden merchant 子用户禁止使用批量生图。
 // batch_image 结算管线目前完全绕过本地 merchant 定制体系：不走 merchant 加价
 // （ApplyUsageMarkup）、不走消费返佣（ApplyConsumptionRebate）、不写 merchant
-// outbox/ledger（对照 applyUsageBillingEffects），也不计入 user_platform_quotas
-// 与 API Key 日限额。放行会静默漏掉整套 merchant 计费与限额。
+// outbox/ledger（对照 applyUsageBillingEffects）。放行会静默漏掉整套 merchant 计费。
+// （user_platform_quotas 与 API Key 日限额已经由 BATCH-IMAGE-QUOTA 定制接入，
+// 见 BatchImageSettlementService.accrueQuotaUsage 与 Submit 侧平台限额预检。）
 // TODO: 待 batch_image 结算路径移植上述 merchant hook 后放开此守卫。
 var ErrBatchImageMerchantSubUserForbidden = infraerrors.New(http.StatusForbidden, "BATCH_IMAGE_MERCHANT_SUB_USER_FORBIDDEN", "batch image API is not available for merchant sub-users")
 
@@ -102,7 +103,9 @@ type BatchImagePublicService struct {
 	Pricing           BatchImagePricingResolver
 	BillingRepo       UsageBillingRepository
 	AuthCache         APIKeyAuthCacheInvalidator
-	Config            *config.Config
+	// BATCH-IMAGE-QUOTA（fork 定制）：Submit 前做 user×platform quota 预检，可为 nil（降级跳过）。
+	BillingCache *BillingCacheService
+	Config       *config.Config
 }
 
 type BatchImagePricingSnapshot struct {
@@ -193,7 +196,7 @@ type BatchImageItemsQuery struct {
 	Cursor string
 }
 
-func NewBatchImagePublicService(repo BatchImageRepository, accountRepo AccountRepository, groupRepo GroupRepository, userGroupRateRepo UserGroupRateRepository, queue BatchImageQueue, pricing *BatchImageModelPricingResolver, billingRepo UsageBillingRepository, authCache APIKeyAuthCacheInvalidator, cfg *config.Config) *BatchImagePublicService {
+func NewBatchImagePublicService(repo BatchImageRepository, accountRepo AccountRepository, groupRepo GroupRepository, userGroupRateRepo UserGroupRateRepository, queue BatchImageQueue, pricing *BatchImageModelPricingResolver, billingRepo UsageBillingRepository, authCache APIKeyAuthCacheInvalidator, billingCache *BillingCacheService, cfg *config.Config) *BatchImagePublicService {
 	return &BatchImagePublicService{
 		Repo:              repo,
 		AccountRepo:       accountRepo,
@@ -204,6 +207,7 @@ func NewBatchImagePublicService(repo BatchImageRepository, accountRepo AccountRe
 		Pricing:           pricing,
 		BillingRepo:       billingRepo,
 		AuthCache:         authCache,
+		BillingCache:      billingCache, // BATCH-IMAGE-QUOTA（fork 定制）
 		Config:            cfg,
 	}
 }
@@ -224,6 +228,15 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 	// 避免两个入口校验口径不一致留下防御纵深缺口。
 	if err := s.ensureGroupAllowsBatchImage(ctx, owner.GroupID); err != nil {
 		return nil, err
+	}
+	// BATCH-IMAGE-QUOTA（fork 定制）：平台限额预检。主计费路径 handler 在请求前经
+	// CheckBillingEligibility 检查 user×platform quota，批量生图提交同口径预检，
+	// 超限直接拒绝（429 + Retry-After 元数据）。余额充足性仍由下方 reserve hold 校验；
+	// 批量生图收口在 Gemini 平台（上方 ensureGroupAllowsBatchImage 已保证 group.Platform==gemini）。
+	if s.BillingCache != nil {
+		if err := s.BillingCache.CheckUserPlatformQuotaEligibility(ctx, owner.UserID, PlatformGemini); err != nil {
+			return nil, err
+		}
 	}
 	requestHash := HashBatchImageSubmitRequest(normalized)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)

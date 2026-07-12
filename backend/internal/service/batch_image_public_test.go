@@ -26,7 +26,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 	})
 
 	t.Run("rejects merchant sub user before creating job or hold", func(t *testing.T) {
-		// batch_image 结算不走 merchant 加价/返佣/ledger，也不计平台限额，
+		// batch_image 结算不走 merchant 加价/返佣/ledger，
 		// merchant 子用户必须在提交入口被整体拒绝（见 ErrBatchImageMerchantSubUserForbidden）。
 		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
 		merchantID := int64(9)
@@ -41,6 +41,45 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.Empty(t, gemini.submits)
 		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
 		require.Empty(t, billing.reserves)
+	})
+
+	t.Run("rejects when platform quota exhausted before creating job or hold", func(t *testing.T) {
+		// BATCH-IMAGE-QUOTA（fork 定制）：Submit 复用主计费路径的 user×platform quota
+		// 预检口径（CheckUserPlatformQuotaEligibility），超限拒绝且不留任何副作用。
+		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
+		daily := 5.0
+		cache := &fakeFullCache{entry: &UserPlatformQuotaCacheEntry{
+			DailyUsageUSD:    5.0,
+			DailyLimitUSD:    &daily,
+			DailyWindowStart: currentDayStart(),
+			SchemaVersion:    UserPlatformQuotaCacheSchemaV1,
+		}}
+		svc.BillingCache = newServiceForPreflight(t, &fakeQuotaRepo{}, cache)
+
+		_, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
+		require.ErrorIs(t, err, ErrUserPlatformDailyQuotaExhausted)
+		require.Empty(t, repo.jobs)
+		require.Empty(t, queue.enqueued)
+		require.Empty(t, gemini.submits)
+		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
+		require.Empty(t, billing.reserves)
+	})
+
+	t.Run("platform quota precheck allows submit under limit", func(t *testing.T) {
+		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
+		daily := 10.0
+		cache := &fakeFullCache{entry: &UserPlatformQuotaCacheEntry{
+			DailyUsageUSD:    4.5,
+			DailyLimitUSD:    &daily,
+			DailyWindowStart: currentDayStart(),
+			SchemaVersion:    UserPlatformQuotaCacheSchemaV1,
+		}}
+		svc.BillingCache = newServiceForPreflight(t, &fakeQuotaRepo{}, cache)
+
+		got, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
+		require.NoError(t, err)
+		require.Len(t, repo.jobs, 1)
+		require.Equal(t, "queued", got.Status)
 	})
 
 	t.Run("merchant guard does not affect normal users", func(t *testing.T) {

@@ -29,6 +29,8 @@ func ProvideBatchImageWorkerRuntime(
 	usageLogRepo UsageLogRepository,
 	pricing *BatchImageModelPricingResolver,
 	authCache APIKeyAuthCacheInvalidator,
+	billingCache *BillingCacheService, // BATCH-IMAGE-QUOTA（fork 定制）：结算消费计入平台限额
+	apiKeyService *APIKeyService, // BATCH-IMAGE-QUOTA（fork 定制）：结算消费计入 API Key 限额窗口
 	cfg *config.Config,
 ) *BatchImageWorkerRuntime {
 	processor := &BatchImagePipelineProcessor{
@@ -46,6 +48,9 @@ func ProvideBatchImageWorkerRuntime(
 			Pricing:      pricing,
 			AuthCache:    authCache,
 			Config:       cfg,
+			// BATCH-IMAGE-QUOTA（fork 定制）：结算消费计入平台限额与 API Key 限额窗口
+			BillingCache: billingCache,
+			APIKeyQuota:  apiKeyService,
 		},
 	}
 	runtime := NewBatchImageWorkerRuntime(NewBatchImageWorker(queue, processor, NewBatchImageWorkerOptionsFromConfig(cfg)), cfg)

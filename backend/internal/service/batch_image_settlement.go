@@ -61,6 +61,10 @@ type BatchImageSettlementService struct {
 	Pricing      BatchImagePricingResolver
 	AuthCache    APIKeyAuthCacheInvalidator
 	Config       *config.Config
+	// BATCH-IMAGE-QUOTA（fork 定制）：结算成功后把实际消费计入 user×platform quota 与
+	// API Key 限额窗口，堵住批量生图绕过平台限额记账的缺口。两者均可为 nil（降级跳过）。
+	BillingCache *BillingCacheService
+	APIKeyQuota  APIKeyQuotaUpdater
 }
 
 type BatchImageSettlementResult struct {
@@ -178,8 +182,43 @@ func (s *BatchImageSettlementService) Settle(ctx context.Context, batchID string
 		return nil, err
 	}
 	s.recordUsageLog(ctx, job, actualCost, result.RequestID, now)
+	s.accrueQuotaUsage(ctx, job, actualCost)
 
 	return result, nil
+}
+
+// accrueQuotaUsage 结算成功后把实际消费计入平台限额与 API Key 限额窗口
+// （BATCH-IMAGE-QUOTA fork 定制，便于后续合并上游时整体移植）。
+// 口径对齐主计费路径 finalizePostUsageBilling / buildUsageBillingCommand：
+//   - user×platform quota：HasUserPlatformQuotaLimit 守卫 + Redis 同步累加 + flusher 关闭时直写 DB；
+//   - API Key 限额窗口：DB 原子累加 + Redis 缓存异步累加；
+//
+// 全程 best-effort：任何失败仅记日志，不回滚已完成的结算（与主路径后扣一致）。
+func (s *BatchImageSettlementService) accrueQuotaUsage(ctx context.Context, job *BatchImageJob, actualCost float64) {
+	if s == nil || job == nil || actualCost <= 0 {
+		return
+	}
+	if s.BillingCache != nil {
+		// 批量生图账号固定为 Gemini 平台（与 Submit 侧 ensureGroupAllowsBatchImage 的收口一致），
+		// quota 平台按 provider 推导，与主路径 QuotaPlatform(group.Platform) 同值。
+		s.BillingCache.AccrueUserPlatformQuotaUsage(ctx, job.UserID, batchImageProviderPlatform(job.Provider), actualCost)
+	}
+	if job.APIKeyID != nil && *job.APIKeyID > 0 {
+		// 主路径按 APIKey.HasRateLimits() 守卫后才写；结算侧没有 APIKey 实体，直接累加
+		//（未配置限额的 key 仅多记 usage，enforcement 只在 limit>0 时生效，无副作用）。
+		if s.APIKeyQuota != nil {
+			if err := s.APIKeyQuota.UpdateRateLimitUsage(ctx, *job.APIKeyID, actualCost); err != nil {
+				logger.L().Warn("batch_image.settlement_rate_limit_usage_failed",
+					zap.String("batch_id", job.BatchID),
+					zap.Int64("api_key_id", *job.APIKeyID),
+					zap.Error(err),
+				)
+			}
+		}
+		if s.BillingCache != nil {
+			s.BillingCache.QueueUpdateAPIKeyRateLimitUsage(*job.APIKeyID, actualCost)
+		}
+	}
 }
 
 // isBatchImageSettlementRetryExhausted 判断 settling job 是否已达重试上限。

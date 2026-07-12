@@ -724,6 +724,40 @@ func (s *BillingCacheService) IncrementUserPlatformQuotaUsage(userID int64, plat
 	}
 }
 
+// CheckUserPlatformQuotaEligibility 是 user × platform quota 预检的导出入口（BATCH-IMAGE-QUOTA fork 定制）。
+// 供批量生图 Submit 等非网关路径复用主计费路径（CheckBillingEligibility 内部）同一套 quota 检查口径；
+// simple 模式与主路径一致跳过所有计费检查。
+func (s *BillingCacheService) CheckUserPlatformQuotaEligibility(ctx context.Context, userID int64, platform string) error {
+	if s.cfg.RunMode == config.RunModeSimple {
+		return nil
+	}
+	return s.checkUserPlatformQuotaEligibility(ctx, userID, platform)
+}
+
+// AccrueUserPlatformQuotaUsage 把一笔非网关路径（批量生图结算）的消费计入 user × platform quota
+// （BATCH-IMAGE-QUOTA fork 定制）。口径对齐主计费路径 finalizePostUsageBilling 的 platform quota 累加块：
+//   - HasUserPlatformQuotaLimit 守卫：无 limit 的用户跳过，避免无效写入
+//   - Redis 同步累加：确保下次 preflight 立即看到最新 usage
+//   - flusher_enabled=false（降级）：直写 DB；失败仅记 ALERT log + counter，不阻断调用方（best-effort）
+//   - flusher_enabled=true：不直写 DB，由 flusher 异步批量刷（markDirty 在 IncrementUserPlatformQuotaUsage 内部完成）
+func (s *BillingCacheService) AccrueUserPlatformQuotaUsage(ctx context.Context, userID int64, platform string, cost float64) {
+	if s == nil || userID <= 0 || platform == "" || cost <= 0 || s.userPlatformQuotaRepo == nil {
+		return
+	}
+	if !s.HasUserPlatformQuotaLimit(ctx, userID, platform) {
+		return
+	}
+	s.IncrementUserPlatformQuotaUsage(userID, platform, cost)
+	if s.cfg == nil || !s.cfg.Database.UserPlatformQuotaFlusherEnabled {
+		if err := s.userPlatformQuotaRepo.IncrementUsageWithReset(ctx, userID, platform, cost, time.Now().UTC()); err != nil {
+			userPlatformQuotaDBIncrErrorTotal.Add(1)
+			logger.LegacyPrintf("service.billing_cache",
+				"ALERT: incr user platform quota DB failed user=%d platform=%s cost=%f: %v",
+				userID, platform, cost, err)
+		}
+	}
+}
+
 // ============================================
 // 统一检查方法
 // ============================================
