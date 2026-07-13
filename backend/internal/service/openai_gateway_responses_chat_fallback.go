@@ -100,7 +100,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 			customUA = kimiCodingUserAgent
 		}
 	}
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, customUA)
+	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, customUA, "")
 	if err != nil {
 		return nil, err
 	}

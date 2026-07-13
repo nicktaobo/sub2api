@@ -51,10 +51,12 @@
                             ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
                             : account.platform === 'seedance'
                               ? 'https://ark.cn-beijing.volces.com'
-                              : 'https://api.anthropic.com'
+                              : account.platform === 'grok'
+                                ? 'https://api.x.ai/v1'
+                                : 'https://api.anthropic.com'
             "
           />
-          <p class="input-hint">{{ baseUrlHint }}</p>
+          <p v-if="baseUrlHint" class="input-hint">{{ baseUrlHint }}</p>
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKey') }}</label>
@@ -83,7 +85,9 @@
                             ? 'sk-...'
                             : account.platform === 'seedance'
                               ? 'sk-...'
-                              : 'sk-ant-...'
+                              : account.platform === 'grok'
+                                ? 'xai-...'
+                                : 'sk-ant-...'
             "
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
@@ -2619,6 +2623,7 @@ const baseUrlHint = computed(() => {
   if (props.account.platform === 'glm') return t('admin.accounts.glm.baseUrlHint')
   if (props.account.platform === 'qwen') return t('admin.accounts.qwen.baseUrlHint')
   if (props.account.platform === 'seedance') return t('admin.accounts.seedance.baseUrlHint')
+  if (props.account.platform === 'grok') return ''
   return t('admin.accounts.baseUrlHint')
 })
 
@@ -3073,6 +3078,7 @@ const defaultBaseUrl = computed(() => {
   if (props.account?.platform === 'glm') return 'https://open.bigmodel.cn'
   if (props.account?.platform === 'qwen') return 'https://dashscope.aliyuncs.com/compatible-mode/v1'
   if (props.account?.platform === 'seedance') return 'https://ark.cn-beijing.volces.com'
+  if (props.account?.platform === 'grok') return 'https://api.x.ai/v1'
   return 'https://api.anthropic.com'
 })
 
@@ -3375,7 +3381,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
                   ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
                   : newAccount.platform === 'seedance'
                     ? 'https://ark.cn-beijing.volces.com'
-                    : 'https://api.anthropic.com'
+                    : newAccount.platform === 'grok'
+                      ? 'https://api.x.ai/v1'
+                      : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
 
     // Load model mappings and detect mode
@@ -3461,7 +3469,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
                   ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
                   : newAccount.platform === 'seedance'
                     ? 'https://ark.cn-beijing.volces.com'
-                    : 'https://api.anthropic.com'
+                    : newAccount.platform === 'grok'
+                      ? 'https://api.x.ai/v1'
+                      : 'https://api.anthropic.com'
     editBaseUrl.value = platformDefaultUrl
 
     // Load model mappings for OpenAI/Grok OAuth accounts
