@@ -91,6 +91,14 @@ export default {
           authCodeDesc: '授權完成後，貼上 callback URL、查詢字串或授權碼：',
           authCodeHint: '支援完整 callback URL、查詢字串或裸 code。',
           authCodePlaceholder: '貼上完整 callback URL、?code=... 查詢字串或 code 值',
+          convertSSOAndCreate: '轉換並建立帳號',
+          convertingSSO: '轉換中...',
+          failedToConvertSSO: 'Grok SSO 轉換失敗',
+          ssoCookieAuth: 'SSO Cookie 匯入',
+          ssoCookieDesc: '每行貼上一個 Grok Web SSO key，系統會自動走 xAI Device Flow 並轉換為 Grok Build OAuth 憑證。',
+          ssoCookieHint: '每行一個 SSO key；多個 key 會 3 路並發匯入，耗時約 90 秒 × 批次數，建議使用對應地區代理。',
+          ssoCookieLabel: 'Grok Web SSO Key',
+          ssoCookiePlaceholder: '每行一個 SSO key\n支援多個，每行一個',
           errors: {
             GROK_OAUTH_CODE_REQUIRED: '缺少 Grok 授權碼。請貼上完整 callback URL、查詢字串或 code 值。',
             GROK_OAUTH_INVALID_STATE: 'Grok OAuth state 與當前會話不匹配。請貼上同一次生成的授權連結返回的回呼 URL。',
@@ -156,6 +164,8 @@ export default {
         codexImageToolInheritDesc: '不寫入帳號覆蓋，是否注入由渠道或全域策略決定；客戶端自帶的圖片工具照常放行。',
         endpointCapabilities: '端點能力',
         endpointCapabilitiesDesc: '用於排程篩選。文字端點會跟隨上方 Responses API 支援顯示為 Responses、Chat Completions 或自動模式；Embeddings 獨立控制 /v1/embeddings。',
+        longContextBilling: 'API 長上下文計費',
+        longContextBillingDesc: '預設關閉。僅當該帳號的上游會依模型閾值收取 OpenAI API 長上下文費率時開啟。',
         planType: '訂閱檔位（手動覆蓋）',
         planTypeClear: '清空（自動識別）',
         planTypeDesc: '手動糾正本帳號的 ChatGPT 訂閱檔位（Plus / Pro / Free）。注意：令牌臨期重新整理或命中 429 限流時，會用真實檔位自動覆蓋此處設定。',
@@ -213,6 +223,7 @@ export default {
         grokOauth: 'Grok OAuth',
       },
       usageWindow: {
+        grokFreeQuota24hHint: '依 sub2api 近 24 小時本地 Token 用量估算（上限 2M）',
         grokLastHeadersSeen: '響應標頭 {time}',
         grokLastProbe: '探測 {time}',
         grokLastStatus: '狀態 {status}',
@@ -225,6 +236,7 @@ export default {
         grokRetryAfter: '{time} 後重試',
         grokTokens: 'Token',
         grokUnknown: 'Grok 配額需等待首次上游響應返回 xAI rate-limit 標頭後顯示。',
+        grokWeeklyUsage: '週額度已用 {percent}%',
       },
       usageWindowsHint: '“5h / 7d”是上游帳號（如 OpenAI ChatGPT、Claude）官方的滾動用量視窗限制，由上游對帳號設定，並非 sub2api 配置，也與你映射的模型無關。視窗滾動到期後用量會自動重置，無法在 sub2api 端解除該限制。',
     },
@@ -398,6 +410,7 @@ export default {
         dropped: '已丟棄',
         empty: '暫無系統日誌',
         endTime: '結束時間（可選）',
+        host: 'Host',
         failed: '寫入失敗',
         keyId: 'KEY ID',
         keyword: '關鍵詞',
@@ -1021,6 +1034,11 @@ export default {
     },
     status: {
       refund_pending: '退款處理中',
+    },
+  },
+  monitorCommon: {
+    providers: {
+      grok: 'Grok',
     },
   },
   profile: {
