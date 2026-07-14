@@ -1,4 +1,5 @@
 import { createI18n } from 'vue-i18n'
+import { deepMergeMessages } from './mergeMessages'
 
 type LocaleCode = 'en' | 'zh' | 'zh-TW'
 
@@ -10,7 +11,15 @@ const DEFAULT_LOCALE: LocaleCode = 'en'
 const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages }>> = {
   en: () => import('./locales/en'),
   zh: () => import('./locales/zh'),
-  'zh-TW': () => import('./locales/zh-TW')
+  // 繁中人工檔（zh-TW.ts）尚未覆蓋的键，由自动生成的 zh-TW.fill 补齐（opencc 简→繁 + 台湾用词），
+  // 人工值始终优先，避免出现英文回退或裸键。
+  'zh-TW': async () => {
+    const [hand, fill] = await Promise.all([
+      import('./locales/zh-TW'),
+      import('./locales/zh-TW.fill')
+    ])
+    return { default: deepMergeMessages(fill.default, hand.default) }
+  }
 }
 
 function isLocaleCode(value: string): value is LocaleCode {
