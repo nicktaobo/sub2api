@@ -495,6 +495,11 @@ gateway:
     #     name: "Custom Profile 1"
     #   profile_2:
     #     name: "Custom Profile 2"
+  # 上游 output token 掺水防护：按模型 max_output×1.25 的上限，在计费前截断异常虚高的
+  # (文本) output token，避免上游伪造 usage 直接放大账单。
+  # 默认 false（与代码默认一致）：开启需显式设为 true，按 example 重建配置不会静默改变计费口径。
+  output_cap:
+    enabled: false
 
 # =============================================================================
 # Logging Configuration

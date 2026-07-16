@@ -38,4 +38,12 @@ describe('zh-TW locale parity', () => {
     const shadowed = flattenKeys(zhTWFill as Record<string, any>).filter((k) => handKeys.has(k))
     expect(shadowed).toEqual([])
   })
+
+  // fill 按上游快照批量生成，上游删键时 fill 不会自动跟删，孤儿键会随每轮合并单调堆积。
+  // 只校验 fill 层：手工层 zh-TW.ts 有历史沉淀的 stray key，纳入会直接红，且不是本测试要防的问题。
+  it('fill contains no stray keys absent from both en and zh', () => {
+    const upstreamKeys = new Set([...flattenKeys(en), ...flattenKeys(zh)])
+    const stray = flattenKeys(zhTWFill as Record<string, any>).filter((k) => !upstreamKeys.has(k))
+    expect(stray).toEqual([])
+  })
 })

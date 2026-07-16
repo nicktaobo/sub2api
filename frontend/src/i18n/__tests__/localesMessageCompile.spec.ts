@@ -3,6 +3,13 @@ import { baseCompile } from '@intlify/message-compiler'
 
 import en from '../locales/en'
 import zh from '../locales/zh'
+import zhTWHand from '../locales/zh-TW'
+import zhTWFill from '../locales/zh-TW.fill'
+import { deepMergeMessages } from '../mergeMessages'
+
+// 与运行时 i18n/index.ts 的 zh-TW 加载口径一致：手工层覆盖补齐层。
+// 补齐层是批量生成的，坏占位符最容易从这里混进来，必须一并预编译。
+const zhTW = deepMergeMessages(zhTWFill as Record<string, any>, zhTWHand as Record<string, any>)
 
 // vue-i18n 在运行时才编译消息：文案里未转义的花括号（如内嵌 JSON 示例
 // "{\"user-agent\": ...}"）会在渲染时抛 "Invalid token in placeholder"，
@@ -32,7 +39,8 @@ function collectCompileErrors(node: unknown, path: string, out: string[]): void 
 describe('locale messages compile', () => {
   it.each([
     ['zh', zh],
-    ['en', en]
+    ['en', en],
+    ['zh-TW', zhTW]
   ] as const)('%s messages all compile without placeholder errors', (locale, messages) => {
     const errors: string[] = []
     collectCompileErrors(messages, locale, errors)

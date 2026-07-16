@@ -107,7 +107,7 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 		subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
 		t.Cleanup(subscriptionService.Stop)
 
-		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -160,7 +160,7 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 			resetMonthly: func(context.Context, int64, time.Time) error { return nil },
 		}
 		subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
-		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -174,7 +174,7 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 		cfg := &config.Config{RunMode: config.RunModeSimple}
 		apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 		subscriptionService := service.NewSubscriptionService(nil, &stubUserSubscriptionRepo{}, nil, nil, cfg)
-		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -188,7 +188,7 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 		cfg := &config.Config{RunMode: config.RunModeSimple}
 		apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 		subscriptionService := service.NewSubscriptionService(nil, &stubUserSubscriptionRepo{}, nil, nil, cfg)
-		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -227,7 +227,7 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 			resetMonthly:   func(ctx context.Context, id int64, start time.Time) error { return nil },
 		}
 		subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
-		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -342,7 +342,7 @@ func TestAPIKeyAuthRejectsExclusiveGroupWhenUserNoLongerAllowed(t *testing.T) {
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -962,7 +962,7 @@ func TestAPIKeyAuthTouchesLastUsedOnSuccess(t *testing.T) {
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -1009,7 +1009,7 @@ func TestAPIKeyAuthTouchLastUsedFailureDoesNotBlock(t *testing.T) {
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -1055,7 +1055,7 @@ func TestAPIKeyAuthTouchesLastUsedInStandardMode(t *testing.T) {
 
 	cfg := &config.Config{RunMode: config.RunModeStandard}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -1119,7 +1119,7 @@ func TestAPIKeyAuthBillingInfoSkipsBillingAndSideEffects(t *testing.T) {
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
 	subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
 	t.Cleanup(subscriptionService.Stop)
-	router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+	router := newAuthTestRouter(apiKeyService, subscriptionService, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
@@ -1149,7 +1149,7 @@ func TestAPIKeyAuthBillingInfoSkipsLastUsedInSimpleMode(t *testing.T) {
 	}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
@@ -1178,7 +1178,7 @@ func TestAPIKeyAuthUsageStillTouchesLastUsed(t *testing.T) {
 	}
 	cfg := &config.Config{RunMode: config.RunModeStandard}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
@@ -1221,7 +1221,7 @@ func TestAPIKeyAuthAllowsBalanceBelowMinimumReserve(t *testing.T) {
 	cfg := &config.Config{RunMode: config.RunModeStandard}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -1264,7 +1264,7 @@ func TestAPIKeyAuthRejectsExhaustedBalance(t *testing.T) {
 
 	cfg := &config.Config{RunMode: config.RunModeStandard}
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
-	router := newAuthTestRouter(apiKeyService, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg, nil)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
@@ -1275,9 +1275,9 @@ func TestAPIKeyAuthRejectsExhaustedBalance(t *testing.T) {
 	requireAPIKeyAuthError(t, w, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 }
 
-func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) *gin.Engine {
+func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config, merchantRepo service.MerchantRepository) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg, nil)))
+	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg, merchantRepo)))
 	ok := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
@@ -1561,4 +1561,92 @@ func (r *stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64,
 
 func (r *stubUserSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
 	return 0, errors.New("not implemented")
+}
+
+func newMerchantSubUserKey(merchantID int64, key string) *service.APIKey {
+	user := &service.User{
+		ID:               701,
+		Role:             service.RoleUser,
+		Status:           service.StatusActive,
+		Balance:          10,
+		Concurrency:      3,
+		ParentMerchantID: &merchantID,
+	}
+	return &service.APIKey{ID: 700, UserID: user.ID, Key: key, Status: service.StatusActive, User: user}
+}
+
+func newMerchantAuthRouter(t *testing.T, apiKey *service.APIKey, cfg *config.Config, merchantRepo service.MerchantRepository) *gin.Engine {
+	t.Helper()
+	apiKeyRepo := &stubApiKeyRepo{
+		getByKey: func(_ context.Context, key string) (*service.APIKey, error) {
+			if key != apiKey.Key {
+				return nil, service.ErrAPIKeyNotFound
+			}
+			clone := *apiKey
+			userClone := *apiKey.User
+			clone.User = &userClone
+			return &clone, nil
+		},
+	}
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+	return newAuthTestRouter(apiKeyService, nil, cfg, merchantRepo)
+}
+
+// 停用商户的子用户必须在鉴权层被拒 —— /v1/usage 属于 skipBilling 端点，
+// 守卫若被误挪进计费块，这里会静默放行。
+func TestAPIKeyAuthRejectsSuspendedMerchantSubUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	apiKey := newMerchantSubUserKey(9001, "merchant-suspended")
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Merchant.Enabled = true
+	router := newMerchantAuthRouter(t, apiKey, cfg, newSuspendedMerchantRepo())
+
+	for _, path := range []string{"/t", "/v1/usage", "/v1/sub2api/billing"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("x-api-key", apiKey.Key)
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code, "path=%s", path)
+		requireAPIKeyAuthError(t, w, "MERCHANT_SUSPENDED", "Merchant is suspended")
+	}
+}
+
+// 守卫必须排在 SimpleMode early return 之前 —— 否则 SimpleMode 部署整体绕过商户停用拦截。
+func TestAPIKeyAuthRejectsSuspendedMerchantSubUserInSimpleMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	apiKey := newMerchantSubUserKey(9002, "merchant-suspended-simple")
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	cfg.Merchant.Enabled = true
+	router := newMerchantAuthRouter(t, apiKey, cfg, newSuspendedMerchantRepo())
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	requireAPIKeyAuthError(t, w, "MERCHANT_SUSPENDED", "Merchant is suspended")
+}
+
+// owner / 普通用户（ParentMerchantID 为 nil）不属于任何商户，不得被守卫误伤；
+// 对账等式靠 owner_usage_debit，owner 自用 Key 必须继续可用。
+func TestAPIKeyAuthAllowsNonSubUserWhenMerchantEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &service.User{ID: 702, Role: service.RoleUser, Status: service.StatusActive, Balance: 10, Concurrency: 3}
+	apiKey := &service.APIKey{ID: 703, UserID: user.ID, Key: "merchant-owner-key", Status: service.StatusActive, User: user}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Merchant.Enabled = true
+	// 仓储对任何查询都返回 suspended：断言 200 即证明守卫根本没查（ParentMerchantID 为 nil 时短路）。
+	router := newMerchantAuthRouter(t, apiKey, cfg, newSuspendedMerchantRepo())
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
 }

@@ -41,6 +41,10 @@ function collisions(modules: Modules): string[] {
   return out
 }
 
+// locales/{zh,en}/index.ts 里 admin/merchant 是显式命名空间，且 ...misc 排在它们之后展开：
+// 任一展开模块（含未来上游合并进来的新文案）定义同名顶层键都会静默吃掉整个命名空间。
+const EXPLICIT_NAMESPACES = ['admin', 'merchant'] as const
+
 const roots: Record<string, Modules> = {
   zh: { landing: zhLanding, common: zhCommon, dashboard: zhDashboard, misc: zhMisc },
   en: { landing: enLanding, common: enCommon, dashboard: enDashboard, misc: enMisc }
@@ -70,9 +74,11 @@ describe.each(Object.keys(roots))('locale %s spread assembly', (locale) => {
     expect(collisions(roots[locale])).toEqual([])
   })
 
-  it('root modules do not shadow the explicit "admin" namespace', () => {
+  it('root modules do not shadow the explicit "admin" / "merchant" namespaces', () => {
     for (const [name, mod] of Object.entries(roots[locale])) {
-      expect(Object.keys(mod), `module ${name} must not define "admin"`).not.toContain('admin')
+      for (const ns of EXPLICIT_NAMESPACES) {
+        expect(Object.keys(mod), `module ${name} must not define "${ns}"`).not.toContain(ns)
+      }
     }
   })
 

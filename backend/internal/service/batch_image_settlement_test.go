@@ -511,7 +511,7 @@ var _ = strings.TrimSpace
 // ── BATCH-IMAGE-QUOTA（fork 定制）：结算消费计入平台限额与 API Key 限额窗口 ──
 
 // fakeBatchImageQuotaCache 供结算限额测试使用：GetUserPlatformQuotaCache 返回预置 entry
-//（HasUserPlatformQuotaLimit 守卫判定用），Incr 记录调用参数（复用 incrCall）。
+// （HasUserPlatformQuotaLimit 守卫判定用），Incr 记录调用参数（复用 incrCall）。
 type fakeBatchImageQuotaCache struct {
 	BillingCache
 	entry *UserPlatformQuotaCacheEntry

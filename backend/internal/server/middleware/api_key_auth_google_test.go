@@ -836,3 +836,47 @@ func TestApiKeyAuthWithSubscriptionGoogle_SubscriptionLimitExceededReturns429(t 
 	require.Equal(t, "RESOURCE_EXHAUSTED", resp.Error.Status)
 	require.Contains(t, resp.Error.Message, "daily usage limit exceeded")
 }
+
+// 孪生守卫：Gemini 原生入口必须与主中间件一致地拦截停用商户的子用户，
+// 否则 /v1beta 成为绕过商户停用的计费缺口。stub 见 api_key_auth_test.go。
+func TestApiKeyAuthWithSubscriptionGoogle_SuspendedMerchantSubUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	merchantID := int64(9101)
+	user := &service.User{
+		ID:               711,
+		Role:             service.RoleUser,
+		Status:           service.StatusActive,
+		Balance:          10,
+		ParentMerchantID: &merchantID,
+	}
+	apiKey := &service.APIKey{ID: 712, UserID: user.ID, Key: "google-merchant-suspended", Status: service.StatusActive, User: user}
+
+	r := gin.New()
+	apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{
+		getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+			if key != apiKey.Key {
+				return nil, service.ErrAPIKeyNotFound
+			}
+			clone := *apiKey
+			userClone := *user
+			clone.User = &userClone
+			return &clone, nil
+		},
+	})
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Merchant.Enabled = true
+	r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg, newSuspendedMerchantRepo()))
+	r.GET("/v1beta/test", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.Header.Set("x-goog-api-key", apiKey.Key)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	var resp googleErrorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, "Merchant is suspended", resp.Error.Message)
+	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
+}
