@@ -750,6 +750,10 @@ func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *te
 	require.Equal(t, 46, result.Usage.InputTokens)
 	require.Equal(t, 2459, result.Usage.OutputTokens)
 	require.Equal(t, 2459, result.Usage.ImageOutputTokens)
+	// 顶层 usage 的 cached_tokens:3 属包装模型 gpt-5.4-mini，按 gpt-image-2 计费时不可继承。
+	require.Equal(t, 0, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 0, result.Usage.CacheCreationInputTokens)
+	require.Equal(t, 0, result.Usage.ImageInputTokens)
 
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, chatgptCodexURL, upstream.lastReq.URL.String())
@@ -814,6 +818,65 @@ func TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback(t *testin
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// tool_usage 与顶层 usage 分属图片模型与包装模型两个作用域：明细必须取自 tool_usage 自身，
+// 顶层的 image/cache 明细不得继承，否则会在计费记录里混用两个模型的口径。
+func TestParseOpenAIImagesSSEUsageBytes_ToolUsageDetailsAreScopedToTool(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	// 顶层 usage 是包装模型的：带图片输入与 cache 明细，均不应出现在结果里。
+	topUsage := `"usage":{"input_tokens":900,"output_tokens":22,` +
+		`"input_tokens_details":{"image_tokens":800,"cached_tokens":600,"cache_write_tokens":100},` +
+		`"output_tokens_details":{"image_tokens":7}}`
+
+	t.Run("tool usage supplies its own details", func(t *testing.T) {
+		toolUsage := `"tool_usage":{"image_gen":{"input_tokens":46,"output_tokens":2459,` +
+			`"input_tokens_details":{"image_tokens":30,"cached_tokens":10,"cache_write_tokens":4},` +
+			`"output_tokens_details":{"image_tokens":2459},"images":1}}`
+		var got OpenAIUsage
+		svc.parseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.completed","response":{`+topUsage+`,`+toolUsage+`}}`), &got)
+
+		require.Equal(t, OpenAIUsage{
+			InputTokens:              46,
+			ImageInputTokens:         30,
+			OutputTokens:             2459,
+			CacheCreationInputTokens: 4,
+			CacheReadInputTokens:     10,
+			ImageOutputTokens:        2459,
+		}, got)
+	})
+
+	t.Run("missing tool details are zero not inherited", func(t *testing.T) {
+		toolUsage := `"tool_usage":{"image_gen":{"input_tokens":46,"output_tokens":2459,` +
+			`"output_tokens_details":{"image_tokens":2459},"images":1}}`
+		var got OpenAIUsage
+		svc.parseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.completed","response":{`+topUsage+`,`+toolUsage+`}}`), &got)
+
+		require.Equal(t, OpenAIUsage{InputTokens: 46, OutputTokens: 2459, ImageOutputTokens: 2459}, got)
+	})
+
+	// image_tokens 必须 ⊆ input_tokens − cache，否则下游 textInputTokens 变负会把全部输入重归类。
+	t.Run("image input clamped to available input", func(t *testing.T) {
+		toolUsage := `"tool_usage":{"image_gen":{"input_tokens":46,"output_tokens":2459,` +
+			`"input_tokens_details":{"image_tokens":9999,"cached_tokens":6},` +
+			`"output_tokens_details":{"image_tokens":2459}}}`
+		var got OpenAIUsage
+		svc.parseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.completed","response":{`+topUsage+`,`+toolUsage+`}}`), &got)
+
+		require.Equal(t, 40, got.ImageInputTokens)
+		require.LessOrEqual(t, got.ImageInputTokens, got.InputTokens-got.CacheReadInputTokens-got.CacheCreationInputTokens)
+	})
+
+	// 明细字段畸形不得拖垮整体解析，否则现网会全量回退到包装模型口径。
+	t.Run("malformed details do not break atomic override", func(t *testing.T) {
+		toolUsage := `"tool_usage":{"image_gen":{"input_tokens":46,"output_tokens":2459,` +
+			`"input_tokens_details":{"image_tokens":"30","cached_tokens":1e1000000000},` +
+			`"output_tokens_details":{"image_tokens":2459}}}`
+		var got OpenAIUsage
+		svc.parseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.completed","response":{`+topUsage+`,`+toolUsage+`}}`), &got)
+
+		require.Equal(t, OpenAIUsage{InputTokens: 46, OutputTokens: 2459, ImageOutputTokens: 2459}, got)
+	})
 }
 
 func TestParseOpenAIImagesSSEUsageBytes_MalformedCompletedDoesNotOverrideUsage(t *testing.T) {

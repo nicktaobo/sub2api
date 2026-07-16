@@ -1072,6 +1072,12 @@ func (s *OpenAIGatewayService) tryWriteOpenAIImagesStreamEvent(
 	return true
 }
 
+// 顶层 response.usage 与 response.tool_usage.image_gen 分属两个模型：OAuth 图片路径把
+// 包装模型（openAIImagesResponsesMainModel）作为顶层 model、图片模型下沉为 image_generation
+// 工具（见 buildOpenAIImagesResponsesRequest），而整条请求按图片模型计费。
+// 因此 tool_usage 可用时必须整体取代顶层 usage：把包装模型作用域的 cache / 图片输入 token
+// 嫁接到图片模型的计费记录上会串口径（分子分母不同源），比留空更糟。
+// 图片工具自身的明细一律从 tool_usage 内部同作用域读取。
 func (s *OpenAIGatewayService) parseOpenAIImagesSSEUsageBytes(data []byte, usage *OpenAIUsage) {
 	s.parseSSEUsageBytes(data, usage)
 	if usage == nil || !gjson.ValidBytes(data) || gjson.GetBytes(data, "type").String() != "response.completed" {
@@ -1092,10 +1098,24 @@ func openAIImagesToolUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 	if !inputOK || !outputOK || !imageOutputOK {
 		return OpenAIUsage{}, false
 	}
+	// 明细字段当前上游不回传，缺失即 0，且刻意不纳入上面的 ok 判定：
+	// 若加入判定，现网全量 tool_usage 都会解析失败并回退到包装模型口径。
+	// 一旦上游在 tool_usage 内补上这些字段即自动生效，且天然同作用域。
+	imageInputTokens, _ := boundedJSONNonNegativeInt(value.Get("input_tokens_details.image_tokens"))
+	cacheReadTokens, _ := boundedJSONNonNegativeInt(value.Get("input_tokens_details.cached_tokens"))
+	cacheCreationTokens, _ := boundedJSONNonNegativeInt(value.Get("input_tokens_details.cache_write_tokens"))
+	// OpenAI 口径下 image_tokens 是 input_tokens 扣除缓存后的子集。上游给出越界值时先钳到
+	// 可用输入，避免下游 textInputTokens 变负后触发钳制、把全部输入静默重归类为图片输入。
+	if available := inputTokens - cacheReadTokens - cacheCreationTokens; imageInputTokens > available {
+		imageInputTokens = max(available, 0)
+	}
 	return OpenAIUsage{
-		InputTokens:       inputTokens,
-		OutputTokens:      outputTokens,
-		ImageOutputTokens: imageOutputTokens,
+		InputTokens:              inputTokens,
+		ImageInputTokens:         imageInputTokens,
+		OutputTokens:             outputTokens,
+		CacheCreationInputTokens: cacheCreationTokens,
+		CacheReadInputTokens:     cacheReadTokens,
+		ImageOutputTokens:        imageOutputTokens,
 	}, true
 }
 
