@@ -220,6 +220,7 @@ export default {
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
+    auditLogs: 'Audit Logs',
     merchantManagement: 'Resellers',
     merchantWithdrawReview: 'Withdraw Review',
     profitReport: 'Profit Report',
@@ -482,6 +483,15 @@ export default {
       decline: 'Decline',
       declineHint: 'You cannot register until you accept the terms.'
     }
+  },
+
+  // Step-up (sudo) 2FA prompt
+  stepUp: {
+    title: 'Two-Factor Verification Required',
+    hint: 'Enter the 6-digit code from your authenticator app to continue this sensitive operation.',
+    verifyFailed: 'Verification failed, please try again',
+    notEnabled: 'This operation requires two-factor authentication. Please enable TOTP in your profile first.',
+    adminApiKeyForbidden: 'Admin API keys cannot perform this operation. Use a two-factor verified admin session.'
   },
 
   // Dashboard

@@ -86,6 +86,8 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // merchantReconcileJob (MERCHANT-SYSTEM v1.0)
 		nil, // affiliateRebateWorker (migration 143)
 		nil, // quotaFlusher
+		nil, // upstreamBillingProbe
+		nil, // auditLog
 	)
 
 	require.NotPanics(t, func() {

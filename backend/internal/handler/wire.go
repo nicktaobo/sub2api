@@ -44,7 +44,10 @@ func ProvideAdminHandlers(
 	merchantHandler *admin.MerchantHandler,
 	profitHandler *admin.ProfitHandler,
 	complianceHandler *admin.ComplianceHandler,
+	auditLogHandler *admin.AuditLogHandler,
+	upstreamBillingProbe *service.UpstreamBillingProbeService,
 ) *AdminHandlers {
+	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,
@@ -81,6 +84,7 @@ func ProvideAdminHandlers(
 		Merchant:               merchantHandler,
 		Profit:                 profitHandler,
 		Compliance:             complianceHandler,
+		AuditLog:               auditLogHandler,
 	}
 }
 
@@ -124,6 +128,7 @@ func ProvideHandlers(
 	merchantBrandHandler *MerchantBrandHandler,
 	merchantHandler *MerchantHandler,
 	merchantLogoHandler *MerchantLogoHandler,
+	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
@@ -148,6 +153,7 @@ func ProvideHandlers(
 		MerchantBrand:    merchantBrandHandler,
 		Merchant:         merchantHandler,
 		MerchantLogo:     merchantLogoHandler,
+		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 	}
 }
@@ -173,6 +179,7 @@ var ProviderSet = wire.NewSet(
 	NewMerchantBrandHandler, // MERCHANT-SYSTEM v1.0
 	NewMerchantHandler,
 	NewMerchantLogoHandler,
+	NewAsyncImageHandler,
 	NewBatchImageHandler,
 
 	// Admin handlers
@@ -211,6 +218,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewMerchantHandler, // MERCHANT-SYSTEM v1.0
 	admin.NewProfitHandler,   // 利润自动化核算
 	admin.NewComplianceHandler,
+	admin.NewAuditLogHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

@@ -41,6 +41,7 @@ type AdminHandlers struct {
 	Merchant               *admin.MerchantHandler // MERCHANT-SYSTEM v1.0
 	Profit                 *admin.ProfitHandler   // 利润自动化核算
 	Compliance             *admin.ComplianceHandler
+	AuditLog               *admin.AuditLogHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -61,6 +62,7 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
+	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 
 	// MERCHANT-SYSTEM v1.0
