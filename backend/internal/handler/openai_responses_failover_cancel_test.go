@@ -99,9 +99,9 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		nil,
 		nil,
 		nil,
-		nil, // merchantPricing（本地 fork）
-		nil, // affiliateRebatePricing（本地 fork）
-		nil, // userPlatformQuotaRepo
+		nil,      // merchantPricing（本地 fork）
+		nil,      // affiliateRebatePricing（本地 fork）
+		nil, nil, // userPlatformQuotaRepo
 	)
 	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingService.Stop)

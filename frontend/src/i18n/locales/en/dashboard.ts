@@ -519,6 +519,16 @@ export default {
     }
   },
 
+  merchantAffiliate: {
+    title: 'Invite Friends',
+    subtitle: 'Share your link. When people you invite spend here, you earn a rebate credited to your balance.',
+    disabled: 'The referral program is not currently enabled on this site.',
+    yourLink: 'Your invite link',
+    rateNote: 'You earn {rate}% of the site profit from what your invitees spend.',
+    inviteeCount: 'People invited',
+    totalRebate: 'Total rebate earned',
+    howItWorks: 'Rebates are credited automatically to your balance as your invitees consume.',
+  },
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',

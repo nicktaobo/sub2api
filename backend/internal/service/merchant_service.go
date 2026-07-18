@@ -802,6 +802,11 @@ func (s *MerchantService) BindSubUser(ctx context.Context, merchantID, userID in
 	if s.pricingService != nil {
 		s.pricingService.InvalidateUser(userID)
 	}
+	// MERCHANT-AFFILIATE 已知遗留：若被绑用户此前作为平台用户已绑定了平台邀请人
+	// （user_affiliates.inviter_id 非空），平台消费返利 hook 仍会对其生效——理论上会与
+	// 商户返利并存造成"双拿"。当前平台消费返利默认关闭，故为潜在而非活跃问题；彻底修复
+	// 需在此清掉 user_affiliates.inviter_id（raw SQL），涉及给 MerchantService 注入 db，
+	// 留作后续（见方案文档 P4）。普通注册路径不受影响：商户子用户注册时从不写平台 inviter_id。
 	return nil
 }
 

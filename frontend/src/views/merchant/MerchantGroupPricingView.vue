@@ -16,6 +16,44 @@
         </button>
       </div>
 
+      <!-- 下级邀请返利配置 -->
+      <div class="card p-4">
+        <div class="flex flex-col gap-1 border-b border-gray-200 pb-3 dark:border-dark-700">
+          <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            {{ t('merchant.owner.affiliate.title') }}
+          </h2>
+          <p class="text-xs text-gray-500">{{ t('merchant.owner.affiliate.hint') }}</p>
+        </div>
+        <div class="flex flex-col gap-4 pt-4 sm:flex-row sm:items-end">
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+            <input v-model="affiliateCfg.enabled" type="checkbox" class="h-4 w-4" />
+            {{ t('merchant.owner.affiliate.enable') }}
+          </label>
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-500">{{ t('merchant.owner.affiliate.rateLabel') }}</span>
+            <div class="flex items-center gap-1">
+              <input
+                v-model.number="affiliateCfg.rate_percent"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                :disabled="!affiliateCfg.enabled"
+                class="input w-28"
+              />
+              <span class="text-sm text-gray-500">%</span>
+            </div>
+          </div>
+          <button
+            class="btn btn-primary sm:ml-auto"
+            :disabled="affiliateSaving || affiliateLoading"
+            @click="saveAffiliateConfig"
+          >
+            {{ affiliateSaving ? t('common.saving') : t('common.save') }}
+          </button>
+        </div>
+      </div>
+
       <!-- 分组定价列表（平铺所有可定价分组） -->
       <div class="card">
         <div class="border-b border-gray-200 px-4 py-3 dark:border-dark-700">
@@ -183,6 +221,41 @@ const appStore = useAppStore()
 const groups = ref<MerchantPricingGroup[]>([])
 const loading = ref(false)
 
+// 下级邀请返利配置（MERCHANT-AFFILIATE v1.0）
+const affiliateCfg = reactive({ enabled: false, rate_percent: 0 })
+const affiliateLoading = ref(false)
+const affiliateSaving = ref(false)
+
+async function loadAffiliateConfig(): Promise<void> {
+  affiliateLoading.value = true
+  try {
+    const cfg = await merchantAPI.getAffiliateConfig()
+    affiliateCfg.enabled = cfg.enabled
+    affiliateCfg.rate_percent = cfg.rate_percent
+  } catch {
+    // 功能可能未在平台开启：静默，展示默认禁用态
+  } finally {
+    affiliateLoading.value = false
+  }
+}
+
+async function saveAffiliateConfig(): Promise<void> {
+  const rate = Number(affiliateCfg.rate_percent)
+  if (Number.isNaN(rate) || rate < 0 || rate > 100) {
+    appStore.showError(t('merchant.owner.affiliate.rateRange'))
+    return
+  }
+  affiliateSaving.value = true
+  try {
+    await merchantAPI.setAffiliateConfig({ enabled: affiliateCfg.enabled, rate_percent: rate })
+    appStore.showSuccess(t('common.saved'))
+  } catch (err) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'merchant.errors', t('common.error')))
+  } finally {
+    affiliateSaving.value = false
+  }
+}
+
 function effectiveCost(row: MerchantPricingGroup): number {
   return row.cost_rate != null ? Number(row.cost_rate) : Number(row.rate_multiplier || 1)
 }
@@ -273,5 +346,6 @@ async function confirmStop(row: MerchantPricingGroup): Promise<void> {
 
 onMounted(() => {
   void load()
+  void loadAffiliateConfig()
 })
 </script>

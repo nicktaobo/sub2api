@@ -167,6 +167,13 @@ export default {
   },
   owner: {
     notMerchant: '当前账号不是商户所有者。',
+    affiliate: {
+      title: '下级邀请返利',
+      hint: '开启后，你的用户可以邀请别人。被邀请人消费时，邀请人从你的利润里拿一部分（返利从你的利润出，不占平台）。',
+      enable: '开启下级邀请返利',
+      rateLabel: '返利比例（占你利润的 %）',
+      rateRange: '比例必须在 0 到 100 之间',
+    },
     subUsers: {
       title: '用户管理',
       description: '查看绑定到本商户的子用户，给他们充值（从你的余额转出）。',

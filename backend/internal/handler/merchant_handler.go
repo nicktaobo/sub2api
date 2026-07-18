@@ -15,12 +15,13 @@ import (
 )
 
 type MerchantHandler struct {
-	merchantSvc *service.MerchantService
-	userSvc     *service.UserService
+	merchantSvc  *service.MerchantService
+	userSvc      *service.UserService
+	affiliateSvc *service.MerchantAffiliateRebateService
 }
 
-func NewMerchantHandler(merchantSvc *service.MerchantService, userSvc *service.UserService) *MerchantHandler {
-	return &MerchantHandler{merchantSvc: merchantSvc, userSvc: userSvc}
+func NewMerchantHandler(merchantSvc *service.MerchantService, userSvc *service.UserService, affiliateSvc *service.MerchantAffiliateRebateService) *MerchantHandler {
+	return &MerchantHandler{merchantSvc: merchantSvc, userSvc: userSvc, affiliateSvc: affiliateSvc}
 }
 
 func (h *MerchantHandler) resolveOwnerMerchant(c *gin.Context) *service.Merchant {
@@ -199,6 +200,55 @@ func (h *MerchantHandler) SetGroupMarkup(c *gin.Context) {
 		return
 	}
 	if err := h.merchantSvc.SetGroupSellRate(c.Request.Context(), m.ID, req.GroupID, req.SellRate, 0, req.Reason); err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}
+
+// GET /merchant/affiliate/config — 商户读下级邀请返利配置
+func (h *MerchantHandler) GetAffiliateConfig(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	if h.affiliateSvc == nil {
+		response.Success(c, gin.H{"enabled": false, "rate_percent": 0})
+		return
+	}
+	cfg, err := h.affiliateSvc.GetRebateConfig(c.Request.Context(), m.ID)
+	if err != nil {
+		if !response.ErrorFrom(c, err) {
+			response.Error(c, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"enabled": cfg.Enabled, "rate_percent": cfg.RatePercent})
+}
+
+type ownerSetAffiliateConfigReq struct {
+	Enabled     bool    `json:"enabled"`
+	RatePercent float64 `json:"rate_percent"`
+}
+
+// PUT /merchant/affiliate/config — 商户设置下级邀请返利开关+比例
+func (h *MerchantHandler) SetAffiliateConfig(c *gin.Context) {
+	m := h.resolveOwnerMerchant(c)
+	if m == nil {
+		return
+	}
+	if h.affiliateSvc == nil {
+		response.Error(c, http.StatusServiceUnavailable, "merchant affiliate rebate is unavailable")
+		return
+	}
+	var req ownerSetAffiliateConfigReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := h.affiliateSvc.SetRebateConfig(c.Request.Context(), m.ID, req.Enabled, req.RatePercent); err != nil {
 		if !response.ErrorFrom(c, err) {
 			response.Error(c, http.StatusBadRequest, err.Error())
 		}

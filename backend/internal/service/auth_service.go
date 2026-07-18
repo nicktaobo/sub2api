@@ -96,6 +96,7 @@ type AuthService struct {
 	emailQueueService     *EmailQueueService
 	promoService          *PromoService
 	affiliateService      *AffiliateService
+	merchantAffiliate     *MerchantAffiliateRebateService
 	defaultSubAssigner    DefaultSubscriptionAssigner
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 }
@@ -125,6 +126,7 @@ func NewAuthService(
 	promoService *PromoService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	affiliateService *AffiliateService,
+	merchantAffiliate *MerchantAffiliateRebateService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *AuthService {
 	return &AuthService{
@@ -139,6 +141,7 @@ func NewAuthService(
 		emailQueueService:     emailQueueService,
 		promoService:          promoService,
 		affiliateService:      affiliateService,
+		merchantAffiliate:     merchantAffiliate,
 		defaultSubAssigner:    defaultSubAssigner,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
@@ -266,6 +269,13 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 				// 邀请返利码绑定失败不影响注册，只记录日志
 				logger.LegacyPrintf("service.auth", "[Auth] Failed to bind affiliate inviter for user %d: %v", user.ID, err)
 			}
+		}
+	}
+	// 商户子用户走商户级下级邀请绑定（MERCHANT-AFFILIATE v1.0）：与平台级互斥，
+	// 返利从商户利润出、按商户隔离。BindInviterByCode 内部静默处理各种"不该绑"情况。
+	if s.merchantAffiliate != nil && user.ParentMerchantID != nil {
+		if code := strings.TrimSpace(affiliateCode); code != "" {
+			_ = s.merchantAffiliate.BindInviterByCode(ctx, user.ID, *user.ParentMerchantID, code)
 		}
 	}
 
@@ -930,6 +940,12 @@ func (s *AuthService) bindOAuthAffiliate(ctx context.Context, user *User, affili
 	if code := strings.TrimSpace(affiliateCode); code != "" && user.ParentMerchantID == nil {
 		if err := s.affiliateService.BindInviterByCode(ctx, user.ID, code); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to bind affiliate inviter for user %d: %v", user.ID, err)
+		}
+	}
+	// 商户子用户走商户级下级邀请绑定（MERCHANT-AFFILIATE v1.0）。
+	if s.merchantAffiliate != nil && user.ParentMerchantID != nil {
+		if code := strings.TrimSpace(affiliateCode); code != "" {
+			_ = s.merchantAffiliate.BindInviterByCode(ctx, user.ID, *user.ParentMerchantID, code)
 		}
 	}
 }

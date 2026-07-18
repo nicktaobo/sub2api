@@ -441,8 +441,9 @@ type OpenAIGatewayService struct {
 	channelService         *ChannelService
 	balanceNotifyService   *BalanceNotifyService
 	settingService         *SettingService
-	merchantPricing        *MerchantPricingService        // MERCHANT-SYSTEM v1.0
-	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
+	merchantPricing        *MerchantPricingService          // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing *AffiliateRebatePricingService   // migration 143：邀请返利消费侧 hook
+	merchantAffiliateRebate *MerchantAffiliateRebateService // MERCHANT-AFFILIATE v1.0：代理下级邀请返利 hook
 	userPlatformQuotaRepo  UserPlatformQuotaRepository
 
 	openaiWSPoolOnce              sync.Once
@@ -499,6 +500,7 @@ func NewOpenAIGatewayService(
 	settingService *SettingService,
 	merchantPricing *MerchantPricingService,
 	affiliateRebatePricing *AffiliateRebatePricingService,
+	merchantAffiliateRebate *MerchantAffiliateRebateService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
@@ -536,8 +538,9 @@ func NewOpenAIGatewayService(
 		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle:  newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 		openaiModelTransient:   newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
-		merchantPricing:        merchantPricing,
-		affiliateRebatePricing: affiliateRebatePricing,
+		merchantPricing:         merchantPricing,
+		affiliateRebatePricing:  affiliateRebatePricing,
+		merchantAffiliateRebate: merchantAffiliateRebate,
 	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)

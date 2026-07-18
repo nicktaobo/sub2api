@@ -108,6 +108,7 @@ func provideCleanup(
 	merchantEarningsWorker *service.MerchantEarningsWorker,
 	merchantReconcileJob *service.MerchantReconcileJob,
 	affiliateRebateWorker *service.AffiliateRebateWorker,
+	merchantAffiliateRebateWorker *service.MerchantAffiliateRebateWorker,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	auditLog *service.AuditLogService,
@@ -309,6 +310,12 @@ func provideCleanup(
 			{"AffiliateRebateWorker", func() error {
 				if affiliateRebateWorker != nil {
 					affiliateRebateWorker.Stop()
+				}
+				return nil
+			}},
+			{"MerchantAffiliateRebateWorker", func() error {
+				if merchantAffiliateRebateWorker != nil {
+					merchantAffiliateRebateWorker.Stop()
 				}
 				return nil
 			}},

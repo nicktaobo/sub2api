@@ -494,6 +494,23 @@ export async function merchantSetGroupMarkup(
   await apiClient.put('/merchant/group_markups', { group_id, sell_rate, reason })
 }
 
+/** 代理下级邀请返利配置（MERCHANT-AFFILIATE v1.0）。 */
+export interface MerchantAffiliateConfig {
+  enabled: boolean
+  rate_percent: number
+}
+
+/** GET /merchant/affiliate/config — 读本商户下级邀请返利开关+比例 */
+export async function merchantGetAffiliateConfig(): Promise<MerchantAffiliateConfig> {
+  const { data } = await apiClient.get<MerchantAffiliateConfig>('/merchant/affiliate/config')
+  return data
+}
+
+/** PUT /merchant/affiliate/config — 设本商户下级邀请返利开关+比例 */
+export async function merchantSetAffiliateConfig(payload: MerchantAffiliateConfig): Promise<void> {
+  await apiClient.put('/merchant/affiliate/config', payload)
+}
+
 /** DELETE /merchant/group_markups/:group_id — 商户 owner 删除分组售价，回到不分润状态 */
 export async function merchantDeleteGroupMarkup(group_id: number, reason?: string): Promise<void> {
   await apiClient.delete(`/merchant/group_markups/${group_id}`, {
@@ -702,6 +719,8 @@ export const merchantAPI = {
   listGroupMarkups: merchantListGroupMarkups,
   listPricingGroups: merchantListPricingGroups,
   setGroupMarkup: merchantSetGroupMarkup,
+  getAffiliateConfig: merchantGetAffiliateConfig,
+  setAffiliateConfig: merchantSetAffiliateConfig,
   deleteGroupMarkup: merchantDeleteGroupMarkup,
   listDomains: merchantListDomains,
   createDomain: merchantCreateDomain,

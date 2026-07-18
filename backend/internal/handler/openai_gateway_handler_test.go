@@ -1685,9 +1685,9 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		nil,
 		nil,
 		nil,
-		nil, // merchantPricing（本地 fork）
-		nil, // affiliateRebatePricing（本地 fork）
-		nil, // userPlatformQuotaRepo
+		nil,      // merchantPricing（本地 fork）
+		nil,      // affiliateRebatePricing（本地 fork）
+		nil, nil, // userPlatformQuotaRepo
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -1846,9 +1846,9 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil,
 		nil,
-		nil, // merchantPricing
-		nil, // affiliateRebatePricing
-		nil, // userPlatformQuotaRepo
+		nil,      // merchantPricing
+		nil,      // affiliateRebatePricing
+		nil, nil, // userPlatformQuotaRepo
 	)
 
 	cache := &concurrencyCacheMock{
@@ -2035,9 +2035,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		channelSvc,
 		nil,
 		nil,
-		nil, // merchantPricing
-		nil, // affiliateRebatePricing
-		nil, // userPlatformQuotaRepo
+		nil,      // merchantPricing
+		nil,      // affiliateRebatePricing
+		nil, nil, // userPlatformQuotaRepo
 	)
 
 	cache := &concurrencyCacheMock{

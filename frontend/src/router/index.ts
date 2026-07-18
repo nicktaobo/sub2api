@@ -273,6 +273,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/merchant-invite',
+    name: 'MerchantAffiliateInvite',
+    component: () => import('@/views/user/MerchantAffiliateInviteView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Invite',
+      titleKey: 'merchantAffiliate.title',
+      descriptionKey: 'merchantAffiliate.subtitle'
+    }
+  },
+  {
     path: '/available-channels',
     name: 'UserAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),

@@ -355,6 +355,25 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			SiteActualCost: cost.ActualCost,
 		})
 	}
+
+	// 代理下级邀请返利 hook（MERCHANT-AFFILIATE v1.0）：从商户利润里切出返利，二者守恒。
+	var merchantAffiliateResult MerchantAffiliateRebateResult
+	if s.merchantAffiliateRebate != nil && merchantPricingResult.MerchantOutbox != nil {
+		merchantAffiliateResult = s.merchantAffiliateRebate.ApplyRebate(ctx, MerchantAffiliateRebateInput{
+			MerchantID:     merchantPricingResult.MerchantOutbox.MerchantID,
+			InviteeUserID:  user.ID,
+			MerchantProfit: merchantPricingResult.MerchantOutbox.Amount,
+		})
+		if merchantAffiliateResult.Outbox != nil {
+			// round 到 8 位，避免残留 ~1e-9 正数触发 merchant_earnings_outbox 的 CHECK(amount>0)
+			// 而回滚整笔计费（详见 gateway_usage_billing.go 同处注释）。
+			merchantPricingResult.MerchantOutbox.Amount = roundTo(
+				merchantPricingResult.MerchantOutbox.Amount-merchantAffiliateResult.Outbox.Amount, 8)
+			if merchantPricingResult.MerchantOutbox.Amount <= 0 {
+				merchantPricingResult.MerchantOutbox = nil
+			}
+		}
+	}
 	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = videoMultiplier
 	} else if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
@@ -448,6 +467,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 			// 邀请返利消费侧（migration 143）
 			AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
+
+			// 代理下级邀请返利消费侧（MERCHANT-AFFILIATE v1.0）
+			MerchantAffiliateConsumeOutbox: merchantAffiliateResult.Outbox,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

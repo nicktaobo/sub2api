@@ -167,6 +167,13 @@ export default {
   },
   owner: {
     notMerchant: 'Your account is not a merchant owner.',
+    affiliate: {
+      title: 'Sub-user Referral Rebate',
+      hint: 'Let your users invite others. When an invitee consumes, the inviter earns a share of your markup profit (paid from your profit, not the platform).',
+      enable: 'Enable referral rebate',
+      rateLabel: 'Rebate rate (% of your profit)',
+      rateRange: 'Rate must be between 0 and 100',
+    },
     subUsers: {
       title: 'Users',
       description: 'View sub-users bound to this merchant and pay them from your balance.',

@@ -726,8 +726,9 @@ type GatewayService struct {
 	debugGatewayBodyFile   atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
 	tlsFPProfileService    *TLSFingerprintProfileService
 	balanceNotifyService   *BalanceNotifyService
-	merchantPricing        *MerchantPricingService        // MERCHANT-SYSTEM v1.0
-	affiliateRebatePricing *AffiliateRebatePricingService // migration 143：邀请返利消费侧 hook
+	merchantPricing        *MerchantPricingService          // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing *AffiliateRebatePricingService   // migration 143：邀请返利消费侧 hook
+	merchantAffiliateRebate *MerchantAffiliateRebateService // MERCHANT-AFFILIATE v1.0：代理下级邀请返利 hook
 	userPlatformQuotaRepo  UserPlatformQuotaRepository
 }
 
@@ -761,6 +762,7 @@ func NewGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	merchantPricing *MerchantPricingService,
 	affiliateRebatePricing *AffiliateRebatePricingService,
+	merchantAffiliateRebate *MerchantAffiliateRebateService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
@@ -797,9 +799,10 @@ func NewGatewayService(
 		channelService:         channelService,
 		resolver:               resolver,
 		balanceNotifyService:   balanceNotifyService,
-		merchantPricing:        merchantPricing,
-		affiliateRebatePricing: affiliateRebatePricing,
-		userPlatformQuotaRepo:  userPlatformQuotaRepo,
+		merchantPricing:         merchantPricing,
+		affiliateRebatePricing:  affiliateRebatePricing,
+		merchantAffiliateRebate: merchantAffiliateRebate,
+		userPlatformQuotaRepo:   userPlatformQuotaRepo,
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,

@@ -924,9 +924,9 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 		repo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), nil, billingCache, upstream,
 		&service.DeferredService{}, nil, provider, nil, nil, nil, nil,
-		nil, // merchantPricing（本地 fork）
-		nil, // affiliateRebatePricing（本地 fork）
-		nil, // userPlatformQuotaRepo
+		nil,      // merchantPricing（本地 fork）
+		nil,      // affiliateRebatePricing（本地 fork）
+		nil, nil, // userPlatformQuotaRepo
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },

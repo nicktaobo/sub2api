@@ -109,6 +109,10 @@ type MerchantConfig struct {
 	// SkipDNSVerify 跳过真实 DNS TXT 查询（仅本地/测试用），点"立即验证"直接通过。
 	// 生产环境保持 false。
 	SkipDNSVerify bool `mapstructure:"skip_dns_verify"`
+	// AffiliateRebateEnabled 下级邀请返利总开关（MERCHANT-AFFILIATE v1.0）。
+	// 默认关（opt-in）：关闭时消费 hook 短路、worker 仅清理积压、商户后台不放开该功能。
+	// 与 Enabled 独立：整个商户系统开着也可单独关掉下级邀请返利。
+	AffiliateRebateEnabled bool `mapstructure:"affiliate_rebate_enabled"`
 }
 
 type LogConfig struct {

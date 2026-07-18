@@ -235,7 +235,32 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 	}
 
+	// 代理下级邀请返利消费侧 outbox（MERCHANT-AFFILIATE v1.0，migration 183）。
+	// 与 merchant markup outbox 同事务：返利额已在 hook 里从 markup 利润扣出。
+	if cmd.MerchantAffiliateConsumeOutbox != nil {
+		if err := insertMerchantAffiliateOutboxTx(ctx, tx, cmd.MerchantAffiliateConsumeOutbox, dedupID); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// insertMerchantAffiliateOutboxTx 代理下级邀请返利 outbox 写入（同事务）。
+// idempotency_key = "merchant_aff:{dedupID}"；ref_type=usage_billing_dedup；ref_id=dedupID。
+// ON CONFLICT DO NOTHING：幂等重试只插一次。
+func insertMerchantAffiliateOutboxTx(ctx context.Context, tx *sql.Tx, draft *service.MerchantAffiliateRebateOutboxDraft, dedupID int64) error {
+	if draft == nil {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO merchant_affiliate_consumption_outbox
+			(merchant_id, inviter_user_id, invitee_user_id, amount, ref_type, ref_id, idempotency_key)
+		VALUES ($1, $2, $3, $4, 'usage_billing_dedup', $5, $6)
+		ON CONFLICT (idempotency_key) DO NOTHING
+	`, draft.MerchantID, draft.InviterUserID, draft.InviteeUserID, draft.Amount, dedupID,
+		fmt.Sprintf("merchant_aff:%d", dedupID))
+	return err
 }
 
 // insertAffiliateConsumeOutboxTx 邀请返利消费侧 outbox 写入（同事务）。

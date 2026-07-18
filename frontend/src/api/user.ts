@@ -181,6 +181,21 @@ export async function getAffiliateDetail(): Promise<UserAffiliateDetail> {
   return data
 }
 
+/** 代理下级邀请返利（子用户视角，MERCHANT-AFFILIATE v1.0）。 */
+export interface MerchantAffiliateOverview {
+  aff_code: string
+  invitee_count: number
+  total_rebate: number
+  enabled: boolean
+  rate_percent: number
+}
+
+/** GET /user/merchant_aff — 商户子用户的下级邀请概况（邀请码/下线数/累计返利/开关比例）。 */
+export async function getMerchantAffiliate(): Promise<MerchantAffiliateOverview> {
+  const { data } = await apiClient.get<MerchantAffiliateOverview>('/user/merchant_aff')
+  return data
+}
+
 export async function transferAffiliateQuota(): Promise<AffiliateTransferResponse> {
   const { data } = await apiClient.post<AffiliateTransferResponse>('/user/aff/transfer')
   return data
@@ -208,6 +223,7 @@ export const userAPI = {
   buildOAuthBindingStartURL,
   startOAuthBinding,
   getAffiliateDetail,
+  getMerchantAffiliate,
   transferAffiliateQuota,
   getMyPlatformQuotas,
 }

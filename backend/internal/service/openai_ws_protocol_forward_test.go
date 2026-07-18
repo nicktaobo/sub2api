@@ -619,10 +619,10 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil, // (constructor grew to 24 params: main added grokTokenProvider)
-		nil, // merchantPricing
-		nil, // affiliateRebatePricing
-		nil, // userPlatformQuotaRepo
+		nil,      // (constructor grew to 24 params: main added grokTokenProvider)
+		nil,      // merchantPricing
+		nil,      // affiliateRebatePricing
+		nil, nil, // userPlatformQuotaRepo
 	)
 
 	decision := svc.getOpenAIWSProtocolResolver().Resolve(nil)

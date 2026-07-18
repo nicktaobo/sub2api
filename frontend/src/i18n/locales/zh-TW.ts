@@ -423,6 +423,7 @@ export default {
     usage: '使用記錄',
     redeem: '兌換',
     affiliate: '邀請返利',
+    merchantInvite: '邀請好友',
     affiliateManagement: '邀請返利',
     affiliateInviteRecords: '邀請記錄',
     affiliateRebateRecords: '返利記錄',
@@ -1131,6 +1132,16 @@ export default {
     }
   },
 
+  merchantAffiliate: {
+    title: '邀請好友',
+    subtitle: '分享你的專屬連結。你邀請的人在本站消費時，你能拿到返利，自動進入你的餘額。',
+    disabled: '本站當前未開啟下級邀請返利。',
+    yourLink: '你的邀請連結',
+    rateNote: '被邀請人消費產生的利潤裡，你可以拿 {rate}%。',
+    inviteeCount: '已邀請人數',
+    totalRebate: '累計返利',
+    howItWorks: '被邀請人每次消費，返利會自動入帳到你的餘額。',
+  },
   affiliate: {
     title: '邀請返利',
     description: '邀請新使用者註冊，並將返利額度轉入帳戶餘額',
@@ -7358,6 +7369,13 @@ export default {
     },
     owner: {
       notMerchant: '當前帳號不是商戶所有者。',
+      affiliate: {
+        title: '下級邀請返利',
+        hint: '開啟後，你的使用者可以邀請別人。被邀請人消費時，邀請人從你的利潤裡拿一部分（返利從你的利潤出，不佔平台）。',
+        enable: '開啟下級邀請返利',
+        rateLabel: '返利比例（佔你利潤的 %）',
+        rateRange: '比例必須在 0 到 100 之間',
+      },
       subUsers: {
         title: '使用者管理',
         description: '檢視繫結到本商戶的子使用者，給他們儲值（從你的餘額轉出）。',

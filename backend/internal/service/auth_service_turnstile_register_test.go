@@ -51,11 +51,11 @@ func newAuthServiceForRegisterTurnstileTest(settings map[string]string, verifier
 		settingService,
 		nil, // emailService
 		turnstileService,
-		nil, // emailQueueService
-		nil, // promoService
-		nil, // defaultSubAssigner
-		nil, // affiliateService
-		nil, // userPlatformQuotaRepo
+		nil,      // emailQueueService
+		nil,      // promoService
+		nil,      // defaultSubAssigner
+		nil,      // affiliateService
+		nil, nil, // userPlatformQuotaRepo
 	)
 }
 

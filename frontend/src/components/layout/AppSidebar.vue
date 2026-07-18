@@ -715,6 +715,9 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   // 商户分站（子用户）不参与平台级邀请返利，隐藏入口；后端 /user/aff 亦有 403 兜底。
   if (!merchantStore.isMerchantSite) {
     items.push({ path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate })
+  } else if (!authStore.isMerchantOwner) {
+    // 商户分站的子用户（非 owner）：展示商户级下级邀请入口。是否开启由页面据后端 config 展示。
+    items.push({ path: '/merchant-invite', label: t('nav.merchantInvite'), icon: UsersIcon, hideInSimpleMode: true })
   }
   // 商户菜单仅对商户 owner 显示（普通用户 / 子用户不显示）。
   if (authStore.isMerchantOwner) {

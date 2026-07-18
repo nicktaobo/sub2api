@@ -111,6 +111,10 @@ var ProviderSet = wire.NewSet(
 	NewMerchantGroupMarkupRepository,
 	NewMerchantGroupCostRepository,
 
+	// MERCHANT-AFFILIATE v1.0（代理下级邀请返利）
+	NewMerchantAffiliateRepository,
+	NewMerchantAffiliateOutboxRepository,
+
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,

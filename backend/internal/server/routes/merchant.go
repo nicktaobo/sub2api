@@ -40,6 +40,8 @@ func RegisterMerchantOwnerRoutes(v1 *gin.RouterGroup, h *handler.Handlers, jwtAu
 		g.GET("/pricing_groups", mh.ListPricingGroups)
 		g.PUT("/group_markups", mh.SetGroupMarkup)
 		g.DELETE("/group_markups/:group_id", mh.DeleteGroupMarkup)
+		g.GET("/affiliate/config", mh.GetAffiliateConfig)
+		g.PUT("/affiliate/config", mh.SetAffiliateConfig)
 		g.GET("/domains", mh.ListDomains)
 		g.POST("/domains", mh.CreateDomain)
 		g.PUT("/domains/:id", mh.UpdateDomain)

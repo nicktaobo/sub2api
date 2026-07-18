@@ -21,6 +21,7 @@ type UserHandler struct {
 	emailService          *service.EmailService
 	emailCache            service.EmailCache
 	affiliateService      *service.AffiliateService
+	merchantAffiliate     *service.MerchantAffiliateRebateService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
 }
 
@@ -31,6 +32,7 @@ func NewUserHandler(
 	emailService *service.EmailService,
 	emailCache service.EmailCache,
 	affiliateService *service.AffiliateService,
+	merchantAffiliate *service.MerchantAffiliateRebateService,
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
 ) *UserHandler {
 	return &UserHandler{
@@ -39,6 +41,7 @@ func NewUserHandler(
 		emailService:          emailService,
 		emailCache:            emailCache,
 		affiliateService:      affiliateService,
+		merchantAffiliate:     merchantAffiliate,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
 }
@@ -228,6 +231,36 @@ func (h *UserHandler) GetAffiliate(c *gin.Context) {
 		return
 	}
 	response.Success(c, detail)
+}
+
+// GetMerchantAffiliate 商户子用户的下级邀请页（MERCHANT-AFFILIATE v1.0）。
+// GET /api/v1/user/merchant_aff —— 仅对商户子用户开放（与平台邀请页互斥）。
+func (h *UserHandler) GetMerchantAffiliate(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	user, err := h.userService.GetByID(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	// 仅商户子用户可用；主站用户走 /user/aff。
+	if user.ParentMerchantID == nil {
+		response.Forbidden(c, "Merchant affiliate is only available for merchant sub-users")
+		return
+	}
+	if h.merchantAffiliate == nil {
+		response.Success(c, &service.SubUserInviteOverview{})
+		return
+	}
+	overview, err := h.merchantAffiliate.GetSubUserInviteOverview(c.Request.Context(), subject.UserID, *user.ParentMerchantID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, overview)
 }
 
 // TransferAffiliateQuota transfers all available affiliate quota into current balance.

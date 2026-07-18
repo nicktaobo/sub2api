@@ -48,6 +48,11 @@ type UsageBillingCommand struct {
 	// 邀请返利消费侧（migration 143）—— 与 merchant 独立，可同时非 nil。
 	// nil 表示这次消费不分润给 inviter（未绑定/开关关/分组排除/低于阈值/订阅计费）。
 	AffiliateConsumeOutbox *AffiliateRebateOutboxDraft
+
+	// 代理下级邀请返利消费侧（MERCHANT-AFFILIATE v1.0，migration 183）。
+	// 与 MerchantOutbox 同一次消费成对出现：返利额已从 MerchantOutbox.Amount 里扣出，
+	// 此处写待入账给邀请人的那份，worker 入账到邀请人余额。nil 表示无下级返利。
+	MerchantAffiliateConsumeOutbox *MerchantAffiliateRebateOutboxDraft
 }
 
 func (c *UsageBillingCommand) Normalize() {

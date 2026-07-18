@@ -524,6 +524,16 @@ export default {
     }
   },
 
+  merchantAffiliate: {
+    title: '邀请好友',
+    subtitle: '分享你的专属链接。你邀请的人在本站消费时，你能拿到返利，自动进入你的余额。',
+    disabled: '本站当前未开启下级邀请返利。',
+    yourLink: '你的邀请链接',
+    rateNote: '被邀请人消费产生的利润里，你可以拿 {rate}%。',
+    inviteeCount: '已邀请人数',
+    totalRebate: '累计返利',
+    howItWorks: '被邀请人每次消费，返利会自动入账到你的余额。',
+  },
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',

@@ -88,6 +88,9 @@ type postUsageBillingParams struct {
 
 	// 邀请返利消费侧（migration 143）—— 与 merchant 独立，可同时非 nil。
 	AffiliateConsumeOutbox *AffiliateRebateOutboxDraft
+
+	// 代理下级邀请返利消费侧（MERCHANT-AFFILIATE v1.0）。返利额已从 MerchantOutbox.Amount 扣出。
+	MerchantAffiliateConsumeOutbox *MerchantAffiliateRebateOutboxDraft
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -311,6 +314,9 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 
 	// 邀请返利消费侧草稿透传（订阅分支下 affiliate hook 同样返 nil）
 	cmd.AffiliateConsumeOutbox = p.AffiliateConsumeOutbox
+
+	// 代理下级邀请返利草稿透传
+	cmd.MerchantAffiliateConsumeOutbox = p.MerchantAffiliateConsumeOutbox
 
 	cmd.Normalize()
 	return cmd
@@ -800,6 +806,28 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		})
 	}
 
+	// 代理下级邀请返利 hook（MERCHANT-AFFILIATE v1.0）：仅当本次消费产生了商户利润
+	// （merchant markup outbox 非 nil）时才可能触发；返利从该利润里切出，二者守恒。
+	var merchantAffiliateResult MerchantAffiliateRebateResult
+	if s.merchantAffiliateRebate != nil && merchantPricingResult.MerchantOutbox != nil {
+		merchantAffiliateResult = s.merchantAffiliateRebate.ApplyRebate(ctx, MerchantAffiliateRebateInput{
+			MerchantID:     merchantPricingResult.MerchantOutbox.MerchantID,
+			InviteeUserID:  user.ID,
+			MerchantProfit: merchantPricingResult.MerchantOutbox.Amount,
+		})
+		if merchantAffiliateResult.Outbox != nil {
+			// 必须 round 到 8 位（= merchant_earnings_outbox.amount 的 DECIMAL(20,8) 精度）：
+			// 否则 profit - round8(rebate) 可能残留 ~1e-9 的正数，躲过 <=0 守卫，写库时被
+			// numeric(20,8) 截成 0 触发 CHECK(amount>0)，回滚整笔计费 → 静默漏计。
+			merchantPricingResult.MerchantOutbox.Amount = roundTo(
+				merchantPricingResult.MerchantOutbox.Amount-merchantAffiliateResult.Outbox.Amount, 8)
+			if merchantPricingResult.MerchantOutbox.Amount <= 0 {
+				// 返利吃掉全部利润：商户这次不入账，避免写 amount<=0 的 outbox
+				merchantPricingResult.MerchantOutbox = nil
+			}
+		}
+	}
+
 	// 创建使用日志
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
@@ -860,6 +888,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 		// 邀请返利消费侧（migration 143）
 		AffiliateConsumeOutbox: affiliateRebateResult.Outbox,
+
+		// 代理下级邀请返利消费侧（MERCHANT-AFFILIATE v1.0）
+		MerchantAffiliateConsumeOutbox: merchantAffiliateResult.Outbox,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {
