@@ -47,6 +47,8 @@ export default {
       createChannel: 'Create Channel',
       editChannel: 'Edit Channel',
       deleteChannel: 'Delete Channel',
+      noGroupsSelected: '{platform}: please select at least one group',
+      emptyModelsInPricing: '{platform}: a pricing entry has no models selected',
       statusActive: 'Active',
       statusDisabled: 'Disabled',
       allStatus: 'All Status',

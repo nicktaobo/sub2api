@@ -19,7 +19,7 @@ describe('zh-TW runtime loader', () => {
     // from the reported screenshots — were English fallback / raw keys before
     ['keys.columnSettings', '列設定'],
     ['keys.currentConcurrency', '當前併發'],
-    ['admin.proxies.fallbackMode', '失敗回退'],
+    ['admin.proxies.fallbackMode', '到期回退'],
     ['admin.proxies.fallbackNone', '不回退'],
     ['admin.proxies.fallbackProxy', '指定備用代理'],
     ['admin.proxies.fallbackDirect', '回退直連'],

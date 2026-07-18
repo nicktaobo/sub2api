@@ -463,6 +463,7 @@ export default {
       },
       editUser: '编辑用户',
       deleteUser: '删除用户',
+      passwordCopied: '密码已复制',
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       searchPlaceholder: '邮箱/用户名/备注/API Key 模糊搜索...',
       searchUsers: '邮箱/用户名/备注/API Key 模糊搜索',

@@ -463,6 +463,7 @@ export default {
       },
       editUser: 'Edit User',
       deleteUser: 'Delete User',
+      passwordCopied: 'Password copied',
       deleteConfirmMessage: "Are you sure you want to delete user '{email}'? This action cannot be undone.",
       searchPlaceholder: 'Search by email, username, notes, or API key...',
       searchUsers: 'Search by email, username, notes, or API key',
