@@ -16,8 +16,8 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router := gin.New()
 	adminSvc := newStubAdminService()
 
-	// adminService, concurrencyService, userPlatformQuotaRepo, billingCache, totpService, userService
-	userHandler := NewUserHandler(adminSvc, nil, nil, nil, nil, nil)
+	// adminService, concurrencyService, userPlatformQuotaRepo, billingCache, totpService, userService, settingService
+	userHandler := NewUserHandler(adminSvc, nil, nil, nil, nil, nil, nil)
 	// adminService, dashboardService, groupCapacityService, channelService, billingService
 	groupHandler := NewGroupHandler(adminSvc, nil, nil, nil, nil)
 	proxyHandler := NewProxyHandler(adminSvc)
