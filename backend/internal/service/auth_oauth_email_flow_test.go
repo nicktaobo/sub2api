@@ -143,7 +143,8 @@ func newOAuthEmailFlowAuthService(
 		nil,
 		nil,
 		nil,
-		quotaRepo, nil, // 替换原来的 nil
+		nil,       // merchantAffiliate — 本地 fork 新增，测试传 nil
+		quotaRepo, // userPlatformQuotaRepo
 	)
 }
 

@@ -43,6 +43,7 @@ func newEmailOAuthAutoAuthService(
 		nil, // promoService
 		nil, // defaultSubAssigner — nil, assignSubscriptions early return
 		nil, // affiliateService — nil, nil, bindOAuthAffiliate early return
+		nil, // merchantAffiliate — 本地 fork 新增，测试传 nil
 		quotaRepo,
 	)
 }

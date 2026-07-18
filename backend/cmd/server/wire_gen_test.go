@@ -58,6 +58,10 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		&service.OpsCleanupService{},
 		&service.OpsScheduledReportService{},
 		opsSystemLogSinkSvc,
+		nil, // opsService
+		nil, // opsIngressRejectAggregator
+		nil, // apiKeyService
+		nil, // authCacheInvalidationWorker
 		schedulerSnapshotSvc,
 		tokenRefreshSvc,
 		accountExpirySvc,
@@ -85,6 +89,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // merchantEarningsWorker (MERCHANT-SYSTEM v1.0)
 		nil, // merchantReconcileJob (MERCHANT-SYSTEM v1.0)
 		nil, // affiliateRebateWorker (migration 143)
+		nil, // merchantAffiliateRebateWorker (本地 fork 新增)
 		nil, // quotaFlusher
 		nil, // upstreamBillingProbe
 		nil, // auditLog
