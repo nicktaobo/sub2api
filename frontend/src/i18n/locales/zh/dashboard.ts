@@ -858,6 +858,8 @@ export default {
     officialPrice: '官方价格',
     sitePrice: '本站价格',
     exclusive: '专属',
+    customerPreview: '客户视角预览',
+    customerPreviewHint: '预览你的客户看到的售价。仅展示，不影响你自己的计费。',
 
     columns: {
       model: '模型',

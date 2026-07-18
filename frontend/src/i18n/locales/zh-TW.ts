@@ -1076,6 +1076,8 @@ export default {
     officialPrice: '官方價格',
     sitePrice: '本站價格',
     exclusive: '專屬',
+    customerPreview: '客戶視角預覽',
+    customerPreviewHint: '預覽你的客戶看到的售價。僅展示，不影響你自己的計費。',
     columns: {
       model: '模型',
       input: '輸入價格',

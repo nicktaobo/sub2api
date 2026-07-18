@@ -261,3 +261,153 @@ func TestApplyUsageMarkup_CacheUsesPerMerchantInvalidation(t *testing.T) {
 		t.Fatalf("expected (1,2) after merchant invalidation, got (%d,%d)", repo.lookupCalls, repo.pricingCalls)
 	}
 }
+
+// ----------------------------------------------------------------------------
+// 展示层查询：LookupSellRateForUser / LookupOwnerSellRate / LookupSellRateByMerchant
+// 保证"模型列表"三条展示路径与计费口径一致：sub_user 看售价、owner 看主站价（但可预览）、
+// 白标广场按域名商户看售价。
+// ----------------------------------------------------------------------------
+
+func TestLookupSellRateForUser_SubUserSeesSellRate(t *testing.T) {
+	const merchantID, ownerID, subID, groupID = int64(100), int64(999), int64(7), int64(3)
+	svc, _ := newPricingTestService(true,
+		map[int64]int64{subID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: ownerID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	rate, ok := svc.LookupSellRateForUser(context.Background(), subID, groupID)
+	if !ok || math.Abs(rate-1.5) > floatEps {
+		t.Fatalf("sub_user should see sell_rate 1.5, got (%v,%v)", rate, ok)
+	}
+}
+
+func TestLookupSellRateForUser_OwnerFallsBackToSiteRate(t *testing.T) {
+	const merchantID, ownerID, groupID = int64(100), int64(999), int64(3)
+	svc, _ := newPricingTestService(true,
+		map[int64]int64{ownerID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: ownerID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupSellRateForUser(context.Background(), ownerID, groupID); ok {
+		t.Fatal("owner must fall back to site rate (ok=false), got ok=true")
+	}
+}
+
+func TestLookupSellRateForUser_FlagOff(t *testing.T) {
+	const merchantID, subID, groupID = int64(100), int64(7), int64(3)
+	svc, _ := newPricingTestService(false,
+		map[int64]int64{subID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupSellRateForUser(context.Background(), subID, groupID); ok {
+		t.Fatal("flag off must return ok=false")
+	}
+}
+
+func TestLookupOwnerSellRate_OwnerGetsPreview(t *testing.T) {
+	const merchantID, ownerID, groupID = int64(100), int64(999), int64(3)
+	svc, _ := newPricingTestService(true,
+		map[int64]int64{ownerID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: ownerID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	rate, ok := svc.LookupOwnerSellRate(context.Background(), ownerID, groupID)
+	if !ok || math.Abs(rate-1.5) > floatEps {
+		t.Fatalf("owner preview should return sell_rate 1.5, got (%v,%v)", rate, ok)
+	}
+}
+
+func TestLookupOwnerSellRate_SubUserNoPreview(t *testing.T) {
+	const merchantID, ownerID, subID, groupID = int64(100), int64(999), int64(7), int64(3)
+	svc, _ := newPricingTestService(true,
+		map[int64]int64{subID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: ownerID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	// sub_user 不走预览通道（他们走 LookupSellRateForUser 拿真实价）
+	if _, ok := svc.LookupOwnerSellRate(context.Background(), subID, groupID); ok {
+		t.Fatal("sub_user must not get owner preview (ok=false)")
+	}
+}
+
+func TestLookupOwnerSellRate_SuspendedNoPreview(t *testing.T) {
+	const merchantID, ownerID, groupID = int64(100), int64(999), int64(3)
+	svc, _ := newPricingTestService(true,
+		map[int64]int64{ownerID: merchantID},
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: ownerID, Status: MerchantStatusSuspended,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupOwnerSellRate(context.Background(), ownerID, groupID); ok {
+		t.Fatal("suspended merchant owner preview must be ok=false")
+	}
+}
+
+func TestLookupSellRateByMerchant_ActiveSeesSellRate(t *testing.T) {
+	const merchantID, groupID = int64(100), int64(3)
+	svc, _ := newPricingTestService(true,
+		nil,
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, OwnerUserID: 999, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	rate, ok := svc.LookupSellRateByMerchant(context.Background(), merchantID, groupID)
+	if !ok || math.Abs(rate-1.5) > floatEps {
+		t.Fatalf("public plaza should show merchant sell_rate 1.5, got (%v,%v)", rate, ok)
+	}
+}
+
+func TestLookupSellRateByMerchant_SuspendedFallsBack(t *testing.T) {
+	const merchantID, groupID = int64(100), int64(3)
+	svc, _ := newPricingTestService(true,
+		nil,
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, Status: MerchantStatusSuspended,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupSellRateByMerchant(context.Background(), merchantID, groupID); ok {
+		t.Fatal("suspended merchant must fall back to site rate (ok=false)")
+	}
+}
+
+func TestLookupSellRateByMerchant_UnconfiguredGroupFallsBack(t *testing.T) {
+	const merchantID, groupID, otherGroup = int64(100), int64(3), int64(9)
+	svc, _ := newPricingTestService(true,
+		nil,
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{otherGroup: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupSellRateByMerchant(context.Background(), merchantID, groupID); ok {
+		t.Fatal("group without sell_rate must fall back to site rate (ok=false)")
+	}
+}
+
+func TestLookupSellRateByMerchant_FlagOff(t *testing.T) {
+	const merchantID, groupID = int64(100), int64(3)
+	svc, _ := newPricingTestService(false,
+		nil,
+		map[int64]*CachedMerchantPricing{merchantID: {
+			MerchantID: merchantID, Status: MerchantStatusActive,
+			GroupSellRates: map[int64]float64{groupID: 1.5},
+		}},
+	)
+	if _, ok := svc.LookupSellRateByMerchant(context.Background(), merchantID, groupID); ok {
+		t.Fatal("flag off must return ok=false")
+	}
+}

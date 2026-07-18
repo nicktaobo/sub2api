@@ -239,6 +239,41 @@ func (s *MerchantPricingService) lookupRate(m map[int64]float64, groupID int64) 
 	return v, ok
 }
 
+// resolveMerchantIDForDisplay 展示场景下复用双层缓存的第一层：user_id -> merchant_id。
+// 与 ApplyUsageMarkup 内联逻辑一致，但显式记录 lookup 失败（原 LookupSellRateForUser
+// 会静默吞掉 DB 错误，导致售价莫名回退到主站价却无迹可查）。ok=false 表示 lookup 出错。
+func (s *MerchantPricingService) resolveMerchantIDForDisplay(ctx context.Context, userID int64) (int64, bool) {
+	if merchantID, hit := s.userMerchantCache.Get(userID); hit {
+		return merchantID, true
+	}
+	mid, err := s.repo.LookupMerchantIDForUser(ctx, userID)
+	if err != nil {
+		slog.Warn("merchant pricing: lookup merchant id failed (display)",
+			"user_id", userID, "error", err)
+		return 0, false
+	}
+	s.userMerchantCache.Set(userID, mid)
+	return mid, true
+}
+
+// loadPricingForDisplay 展示场景下复用双层缓存的第二层：merchant_id -> pricing。
+// ok=false 表示 load 出错；(nil, true) 表示 merchant 不存在或已 soft-deleted。
+func (s *MerchantPricingService) loadPricingForDisplay(ctx context.Context, merchantID int64) (*CachedMerchantPricing, bool) {
+	if pricing, hit := s.merchantPricingCache.Get(merchantID); hit {
+		return pricing, true
+	}
+	p, err := s.repo.LoadPricing(ctx, merchantID)
+	if err != nil {
+		slog.Warn("merchant pricing: load pricing failed (display)",
+			"merchant_id", merchantID, "error", err)
+		return nil, false
+	}
+	if p != nil {
+		s.merchantPricingCache.Set(merchantID, p)
+	}
+	return p, true
+}
+
 // LookupSellRateForUser 在前端展示场景下返回某 user 在某 group 的"实际看到的"
 // 售价倍率。仅对**商户 sub_user**（不含 owner，不含主站普通用户）且商户在该 group
 // 配过 sell_rate 时返回 (sellRate, true)，其余场景返回 (0, false) — 调用方据此
@@ -252,29 +287,65 @@ func (s *MerchantPricingService) LookupSellRateForUser(ctx context.Context, user
 	if userID <= 0 || groupID <= 0 {
 		return 0, false
 	}
-	merchantID, ok := s.userMerchantCache.Get(userID)
-	if !ok {
-		mid, err := s.repo.LookupMerchantIDForUser(ctx, userID)
-		if err != nil {
-			return 0, false
-		}
-		merchantID = mid
-		s.userMerchantCache.Set(userID, merchantID)
-	}
-	if merchantID == 0 {
+	merchantID, ok := s.resolveMerchantIDForDisplay(ctx, userID)
+	if !ok || merchantID == 0 {
 		return 0, false
 	}
-	pricing, ok := s.merchantPricingCache.Get(merchantID)
-	if !ok {
-		p, err := s.repo.LoadPricing(ctx, merchantID)
-		if err != nil || p == nil {
-			return 0, false
-		}
-		pricing = p
-		s.merchantPricingCache.Set(merchantID, pricing)
+	pricing, ok := s.loadPricingForDisplay(ctx, merchantID)
+	if !ok || pricing == nil {
+		return 0, false
 	}
 	// owner 自用按主站价（与 ApplyUsageMarkup owner 分支一致）；suspended 也不替换。
 	if pricing.OwnerUserID == userID || pricing.Status != MerchantStatusActive {
+		return 0, false
+	}
+	return s.lookupRate(pricing.GroupSellRates, groupID)
+}
+
+// LookupOwnerSellRate 供「客户视角预览」使用：返回商户 OWNER 本人在某 group 配置的
+// 售价倍率。与 LookupSellRateForUser 互补——后者对 owner 故意返回主站价（因为 owner
+// 自用按主站成本价计费），本方法则专门在 owner 想预览"我的客户会看到的价格"时返回售价。
+//
+// 纯展示用途：调用方须把结果放到独立字段（如 preview_sell_rate_multiplier），
+// 绝不能替换 owner 自身的 rate_multiplier，否则会让 owner 误以为自己按售价计费。
+// 仅当商户 active 且该 group 配了 sell_rate 时返回 (sellRate, true)。
+func (s *MerchantPricingService) LookupOwnerSellRate(ctx context.Context, userID, groupID int64) (float64, bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Merchant.Enabled {
+		return 0, false
+	}
+	if userID <= 0 || groupID <= 0 {
+		return 0, false
+	}
+	merchantID, ok := s.resolveMerchantIDForDisplay(ctx, userID)
+	if !ok || merchantID == 0 {
+		return 0, false
+	}
+	pricing, ok := s.loadPricingForDisplay(ctx, merchantID)
+	if !ok || pricing == nil {
+		return 0, false
+	}
+	// 仅商户 owner 本人；sub_user 走 LookupSellRateForUser 拿真实价，不进预览通道。
+	if pricing.OwnerUserID != userID || pricing.Status != MerchantStatusActive {
+		return 0, false
+	}
+	return s.lookupRate(pricing.GroupSellRates, groupID)
+}
+
+// LookupSellRateByMerchant 供公开模型广场（白标域名）使用：按域名解析出的 merchantID
+// 返回某 group 的售价倍率，不依赖登录身份——匿名访客在商户域名下也能看到商户对外售价。
+// 仅当商户 active 且该 group 配了 sell_rate 时返回 (sellRate, true)。
+func (s *MerchantPricingService) LookupSellRateByMerchant(ctx context.Context, merchantID, groupID int64) (float64, bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Merchant.Enabled {
+		return 0, false
+	}
+	if merchantID <= 0 || groupID <= 0 {
+		return 0, false
+	}
+	pricing, ok := s.loadPricingForDisplay(ctx, merchantID)
+	if !ok || pricing == nil {
+		return 0, false
+	}
+	if pricing.Status != MerchantStatusActive {
 		return 0, false
 	}
 	return s.lookupRate(pricing.GroupSellRates, groupID)

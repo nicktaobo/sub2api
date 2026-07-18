@@ -45,6 +45,18 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <!-- 客户视角预览：仅商户 owner 可见（后端下发 preview_sell_rate_multiplier 时才出现） -->
+          <button
+            v-if="hasOwnerPreview"
+            type="button"
+            class="preview-toggle"
+            :class="previewMode ? 'preview-toggle-active' : ''"
+            :title="t('modelPricing.customerPreviewHint')"
+            @click="previewMode = !previewMode"
+          >
+            <Icon name="eye" size="xs" class="mr-1" />
+            {{ t('modelPricing.customerPreview') }}
+          </button>
           <span class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('modelPricing.fxNote', { rate: fxRate.toFixed(2) }) }}
           </span>
@@ -102,9 +114,9 @@
                     <div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                       {{ g.name }}
                     </div>
-                    <span class="rate-badge rate-badge-good">
+                    <span class="rate-badge" :class="isPreviewRate(g) ? 'rate-badge-preview' : 'rate-badge-good'">
                       <Icon name="bolt" size="xs" class="mr-0.5" />
-                      {{ formatRate(g.rate_multiplier) }}
+                      {{ formatRate(effectiveRate(g)) }}
                     </span>
                   </div>
                   <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -138,9 +150,9 @@
                 {{ selectedGroup.name }}
               </h2>
               <span class="platform-chip">{{ selectedGroup.platform }}</span>
-              <span class="rate-badge rate-badge-good">
+              <span class="rate-badge" :class="isPreviewRate(selectedGroup) ? 'rate-badge-preview' : 'rate-badge-good'">
                 <Icon name="bolt" size="xs" class="mr-0.5" />
-                {{ formatRate(selectedGroup.rate_multiplier) }}
+                {{ formatRate(effectiveRate(selectedGroup)) }}
               </span>
               <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
                 <button
@@ -348,6 +360,9 @@ const platformFilter = ref<string>('')
 const priceMode = ref<'official' | 'site'>('site')
 const selectedGroupId = ref<number | null>(null)
 const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
+// 「客户视角预览」：仅当后端为商户 owner 返回了 preview_sell_rate_multiplier 时可用。
+// 打开后，倍率徽章与本站价改用 owner 配置的售价倍率展示（纯预览，不影响 owner 自身计费）。
+const previewMode = ref(false)
 
 // platform 维度的过滤选项：按出现频率聚合，含每个 platform 下的 group 数量。
 const platformOptions = computed(() => {
@@ -375,6 +390,29 @@ const filteredGroups = computed(() => {
 const selectedGroup = computed(() =>
   filteredGroups.value.find((g) => g.id === selectedGroupId.value) ?? null,
 )
+
+// 后端只对商户 owner 下发 preview_sell_rate_multiplier；有任一 group 带此字段即说明
+// 当前用户是 owner，才展示「客户视角预览」开关。
+const hasOwnerPreview = computed(() =>
+  groups.value.some((g) => g.preview_sell_rate_multiplier != null),
+)
+
+/**
+ * effectiveRate 返回展示用的倍率：预览开关打开且该 group 有 owner 售价倍率时用售价，
+ * 否则用 rate_multiplier（owner 自用/主站/子用户的正常展示价）。
+ */
+function effectiveRate(g: UserPricingGroup | null | undefined): number {
+  if (!g) return 1
+  if (previewMode.value && g.preview_sell_rate_multiplier != null) {
+    return g.preview_sell_rate_multiplier
+  }
+  return g.rate_multiplier
+}
+
+/** isPreviewRate 当前徽章/价格是否展示的是「客户视角预览」售价（用于换色提示）。 */
+function isPreviewRate(g: UserPricingGroup | null | undefined): boolean {
+  return previewMode.value && g?.preview_sell_rate_multiplier != null
+}
 
 /**
  * iconWrapClass 按 platform 返回端点 icon 圆角 wrap 的配色类。
@@ -444,7 +482,7 @@ function formatPrice(perTokenUSD: number | null | undefined): string {
   if (priceMode.value === 'official') {
     return `$${trimNum(officialPerM)}/M`
   }
-  const rate = selectedGroup.value?.rate_multiplier ?? 1
+  const rate = effectiveRate(selectedGroup.value)
   const sitePerM = (rate / fxRate.value) * officialPerM
   return `$${trimNum(sitePerM)}/M`
 }
@@ -498,7 +536,7 @@ function formatPerImage(perItemUSD: number | null | undefined): string {
   if (priceMode.value === 'official') {
     return '$' + trimNum(perItemUSD)
   }
-  const rate = selectedGroup.value?.rate_multiplier ?? 1
+  const rate = effectiveRate(selectedGroup.value)
   return '$' + trimNum((rate / fxRate.value) * perItemUSD)
 }
 
@@ -593,6 +631,24 @@ onMounted(reload)
 
 .rate-badge-good {
   @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300;
+}
+
+.rate-badge-preview {
+  @apply bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300;
+}
+
+.preview-toggle {
+  @apply inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5
+         text-xs font-medium text-gray-600 transition
+         hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700
+         dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300
+         dark:hover:border-violet-500/50 dark:hover:bg-violet-900/20 dark:hover:text-violet-300;
+}
+
+.preview-toggle-active {
+  @apply border-violet-500 bg-violet-500 text-white shadow-sm
+         hover:border-violet-500 hover:bg-violet-500 hover:text-white
+         dark:border-violet-500 dark:bg-violet-500 dark:text-white;
 }
 
 .platform-chip {

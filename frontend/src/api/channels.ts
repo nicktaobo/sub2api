@@ -121,6 +121,12 @@ export interface UserPricingGroup {
   name: string
   platform: string
   rate_multiplier: number
+  /**
+   * 仅当「商户 owner 本人」查看时出现：owner 配置的对外售价倍率。
+   * rate_multiplier 仍是主站价（owner 自用按主站计费），此字段供前端做「客户视角预览」。
+   * 普通用户 / 子用户 / 主站用户均无此字段。
+   */
+  preview_sell_rate_multiplier?: number | null
   is_exclusive: boolean
   models: UserPricingModel[]
 }

@@ -853,6 +853,8 @@ export default {
     officialPrice: 'Official Price',
     sitePrice: 'Site Price',
     exclusive: 'Exclusive',
+    customerPreview: 'Customer view',
+    customerPreviewHint: 'Preview the price your customers see. Display only — does not affect your own billing.',
 
     columns: {
       model: 'Model',

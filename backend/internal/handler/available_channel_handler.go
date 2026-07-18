@@ -235,13 +235,18 @@ type userPricingModel struct {
 
 // userPricingGroup 「模型定价」展示页的端点 = 一个 group。
 // 每个端点的"折扣"由 rate_multiplier 自己决定，跟具体上游 channel 无关。
+//
+// PreviewSellRateMultiplier 仅在「商户 owner 本人」查看时非 nil：owner 自用按主站价
+// 计费（rate_multiplier 保持主站倍率），但会额外带上自己配置的售价倍率，供前端做
+// "客户视角预览"。纯展示，前端预览开关关闭时不使用此字段。
 type userPricingGroup struct {
-	ID             int64              `json:"id"`
-	Name           string             `json:"name"`
-	Platform       string             `json:"platform"`
-	RateMultiplier float64            `json:"rate_multiplier"`
-	IsExclusive    bool               `json:"is_exclusive"`
-	Models         []userPricingModel `json:"models"`
+	ID                        int64              `json:"id"`
+	Name                      string             `json:"name"`
+	Platform                  string             `json:"platform"`
+	RateMultiplier            float64            `json:"rate_multiplier"`
+	PreviewSellRateMultiplier *float64           `json:"preview_sell_rate_multiplier,omitempty"`
+	IsExclusive               bool               `json:"is_exclusive"`
+	Models                    []userPricingModel `json:"models"`
 }
 
 // PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group。
@@ -335,6 +340,14 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			IsExclusive:    g.IsExclusive,
 			Models:         []userPricingModel{},
 		}
+		// 商户 owner 本人视角：额外带上自己配置的售价倍率供「客户视角预览」。
+		// rate_multiplier 仍是主站价（owner 自用按主站计费），预览字段只是展示。
+		if h.merchantPricing != nil {
+			if preview, ok := h.merchantPricing.LookupOwnerSellRate(ctx, subject.UserID, g.ID); ok {
+				p := preview
+				item.PreviewSellRateMultiplier = &p
+			}
+		}
 		for _, name := range modelNames {
 			item.Models = append(item.Models, h.buildPricingModel(ctx, g.ID, name, lookupOfficial))
 		}
@@ -394,15 +407,31 @@ func (h *AvailableChannelHandler) PricingGroupListPublic(c *gin.Context) {
 		return out
 	}
 
+	// 白标域名感知：DomainDetectMiddleware 已按请求 Host 注入 MerchantContext（即使匿名请求）。
+	// 命中某商户域名时，用该商户配置的 sell_rate 覆盖主站 rate_multiplier，让白标广场的
+	// 展示价 = 该商户客户实际付的价，而不是主站价。未配 sell_rate 的 group 回退主站价。
+	var merchantID int64
+	if h.merchantPricing != nil {
+		if mctx := middleware.MerchantFromContext(c); mctx != nil && mctx.Merchant != nil {
+			merchantID = mctx.Merchant.ID
+		}
+	}
+
 	out := make([]userPricingGroup, 0, len(groups))
 	for i := range groups {
 		g := groups[i]
+		rate := g.RateMultiplier
+		if merchantID > 0 {
+			if sell, ok := h.merchantPricing.LookupSellRateByMerchant(ctx, merchantID, g.ID); ok {
+				rate = sell
+			}
+		}
 		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
 		item := userPricingGroup{
 			ID:             g.ID,
 			Name:           g.Name,
 			Platform:       g.Platform,
-			RateMultiplier: g.RateMultiplier,
+			RateMultiplier: rate,
 			IsExclusive:    g.IsExclusive,
 			Models:         []userPricingModel{},
 		}
