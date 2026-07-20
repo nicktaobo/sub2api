@@ -86,7 +86,7 @@
                 <tbody>
                   <tr class="border-t border-gray-200 dark:border-dark-700">
                     <td class="px-3 py-2 font-mono">A</td>
-                    <td class="px-3 py-2 font-mono">@</td>
+                    <td class="px-3 py-2 font-mono break-all">{{ hosts(d).aHost }}</td>
                     <td class="px-3 py-2 font-mono">
                       <span v-if="dnsInfo?.has_server_ip">{{ dnsInfo.server_ip }}</span>
                       <span v-else class="text-amber-600">{{ t('merchant.owner.domains.serverIpMissing') }}</span>
@@ -105,7 +105,9 @@
                 </tbody>
               </table>
             </div>
-            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.domains.step1Hint') }}</p>
+            <p class="mt-1 text-xs text-gray-500">
+              {{ t('merchant.owner.domains.step1Hint', { zone: hosts(d).zone, host: hosts(d).aHost, domain: hosts(d).aFqdn }) }}
+            </p>
           </div>
 
           <!-- 步骤 2：TXT 记录 -->
@@ -137,7 +139,9 @@
                 </tbody>
               </table>
             </div>
-            <p class="mt-1 text-xs text-gray-500">{{ t('merchant.owner.domains.step2Hint') }}</p>
+            <p class="mt-1 text-xs text-gray-500">
+              {{ t('merchant.owner.domains.step2Hint', { zone: hosts(d).zone, host: hosts(d).txtHost, fqdn: hosts(d).txtFqdn }) }}
+            </p>
           </div>
 
           <!-- 步骤 3：验证 -->
@@ -283,6 +287,7 @@ import Icon from '@/components/icons/Icon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { merchantAPI, type MerchantDomain, type DomainBrandPayload, type DNSSetupInfo } from '@/api/merchant'
 import { formatDateTime } from '@/utils/format'
+import { dnsRecordHosts } from '@/utils/dnsRecord'
 import { useAppStore } from '@/stores/app'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 
@@ -383,9 +388,17 @@ function openEdit(d: MerchantDomain) {
   dialog.open = true
 }
 
+/**
+ * hosts 计算该域名要填的 DNS HOST。
+ * 关键：二级域名（如 ai.example.com）的 A 记录 HOST 是子域前缀 `ai`，不是 `@`——
+ * 填 `@` 会把根域 example.com 指向本服务器。
+ */
+function hosts(d: MerchantDomain) {
+  return dnsRecordHosts(d.domain, dnsInfo.value?.txt_host_prefix || '_domain-verify')
+}
+
 function txtHost(d: MerchantDomain) {
-  const prefix = dnsInfo.value?.txt_host_prefix || '_domain-verify'
-  return `${prefix}.${d.domain}`
+  return hosts(d).txtHost
 }
 
 function txtValue(d: MerchantDomain) {
