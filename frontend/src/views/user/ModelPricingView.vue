@@ -363,6 +363,8 @@ const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
 // 「客户视角预览」：仅当后端为商户 owner 返回了 preview_sell_rate_multiplier 时可用。
 // 打开后，倍率徽章与本站价改用 owner 配置的售价倍率展示（纯预览，不影响 owner 自身计费）。
 const previewMode = ref(false)
+// 只在首次加载时按"是否是商户 owner"决定预览默认值，避免每次刷新都覆盖用户的手动选择。
+const previewDefaulted = ref(false)
 
 // platform 维度的过滤选项：按出现频率聚合，含每个 platform 下的 group 数量。
 const platformOptions = computed(() => {
@@ -555,6 +557,12 @@ async function reload() {
       systemAPI.getFXRate().catch(() => null),
     ])
     groups.value = list
+    // 商户 owner 首次进页面默认打开「客户视角预览」：owner 更关心"我的客户看到什么价"，
+    // 主站倍率对他只在自用计费时有意义。之后用户手动切换的状态在本次会话里保留。
+    if (!previewDefaulted.value) {
+      previewDefaulted.value = true
+      previewMode.value = list.some((g) => g.preview_sell_rate_multiplier != null)
+    }
     if (fx && fx.cny_per_usd > 0) fxRate.value = fx.cny_per_usd
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
