@@ -183,7 +183,7 @@ func TestAnthropicToResponsesResponseWithTools_RestoresCodexToolCalls(t *testing
 	resp := &AnthropicResponse{
 		ID:         "msg_codex",
 		Model:      "claude-sonnet-4-5",
-		StopReason: "tool_use",
+		StopReason: AnthropicStopReasonPtr("tool_use"),
 		Content: []AnthropicContentBlock{
 			{Type: "tool_use", ID: "toolu_1", Name: "exec", Input: json.RawMessage(`{"input":"ls -la"}`)},
 			{Type: "tool_use", ID: "toolu_2", Name: "tool_search", Input: json.RawMessage(`{"query":"github"}`)},
@@ -222,7 +222,7 @@ func TestAnthropicToResponsesResponse_NilContextKeepsLegacyFunctionCall(t *testi
 	resp := &AnthropicResponse{
 		ID:         "msg_legacy",
 		Model:      "claude-sonnet-4-5",
-		StopReason: "tool_use",
+		StopReason: AnthropicStopReasonPtr("tool_use"),
 		Content: []AnthropicContentBlock{
 			{Type: "tool_use", ID: "toolu_1", Name: "exec", Input: json.RawMessage(`{"input":"ls"}`)},
 		},

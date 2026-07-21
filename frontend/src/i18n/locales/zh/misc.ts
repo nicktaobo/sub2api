@@ -495,6 +495,7 @@ export default {
     },
 
     days: '天',
+    weeks: '周',
     months: '个月',
     years: '年',
     oneMonth: '1 个月',
