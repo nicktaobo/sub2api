@@ -106,9 +106,14 @@ type APIKeyAuthGroupSnapshot struct {
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`
 
-	// AffiliateRebateExcluded 该分组消费不参与邀请返利（migration 143）；
+	// AffiliateRebateExcluded 该分组消费不参与邀请返利（migration 143，本地 fork）；
 	// 必须进 snapshot，否则 gateway hook 拿不到这个字段。
 	AffiliateRebateExcluded bool `json:"affiliate_rebate_excluded"`
+
+	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制（上游 migration 185）。
+	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`
+	// ReasoningEffortMappings rewrites explicit effort values before the ceiling.（上游 migration 185）
+	ReasoningEffortMappings []ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 
 	// 高峰时段倍率：PeakRateEnabled 为 true 且请求时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier（详见 Group.PeakMultiplierAt）。

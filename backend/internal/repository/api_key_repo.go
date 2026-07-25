@@ -206,7 +206,11 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldMessagesDispatchModelConfig,
 				group.FieldModelsListConfig,
 				group.FieldRpmLimit,
+				// 本地 fork：邀请返利排除标记，漏选会导致 gateway hook 读零值、被排除分组照常返利。
 				group.FieldAffiliateRebateExcluded,
+				// 上游 migration 185：reasoning effort 上限与映射，漏选会导致策略读空、上限失效。
+				group.FieldMaxReasoningEffort,
+				group.FieldReasoningEffortMappings,
 				group.FieldPeakRateEnabled,
 				group.FieldPeakStart,
 				group.FieldPeakEnd,
@@ -962,6 +966,8 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ModelsListConfig:                g.ModelsListConfig,
 		RPMLimit:                        g.RpmLimit,
 		AffiliateRebateExcluded:         g.AffiliateRebateExcluded,
+		MaxReasoningEffort:              g.MaxReasoningEffort,
+		ReasoningEffortMappings:         g.ReasoningEffortMappings,
 		PeakRateEnabled:                 g.PeakRateEnabled,
 		PeakStart:                       g.PeakStart,
 		PeakEnd:                         g.PeakEnd,

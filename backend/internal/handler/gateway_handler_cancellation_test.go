@@ -39,10 +39,11 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	}
 	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*service.Account{account}}}
 	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
-	// 本地 fork 在 userPlatformQuotaRepo 之前额外注入 merchantPricing、affiliateRebatePricing，测试传 nil。
+	// 上游在 resolver 之后新增 compositeResolver；本地 fork 在 userPlatformQuotaRepo 之前额外注入
+	// merchantPricing、affiliateRebatePricing、merchantAffiliateRebate，测试统一传 nil（共 31 个参数）。
 	gatewayService := service.NewGatewayService(
 		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, nil,
-		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)

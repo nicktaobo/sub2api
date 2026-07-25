@@ -46,4 +46,26 @@ describe('zh-TW locale parity', () => {
     const stray = flattenKeys(zhTWFill as Record<string, any>).filter((k) => !upstreamKeys.has(k))
     expect(stray).toEqual([])
   })
+
+  // 占位符丢失是 key 覆盖与预编译都抓不到的一类漂移：key 在、语法也合法，只是译文把
+  // {limit} 之类写成了当时的字面值，界面从此永远显示旧常量。上游后来把写死的文案改成
+  // 占位符时尤其容易中招，故按值比对占位符集合。
+  it('translations keep every placeholder present in the source locale', () => {
+    const placeholders = (value: string) =>
+      new Set((value.match(/\{[a-zA-Z0-9_]+\}/g) ?? []).map((m) => m))
+    const valueAt = (obj: Record<string, any>, path: string): unknown =>
+      path.split('.').reduce<any>((acc, part) => (acc == null ? acc : acc[part]), obj)
+
+    const drifted: string[] = []
+    for (const key of flattenKeys(zhTWFill as Record<string, any>)) {
+      const translated = valueAt(zhTWFill as Record<string, any>, key)
+      const source = valueAt(zh as Record<string, any>, key) ?? valueAt(en as Record<string, any>, key)
+      if (typeof translated !== 'string' || typeof source !== 'string') continue
+      const expected = placeholders(source)
+      const actual = placeholders(translated)
+      const missing = [...expected].filter((p) => !actual.has(p))
+      if (missing.length > 0) drifted.push(`${key}: missing ${missing.join(', ')}`)
+    }
+    expect(drifted).toEqual([])
+  })
 })

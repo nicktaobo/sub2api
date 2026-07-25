@@ -158,6 +158,7 @@ const labelClass = computed(() => {
     qwen: 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300',
     seedance: 'bg-amber-200/60 text-amber-800 dark:bg-amber-800/40 dark:text-amber-300',
     grok: 'bg-zinc-300/70 text-zinc-800 dark:bg-zinc-700/60 dark:text-zinc-200',
+    composite: 'bg-cyan-200/70 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-300',
   }
   return `${base} ${labelColors[props.platform || ''] || 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300'}`
 })
@@ -178,6 +179,7 @@ const BADGE_COLORS: Record<string, { sub: string; std: string }> = {
   qwen:        { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
   seedance:    { sub: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',        std: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
   grok:        { sub: 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100',               std: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200' },
+  composite:   { sub: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',            std: 'bg-cyan-50 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300' },
 }
 const BADGE_DEFAULT = { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400' }
 const badgeClass = computed(() => {

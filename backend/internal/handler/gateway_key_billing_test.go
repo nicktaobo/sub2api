@@ -40,10 +40,11 @@ func newKeyBillingHandler(repo service.UserGroupRateRepository) *GatewayHandler 
 }
 
 func newKeyBillingGatewayService(repo service.UserGroupRateRepository) *service.GatewayService {
-	// 本地 fork 在 userPlatformQuotaRepo 之前额外注入 merchantPricing、affiliateRebatePricing，测试传 nil。
+	// 上游在 resolver 之后新增 compositeResolver；本地 fork 在 userPlatformQuotaRepo 之前额外注入
+	// merchantPricing、affiliateRebatePricing、merchantAffiliateRebate，测试统一传 nil（共 31 个参数）。
 	return service.NewGatewayService(
 		nil, nil, nil, nil, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 }
 

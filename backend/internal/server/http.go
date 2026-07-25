@@ -39,6 +39,7 @@ func ProvideRouter(
 	subscriptionService *service.SubscriptionService,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
+	compositeResolver *service.CompositeRouteResolver,
 	redisClient *redis.Client,
 	merchantRepo service.MerchantRepository, // MERCHANT-SYSTEM v1.0
 	merchantSvc *service.MerchantService,
@@ -87,7 +88,7 @@ func ProvideRouter(
 		service.SetWebSearchManager(websearch.NewManager(configs, redisClient))
 	})
 
-	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient, merchantRepo, merchantSvc)
+	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient, merchantRepo, merchantSvc)
 }
 
 func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {

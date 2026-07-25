@@ -321,6 +321,82 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesParentMerchantID(t *testing.T)
 	require.Equal(t, merchantID, *roundTrip.User.ParentMerchantID)
 }
 
+// 回归：分组的邀请返利排除标记必须经快照往返保留，否则 gateway hook 读到零值、
+// 被排除分组的消费仍然产生返利。
+func TestAPIKeyService_SnapshotRoundTrip_PreservesAffiliateRebateExcluded(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(9)
+	apiKey := &APIKey{
+		ID:      1,
+		UserID:  2,
+		GroupID: &groupID,
+		Key:     "k-affiliate-excluded",
+		Status:  StatusActive,
+		User: &User{
+			ID:          2,
+			Status:      StatusActive,
+			Role:        RoleUser,
+			Balance:     10,
+			Concurrency: 3,
+		},
+		Group: &Group{
+			ID:                      groupID,
+			Name:                    "openai",
+			Platform:                PlatformOpenAI,
+			Status:                  StatusActive,
+			SubscriptionType:        SubscriptionTypeStandard,
+			RateMultiplier:          1,
+			AffiliateRebateExcluded: true,
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.Group)
+	require.True(t, roundTrip.Group.AffiliateRebateExcluded)
+}
+
+func TestAPIKeyService_SnapshotRoundTrip_PreservesReasoningEffortPolicy(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(9)
+	apiKey := &APIKey{
+		ID:      1,
+		UserID:  2,
+		GroupID: &groupID,
+		Key:     "k-reasoning-policy",
+		Status:  StatusActive,
+		User: &User{
+			ID:          2,
+			Status:      StatusActive,
+			Role:        RoleUser,
+			Balance:     10,
+			Concurrency: 3,
+		},
+		Group: &Group{
+			ID:                 groupID,
+			Name:               "openai",
+			Platform:           PlatformOpenAI,
+			Status:             StatusActive,
+			SubscriptionType:   SubscriptionTypeStandard,
+			RateMultiplier:     1,
+			MaxReasoningEffort: "medium",
+			ReasoningEffortMappings: []ReasoningEffortMapping{
+				{From: "max", To: "xhigh"},
+			},
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.Group)
+	require.Equal(t, "medium", roundTrip.Group.MaxReasoningEffort)
+	require.Equal(t, apiKey.Group.ReasoningEffortMappings, roundTrip.Group.ReasoningEffortMappings)
+}
+
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {
 	cache := &authCacheStub{}
 	var repoCalls int32

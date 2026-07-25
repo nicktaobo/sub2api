@@ -14,12 +14,13 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v16: merge of two independent v15 lineages — local added user parent_merchant_id
-// (merchant sub-user guards), upstream added group web search per-call pricing. The merged
-// snapshot now carries BOTH fields, so bump past 15 to invalidate every pre-merge v15 cache
-// entry; otherwise a stale v15 entry deserializes with the other lineage's field zeroed yet
-// still passes the version check (e.g. WebSearchPricePerCall reads 0 → undercharge until TTL).
-const apiKeyAuthSnapshotVersion = 16
+// v17: merge of two independent v16 lineages that shared the same number with different
+// meanings — local v16 added user parent_merchant_id + group affiliate_rebate_excluded
+// (merchant sub-user guards / 邀请返利排除), upstream v16 added group reasoning effort
+// ceiling + mappings. The merged snapshot carries BOTH sets, so it must bump past 16:
+// a stale v16 entry from either lineage would still pass the version check while the other
+// lineage's fields deserialize to zero values (merchant 停用守卫静默失效 / reasoning 策略读空).
+const apiKeyAuthSnapshotVersion = 17
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -420,6 +421,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			AffiliateRebateExcluded:         apiKey.Group.AffiliateRebateExcluded,
+			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
+			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
 			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
 			PeakStart:                       apiKey.Group.PeakStart,
 			PeakEnd:                         apiKey.Group.PeakEnd,
@@ -506,6 +509,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			AffiliateRebateExcluded:         snapshot.Group.AffiliateRebateExcluded,
+			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
+			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
 			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,
 			PeakStart:                       snapshot.Group.PeakStart,
 			PeakEnd:                         snapshot.Group.PeakEnd,

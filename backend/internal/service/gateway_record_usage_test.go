@@ -42,11 +42,13 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 		nil,
 		nil,
 		nil,
-		nil,
-		nil,
-		nil,      // merchantPricing
-		nil,      // affiliateRebatePricing
-		nil, nil, // userPlatformQuotaRepo
+		nil, // resolver
+		nil, // compositeResolver
+		nil, // balanceNotifyService
+		nil, // merchantPricing
+		nil, // affiliateRebatePricing
+		nil, // merchantAffiliateRebate
+		nil, // userPlatformQuotaRepo
 	)
 }
 

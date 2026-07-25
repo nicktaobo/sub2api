@@ -707,45 +707,46 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
-	accountRepo            AccountRepository
-	groupRepo              GroupRepository
-	usageLogRepo           UsageLogRepository
-	usageBillingRepo       UsageBillingRepository
-	userRepo               UserRepository
-	userSubRepo            UserSubscriptionRepository
-	userGroupRateRepo      UserGroupRateRepository
-	cache                  GatewayCache
-	digestStore            *DigestSessionStore
-	cfg                    *config.Config
-	schedulerSnapshot      *SchedulerSnapshotService
-	billingService         *BillingService
-	rateLimitService       *RateLimitService
-	billingCacheService    *BillingCacheService
-	identityService        *IdentityService
-	httpUpstream           HTTPUpstream
-	deferredService        *DeferredService
-	concurrencyService     *ConcurrencyService
-	claudeTokenProvider    *ClaudeTokenProvider
-	sessionLimitCache      SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
-	rpmCache               RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
-	userGroupRateResolver  *userGroupRateResolver
-	userGroupRateCache     *gocache.Cache
-	userGroupRateSF        singleflight.Group
-	modelsListCache        *gocache.Cache
-	modelsListCacheTTL     time.Duration
-	settingService         *SettingService
-	responseHeaderFilter   *responseheaders.CompiledHeaderFilter
-	debugModelRouting      atomic.Bool
-	debugClaudeMimic       atomic.Bool
-	channelService         *ChannelService
-	resolver               *ModelPricingResolver
-	debugGatewayBodyFile   atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
-	tlsFPProfileService    *TLSFingerprintProfileService
-	balanceNotifyService   *BalanceNotifyService
-	merchantPricing        *MerchantPricingService          // MERCHANT-SYSTEM v1.0
-	affiliateRebatePricing *AffiliateRebatePricingService   // migration 143：邀请返利消费侧 hook
+	accountRepo             AccountRepository
+	groupRepo               GroupRepository
+	usageLogRepo            UsageLogRepository
+	usageBillingRepo        UsageBillingRepository
+	userRepo                UserRepository
+	userSubRepo             UserSubscriptionRepository
+	userGroupRateRepo       UserGroupRateRepository
+	cache                   GatewayCache
+	digestStore             *DigestSessionStore
+	cfg                     *config.Config
+	schedulerSnapshot       *SchedulerSnapshotService
+	billingService          *BillingService
+	rateLimitService        *RateLimitService
+	billingCacheService     *BillingCacheService
+	identityService         *IdentityService
+	httpUpstream            HTTPUpstream
+	deferredService         *DeferredService
+	concurrencyService      *ConcurrencyService
+	claudeTokenProvider     *ClaudeTokenProvider
+	sessionLimitCache       SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
+	rpmCache                RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
+	userGroupRateResolver   *userGroupRateResolver
+	userGroupRateCache      *gocache.Cache
+	userGroupRateSF         singleflight.Group
+	modelsListCache         *gocache.Cache
+	modelsListCacheTTL      time.Duration
+	settingService          *SettingService
+	responseHeaderFilter    *responseheaders.CompiledHeaderFilter
+	debugModelRouting       atomic.Bool
+	debugClaudeMimic        atomic.Bool
+	channelService          *ChannelService
+	resolver                *ModelPricingResolver
+	compositeResolver       *CompositeRouteResolver
+	debugGatewayBodyFile    atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
+	tlsFPProfileService     *TLSFingerprintProfileService
+	balanceNotifyService    *BalanceNotifyService
+	merchantPricing         *MerchantPricingService         // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing  *AffiliateRebatePricingService  // migration 143：邀请返利消费侧 hook
 	merchantAffiliateRebate *MerchantAffiliateRebateService // MERCHANT-AFFILIATE v1.0：代理下级邀请返利 hook
-	userPlatformQuotaRepo  UserPlatformQuotaRepository
+	userPlatformQuotaRepo   UserPlatformQuotaRepository
 }
 
 // NewGatewayService creates a new GatewayService
@@ -775,6 +776,7 @@ func NewGatewayService(
 	tlsFPProfileService *TLSFingerprintProfileService,
 	channelService *ChannelService,
 	resolver *ModelPricingResolver,
+	compositeResolver *CompositeRouteResolver,
 	balanceNotifyService *BalanceNotifyService,
 	merchantPricing *MerchantPricingService,
 	affiliateRebatePricing *AffiliateRebatePricingService,
@@ -785,36 +787,37 @@ func NewGatewayService(
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
 
 	svc := &GatewayService{
-		accountRepo:            accountRepo,
-		groupRepo:              groupRepo,
-		usageLogRepo:           usageLogRepo,
-		usageBillingRepo:       usageBillingRepo,
-		userRepo:               userRepo,
-		userSubRepo:            userSubRepo,
-		userGroupRateRepo:      userGroupRateRepo,
-		cache:                  cache,
-		digestStore:            digestStore,
-		cfg:                    cfg,
-		schedulerSnapshot:      schedulerSnapshot,
-		concurrencyService:     concurrencyService,
-		billingService:         billingService,
-		rateLimitService:       rateLimitService,
-		billingCacheService:    billingCacheService,
-		identityService:        identityService,
-		httpUpstream:           httpUpstream,
-		deferredService:        deferredService,
-		claudeTokenProvider:    claudeTokenProvider,
-		sessionLimitCache:      sessionLimitCache,
-		rpmCache:               rpmCache,
-		userGroupRateCache:     gocache.New(userGroupRateTTL, time.Minute),
-		settingService:         settingService,
-		modelsListCache:        gocache.New(modelsListTTL, time.Minute),
-		modelsListCacheTTL:     modelsListTTL,
-		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
-		tlsFPProfileService:    tlsFPProfileService,
-		channelService:         channelService,
-		resolver:               resolver,
-		balanceNotifyService:   balanceNotifyService,
+		accountRepo:             accountRepo,
+		groupRepo:               groupRepo,
+		usageLogRepo:            usageLogRepo,
+		usageBillingRepo:        usageBillingRepo,
+		userRepo:                userRepo,
+		userSubRepo:             userSubRepo,
+		userGroupRateRepo:       userGroupRateRepo,
+		cache:                   cache,
+		digestStore:             digestStore,
+		cfg:                     cfg,
+		schedulerSnapshot:       schedulerSnapshot,
+		concurrencyService:      concurrencyService,
+		billingService:          billingService,
+		rateLimitService:        rateLimitService,
+		billingCacheService:     billingCacheService,
+		identityService:         identityService,
+		httpUpstream:            httpUpstream,
+		deferredService:         deferredService,
+		claudeTokenProvider:     claudeTokenProvider,
+		sessionLimitCache:       sessionLimitCache,
+		rpmCache:                rpmCache,
+		userGroupRateCache:      gocache.New(userGroupRateTTL, time.Minute),
+		settingService:          settingService,
+		modelsListCache:         gocache.New(modelsListTTL, time.Minute),
+		modelsListCacheTTL:      modelsListTTL,
+		responseHeaderFilter:    compileResponseHeaderFilter(cfg),
+		tlsFPProfileService:     tlsFPProfileService,
+		channelService:          channelService,
+		resolver:                resolver,
+		compositeResolver:       compositeResolver,
+		balanceNotifyService:    balanceNotifyService,
 		merchantPricing:         merchantPricing,
 		affiliateRebatePricing:  affiliateRebatePricing,
 		merchantAffiliateRebate: merchantAffiliateRebate,
@@ -1279,6 +1282,34 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		modelsListCacheStoreTotal.Add(1)
 	}
 	return cloneStringSlice(models)
+}
+
+// GetSchedulablePlatforms returns the concrete platforms that currently have
+// schedulable accounts in the target group.
+func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *int64) map[string]struct{} {
+	platforms := make(map[string]struct{})
+	if s == nil || s.accountRepo == nil {
+		return platforms
+	}
+
+	var accounts []Account
+	var err error
+	if groupID != nil {
+		accounts, err = s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
+	} else {
+		accounts, err = s.accountRepo.ListSchedulable(ctx)
+	}
+	if err != nil {
+		return platforms
+	}
+
+	for _, acc := range accounts {
+		platform := strings.TrimSpace(acc.Platform)
+		if platform != "" {
+			platforms[platform] = struct{}{}
+		}
+	}
+	return platforms
 }
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {

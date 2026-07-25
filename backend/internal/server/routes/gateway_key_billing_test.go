@@ -75,10 +75,11 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 	apiKeyService := service.NewAPIKeyService(
 		&keyBillingRouteAPIKeyRepo{apiKey: apiKey}, nil, nil, nil, rateRepo, nil, cfg,
 	)
-	// 本地 fork 在 userPlatformQuotaRepo 之前额外注入 merchantPricing、affiliateRebatePricing，测试传 nil。
+	// 上游在 resolver 之后新增 compositeResolver；本地 fork 在 userPlatformQuotaRepo 之前额外注入
+	// merchantPricing、affiliateRebatePricing、merchantAffiliateRebate，测试统一传 nil（共 31 个参数）。
 	gatewayService := service.NewGatewayService(
 		nil, nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	openAIGatewayService := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil,
@@ -99,6 +100,7 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 		// 本地 fork 额外注入 merchantRepo，测试传 nil。
 		servermiddleware.NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg, nil),
 		apiKeyService,
+		nil,
 		nil,
 		nil,
 		nil,
