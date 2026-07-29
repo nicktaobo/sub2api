@@ -14,13 +14,17 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v17: merge of two independent v16 lineages that shared the same number with different
-// meanings — local v16 added user parent_merchant_id + group affiliate_rebate_excluded
-// (merchant sub-user guards / 邀请返利排除), upstream v16 added group reasoning effort
-// ceiling + mappings. The merged snapshot carries BOTH sets, so it must bump past 16:
-// a stale v16 entry from either lineage would still pass the version check while the other
-// lineage's fields deserialize to zero values (merchant 停用守卫静默失效 / reasoning 策略读空).
-const apiKeyAuthSnapshotVersion = 17
+// v18: third same-number/different-meaning collision between the two lineages.
+// Local v17 was itself the merge of two independent v16 lineages — local v16 added user
+// parent_merchant_id + group affiliate_rebate_excluded (merchant sub-user guards / 邀请返利
+// 排除), upstream v16 added group reasoning effort ceiling + mappings. Upstream then
+// independently bumped its own v16 to v17 for the OpenAI group Live gate (group.AllowLive).
+// So "v17" means two different field sets. The merged snapshot carries ALL THREE sets
+// (merchant fields + reasoning effort + AllowLive) and must therefore bump past 17: a stale
+// v17 entry from either lineage would still pass the version check while the other lineage's
+// fields deserialize to zero values — merchant 停用守卫静默失效 / reasoning 策略读空 /
+// AllowLive 读成 false (live API 对已授权分组静默 403).
+const apiKeyAuthSnapshotVersion = 18
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -416,6 +420,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			MCPXMLInject:                    apiKey.Group.MCPXMLInject,
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
+			AllowLive:                       apiKey.Group.AllowLive,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
@@ -504,6 +509,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			MCPXMLInject:                    snapshot.Group.MCPXMLInject,
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
+			AllowLive:                       snapshot.Group.AllowLive,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,

@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/platform/liveattestation"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
@@ -421,34 +422,36 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo            AccountRepository
-	usageLogRepo           UsageLogRepository
-	usageBillingRepo       UsageBillingRepository
-	userRepo               UserRepository
-	userSubRepo            UserSubscriptionRepository
-	cache                  GatewayCache
-	cfg                    *config.Config
-	codexDetector          CodexClientRestrictionDetector
-	schedulerSnapshot      *SchedulerSnapshotService
-	concurrencyService     *ConcurrencyService
-	billingService         *BillingService
-	rateLimitService       *RateLimitService
-	billingCacheService    *BillingCacheService
-	userGroupRateResolver  *userGroupRateResolver
-	httpUpstream           HTTPUpstream
-	deferredService        *DeferredService
-	openAITokenProvider    *OpenAITokenProvider
-	grokTokenProvider      *GrokTokenProvider
-	toolCorrector          *CodexToolCorrector
-	openaiWSResolver       OpenAIWSProtocolResolver
-	resolver               *ModelPricingResolver
-	channelService         *ChannelService
-	balanceNotifyService   *BalanceNotifyService
-	settingService         *SettingService
-	merchantPricing        *MerchantPricingService          // MERCHANT-SYSTEM v1.0
-	affiliateRebatePricing *AffiliateRebatePricingService   // migration 143：邀请返利消费侧 hook
+	accountRepo             AccountRepository
+	usageLogRepo            UsageLogRepository
+	usageBillingRepo        UsageBillingRepository
+	userRepo                UserRepository
+	userSubRepo             UserSubscriptionRepository
+	cache                   GatewayCache
+	cfg                     *config.Config
+	codexDetector           CodexClientRestrictionDetector
+	schedulerSnapshot       *SchedulerSnapshotService
+	concurrencyService      *ConcurrencyService
+	billingService          *BillingService
+	rateLimitService        *RateLimitService
+	billingCacheService     *BillingCacheService
+	userGroupRateResolver   *userGroupRateResolver
+	httpUpstream            HTTPUpstream
+	deferredService         *DeferredService
+	openAITokenProvider     *OpenAITokenProvider
+	grokTokenProvider       *GrokTokenProvider
+	toolCorrector           *CodexToolCorrector
+	openaiWSResolver        OpenAIWSProtocolResolver
+	resolver                *ModelPricingResolver
+	channelService          *ChannelService
+	balanceNotifyService    *BalanceNotifyService
+	settingService          *SettingService
+	merchantPricing         *MerchantPricingService         // MERCHANT-SYSTEM v1.0
+	affiliateRebatePricing  *AffiliateRebatePricingService  // migration 143：邀请返利消费侧 hook
 	merchantAffiliateRebate *MerchantAffiliateRebateService // MERCHANT-AFFILIATE v1.0：代理下级邀请返利 hook
-	userPlatformQuotaRepo  UserPlatformQuotaRepository
+	userPlatformQuotaRepo   UserPlatformQuotaRepository
+	liveAttestation         liveattestation.Provider
+	liveAttestationCipher   SecretEncryptor
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -530,20 +533,22 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:           httpUpstream,
-		deferredService:        deferredService,
-		openAITokenProvider:    openAITokenProvider,
-		grokTokenProvider:      grokTokenProvider,
-		toolCorrector:          NewCodexToolCorrector(),
-		openaiWSResolver:       NewOpenAIWSProtocolResolver(cfg),
-		resolver:               resolver,
-		channelService:         channelService,
-		balanceNotifyService:   balanceNotifyService,
-		settingService:         settingService,
-		userPlatformQuotaRepo:  userPlatformQuotaRepo,
-		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle:  newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		openaiModelTransient:   newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
+		httpUpstream:            httpUpstream,
+		deferredService:         deferredService,
+		openAITokenProvider:     openAITokenProvider,
+		grokTokenProvider:       grokTokenProvider,
+		toolCorrector:           NewCodexToolCorrector(),
+		openaiWSResolver:        NewOpenAIWSProtocolResolver(cfg),
+		resolver:                resolver,
+		channelService:          channelService,
+		balanceNotifyService:    balanceNotifyService,
+		settingService:          settingService,
+		userPlatformQuotaRepo:   userPlatformQuotaRepo,
+		liveAttestation:         liveattestation.NewProvider(),
+		liveAttestationCipher:   newLiveAttestationCipher(cfg),
+		responseHeaderFilter:    compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle:   newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiModelTransient:    newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
 		merchantPricing:         merchantPricing,
 		affiliateRebatePricing:  affiliateRebatePricing,
 		merchantAffiliateRebate: merchantAffiliateRebate,

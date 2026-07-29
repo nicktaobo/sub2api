@@ -205,6 +205,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
 		AllowMessagesDispatch:           g.AllowMessagesDispatch,
+		AllowLive:                       g.AllowLive,
 		RequireOAuthOnly:                g.RequireOAuthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,
 		RPMLimit:                        g.RPMLimit,
@@ -680,6 +681,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		MediaType:                 l.MediaType,
 		UserAgent:                 l.UserAgent,
 		IPAddress:                 l.IPAddress,
+		SessionID:                 l.SessionID,
 		CacheTTLOverridden:        l.CacheTTLOverridden,
 		BillingMode:               l.BillingMode,
 		// 计价币种按实际计费模型判定：国产官方人民币价模型→CNY，其余→USD。

@@ -31,6 +31,14 @@ vi.mock('@/api/admin', () => ({
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
+      // 上游 0.1.168 新增的 Live 能力探测接口：GroupsView onMounted 会无条件预热调用它。
+      // 本地 fork 的这批 spec 是在该接口出现之前写的，mock 里缺这个方法会让组件在挂载时
+      // 抛出未捕获的 TypeError（测试断言仍然全绿，但 vitest 退出码变成 1）。
+      // 这里给一个「能力不可用」的安全默认：onMounted 只是预取不消费，
+      // 也不会误触发 toggleLive 里那条「不支持则弹确认框」的额外分支。
+      // 用 vi.fn(impl) 而不是 .mockResolvedValue()：本文件 afterEach 会 restoreAllMocks，
+      // Vitest 2 的 mockReset 只保留「传给 vi.fn 的原始实现」，链式设的返回值会被抹掉。
+      getLiveCapability: vi.fn(async () => ({ supported: false })),
       getAll: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),

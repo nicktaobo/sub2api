@@ -90,6 +90,7 @@ type relayState struct {
 	// 主流程在 waitRelayExit 超时兜底路径下可能与其并发，enrichResult 读取时必须持锁取快照。
 	mu                sync.Mutex
 	usage             Usage
+	requestModelMu    sync.RWMutex
 	requestModel      string
 	lastResponseID    string
 	terminalEventType string
@@ -168,6 +169,12 @@ func Relay(
 		defer cancel()
 		return upstreamConn.WriteFrame(writeCtx, msgType, payload)
 	}
+	writeClientFrameUpstream := func(msgType coderws.MessageType, payload []byte) error {
+		if msgType == coderws.MessageText && strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
+			state.setRequestModel(strings.TrimSpace(gjson.GetBytes(payload, "model").String()))
+		}
+		return writeUpstream(msgType, payload)
+	}
 	writeClient := func(msgType coderws.MessageType, payload []byte) error {
 		writeCtx, cancel := context.WithTimeout(relayCtx, writeTimeout)
 		defer cancel()
@@ -219,7 +226,7 @@ func Relay(
 		if !clientReaderStarted.CompareAndSwap(false, true) {
 			return
 		}
-		go runClientToUpstream(relayCtx, clientConn, options.ReadClientFrame, writeUpstream, markActivity, clientToUpstreamFrames, onTrace, exitCh)
+		go runClientToUpstream(relayCtx, clientConn, options.ReadClientFrame, writeClientFrameUpstream, markActivity, clientToUpstreamFrames, onTrace, exitCh)
 	}
 	if !options.StartClientAfterFirstDownstream {
 		startClientReader()
@@ -721,7 +728,7 @@ func emitTurnComplete(
 	}
 	requestModel := ""
 	if state != nil {
-		requestModel = state.requestModel
+		requestModel = state.currentRequestModel()
 	}
 	onTurnComplete(RelayTurnResult{
 		RequestModel:      requestModel,
@@ -885,13 +892,35 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 		return
 	}
 	// waitRelayExit 超时兜底路径下 runUpstreamToClient 可能仍在写 state，持锁取快照避免读到撕裂值。
+	// requestModel 例外：上游把它改成由 client→upstream goroutine 经 setRequestModel 写入
+	// （response.create 逐 turn 切模型），state.mu 保护不到那个写者，必须走 requestModelMu。
+	// 锁序固定为 mu → requestModelMu（emitTurnComplete 也是在持 mu 时调 currentRequestModel），
+	// 无反向路径，不会死锁。
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	result.RequestModel = state.requestModel
+	result.RequestModel = state.currentRequestModel()
 	result.Usage = state.usage
 	result.RequestID = state.lastResponseID
 	result.TerminalEventType = state.terminalEventType
 	result.FirstTokenMs = openAIWSRelayCloneIntPtr(state.firstTokenMs)
+}
+
+func (s *relayState) setRequestModel(model string) {
+	if s == nil || model == "" {
+		return
+	}
+	s.requestModelMu.Lock()
+	s.requestModel = model
+	s.requestModelMu.Unlock()
+}
+
+func (s *relayState) currentRequestModel() string {
+	if s == nil {
+		return ""
+	}
+	s.requestModelMu.RLock()
+	defer s.requestModelMu.RUnlock()
+	return s.requestModel
 }
 
 func isDisconnectError(err error) bool {

@@ -110,16 +110,38 @@ func (h *AuthHandler) respondWithTokenPair(c *gin.Context, user *service.User) {
 	// MERCHANT-SYSTEM v3.0：handler 收口再做一次域名归属校验，覆盖
 	// 注册 / TOTP 二次校验 / OAuth (handler 直签 token pair) 等所有走
 	// respondWithTokenPair 的路径。service 层入口已校验，此处是纵深防御。
+	// 上游把签发逻辑抽成包级 respondWithTokenPair 后，只有这里拿得到
+	// cfg.Merchant.Enabled，所以完整校验（含"子用户不得登录主站"）留在方法上。
 	if err := service.ValidateUserDomainScope(c.Request.Context(), user, h.merchantEnabled()); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), user, "")
+	respondWithTokenPair(c, h.authService, user)
+}
+
+func respondWithTokenPair(c *gin.Context, authService *service.AuthService, user *service.User) {
+	if err := ensureLoginUserActive(user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// MERCHANT-SYSTEM v3.0：passkey 等新登录入口直接调用这个包级函数，拿不到
+	// cfg。DomainDetectMiddleware 仅在 cfg.Merchant.Enabled 时注入商户上下文，
+	// 因此"命中商户域名"本身即可作为开关：此时必须满足域名归属校验，
+	// 避免跨商户 / 已停用商户的账号从新入口绕过 MERCHANT-SYSTEM 守卫。
+	if service.MerchantFromGoContext(c.Request.Context()) != nil {
+		if err := service.ValidateUserDomainScope(c.Request.Context(), user, true); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+
+	tokenPair, err := authService.GenerateTokenPair(c.Request.Context(), user, "")
 	if err != nil {
 		slog.Error("failed to generate token pair", "error", err, "user_id", user.ID)
 		// 回退到只返回Access Token
-		token, tokenErr := h.authService.GenerateToken(c.Request.Context(), user)
+		token, tokenErr := authService.GenerateToken(c.Request.Context(), user)
 		if tokenErr != nil {
 			response.InternalError(c, "Failed to generate token")
 			return

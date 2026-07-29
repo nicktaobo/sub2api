@@ -118,16 +118,39 @@ func TestAPIKeyService_RejectsV16AuthSnapshotFromEitherPreMergeLineage(t *testin
 		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
 	}
 	if ok {
-		t.Fatal("expected v16 auth snapshot to be rejected: local and upstream v16 have different meanings, merged snapshot is v17")
+		t.Fatal("expected v16 auth snapshot to be rejected: local and upstream v16 have different meanings, merged snapshot is past v16")
 	}
 	if apiKey != nil {
 		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
 	}
 }
 
-// 版本号必须严格大于两条血脉各自的 v16，否则旧缓存会被误判有效。
-func TestAPIKeyAuthSnapshotVersion_IsPastBothV16Lineages(t *testing.T) {
-	if apiKeyAuthSnapshotVersion <= 16 {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > 16 after merging the two conflicting v16 lineages, got %d", apiKeyAuthSnapshotVersion)
+// v17 是第三次同号异义：本地 v17（合并两条 v16 血脉的产物）与上游 v17（group Live gate）
+// 含义不同，合并后升到 18，故 v17 条目同样必须整体拒绝。
+func TestAPIKeyService_RejectsV17AuthSnapshotFromEitherLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v17", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 17},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v17 auth snapshot to be rejected: local v17 (merged v16 lineages) and upstream v17 (group Live gate) have different meanings")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16 两条血脉、v17 两条血脉），否则旧缓存会被误判有效。
+// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加，撞号已连续三轮；下轮合并
+// 若上游再 bump 到 18，这里要继续抬高，不能沿用。
+func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
+	const lastCollidedVersion = 17
+	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }
