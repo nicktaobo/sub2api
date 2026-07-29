@@ -43,9 +43,9 @@
           <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
         </a>
 
-        <!-- Model Plaza Entry -->
+        <!-- Model Plaza Entry（商户白标域名下永不展示：上游 plaza 无 merchant 感知，会露主站进货价） -->
         <router-link
-          v-if="user && modelPlazaEnabled"
+          v-if="showModelPlazaEntry"
           :to="{ path: '/model-plaza', query: { embedded: '1' } }"
           class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
         >
@@ -252,7 +252,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAppStore, useAuthStore, useMerchantStore, useOnboardingStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
@@ -269,6 +269,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const adminSettingsStore = useAdminSettingsStore()
+const merchantStore = useMerchantStore()
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
@@ -281,6 +282,13 @@ const hasContactBlock = computed(
 )
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
+// 顶栏「模型广场」入口：商户白标域名下一律不展示。
+// 上游 plaza 直出主站 rate_multiplier，没有 merchant 售价覆盖，商户子用户从这个入口
+// 进去就能看到全部公开分组的主站进货价（绕开 api_key_service 给 sub_user 换 sell_rate
+// 的防线）。后端 ModelPlazaHandler.Get 已对商户域名 404，这里是配套的入口隐藏。
+const showModelPlazaEntry = computed(
+  () => !!user.value && modelPlazaEnabled.value && !merchantStore.isMerchantSite,
+)
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const availableBalance = computed(() => Number(user.value?.balance || 0))
 const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))

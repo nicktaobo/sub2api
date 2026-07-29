@@ -353,7 +353,30 @@ export default {
     copyModelHint: 'Click to copy model name',
     apiBaseTitle: 'API Base URL',
     apiBaseHint: 'Use this as the Base URL in your client; authenticate with a key created in the console.',
-    copyApiBase: 'Copy'
+    copyApiBase: 'Copy',
+    viewPricing: 'View pricing',
+    hidePricing: 'Hide pricing',
+    fromPrice: 'Input from {price}',
+    fromPriceRequest: 'Per request from {price}',
+    fromPriceImage: 'Per image from {price}',
+    noPricing: 'Pricing not published',
+    groupSearchEmpty: 'No models in this group match your search.',
+    searchFilteredHint: 'Filtered by search: {count} of {total} models',
+    rateFilterLabel: 'Rate',
+    priceNote:
+      'Site price = base price × group rate, converted at the current FX rate. The base price is the channel-specific price for that model when one is set, otherwise the official price. Final billing follows the console.',
+
+    table: {
+      input: 'Input',
+      output: 'Output',
+      cache: 'Cache',
+      cacheWrite: 'Write',
+      cacheRead: 'Read',
+      unitPerMillion: '$ / 1M tokens',
+      perUnitRequest: '/ request',
+      perUnitImage: '/ image',
+      tier: 'Tier'
+    }
   },
 
   apiDocs: {

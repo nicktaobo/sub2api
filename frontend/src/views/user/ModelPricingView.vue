@@ -345,13 +345,24 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import userChannelsAPI, { type UserPricingGroup, type UserPricingModel } from '@/api/channels'
-import systemAPI from '@/api/system'
 import { useAppStore } from '@/stores/app'
+import { useFxRate } from '@/composables/useFxRate'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { DEFAULT_CNY_PER_USD } from '@/utils/pricing'
+import {
+  basePrice as sharedBasePrice,
+  formatPerItem,
+  formatPerMillion,
+  formatRateMultiplier,
+  hasTierBlock as sharedHasTierBlock,
+  isPerRequestMode as sharedIsPerRequestMode,
+  tierMatrix as sharedTierMatrix,
+  type PriceCtx,
+  type TierMatrixData,
+} from '@/utils/sitePricing'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { fxRate, ensureFxRate } = useFxRate()
 
 const groups = ref<UserPricingGroup[]>([])
 const loading = ref(false)
@@ -359,7 +370,6 @@ const searchQuery = ref('')
 const platformFilter = ref<string>('')
 const priceMode = ref<'official' | 'site'>('site')
 const selectedGroupId = ref<number | null>(null)
-const fxRate = ref<number>(DEFAULT_CNY_PER_USD)
 // 「客户视角预览」：仅当后端为商户 owner 返回了 preview_sell_rate_multiplier 时可用。
 // 打开后，倍率徽章与本站价改用 owner 配置的售价倍率展示（纯预览，不影响 owner 自身计费）。
 const previewMode = ref(false)
@@ -436,17 +446,10 @@ function iconWrapClass(platform: string): string {
   }
 }
 
-/**
- * formatRate 展示分组的"计费倍率"，例如 1.8x、0.4x、25x。
- * 保留 2 位小数后去掉无意义零（1.50 → 1.5）。
- */
+/** 倍率展示：实现见 utils/sitePricing.ts（与公开页共用同一份）。 */
 function formatRate(rate: number): string {
-  const r = Number(rate || 1)
-  if (Math.abs(r - 1) < 1e-6) return '1x'
-  if (r >= 10) return `${r.toFixed(0)}x`
-  return `${parseFloat(r.toFixed(3))}x`
+  return formatRateMultiplier(rate)
 }
-
 
 const priceCellTone = computed(() =>
   priceMode.value === 'site'
@@ -455,49 +458,32 @@ const priceCellTone = computed(() =>
 )
 
 /**
- * basePrice 选取展示用的基础单价（per-token USD）。
- *   - official 模式：始终用 LiteLLM 官方价（official_*）
- *   - site     模式：优先渠道管理员配的 channel 单价（input_price 等），未配置回退到 official
- * 两类基础单价语义一致，后续 formatPrice 在 site 模式下统一按 group.rate / fx_rate 乘出本站价。
+ * 当前展示上下文：模式 + 生效倍率 + 汇率。所有价格格式化都经它转发给
+ * utils/sitePricing.ts，与公开页 /models 共用同一份实现，杜绝口径漂移。
  */
+const priceCtx = computed<PriceCtx>(() => ({
+  mode: priceMode.value,
+  rate: effectiveRate(selectedGroup.value),
+  fxRate: fxRate.value,
+}))
+
 function basePrice(
   model: UserPricingModel,
   field: 'input' | 'output' | 'cache_write' | 'cache_read',
 ): number | null | undefined {
-  const officialKey = `official_${field}_price` as const
-  if (priceMode.value === 'official') {
-    return model[officialKey]
-  }
-  const siteKey = `${field}_price` as const
-  return model[siteKey] ?? model[officialKey]
+  return sharedBasePrice(model, field, priceMode.value)
 }
 
-/**
- * 价格格式化：
- *   - 入参 v 是 per-token 美元价（如 0.000003）
- *   - "official" 模式：直接 × 1M = 官方对外 $/M token
- *   - "site"     模式：(group.rate / fx) × v × 1M = 等效美元 $/M token
- */
 function formatPrice(perTokenUSD: number | null | undefined): string {
-  if (perTokenUSD == null) return '-'
-  const officialPerM = perTokenUSD * 1_000_000
-  if (priceMode.value === 'official') {
-    return `$${trimNum(officialPerM)}/M`
-  }
-  const rate = effectiveRate(selectedGroup.value)
-  const sitePerM = (rate / fxRate.value) * officialPerM
-  return `$${trimNum(sitePerM)}/M`
+  return formatPerMillion(perTokenUSD, priceCtx.value)
 }
-
-const TIER_SEP = '-'
 
 function isPerRequestMode(model: UserPricingModel): boolean {
-  const mode = model.billing_mode
-  return mode === 'per_request' || mode === 'image'
+  return sharedIsPerRequestMode(model.billing_mode)
 }
 
 function hasTierBlock(model: UserPricingModel): boolean {
-  return isPerRequestMode(model) && (model.intervals?.length ?? 0) > 0
+  return sharedHasTierBlock(model)
 }
 
 function modeBadge(model: UserPricingModel): string {
@@ -506,56 +492,18 @@ function modeBadge(model: UserPricingModel): string {
   return ''
 }
 
-type TierMatrixData = {
-  rows: string[]
-  cols: string[]
-  cells: Record<string, Record<string, number | null | undefined>>
-}
-
 function tierMatrix(model: UserPricingModel): TierMatrixData | null {
-  const ivs = model.intervals ?? []
-  if (ivs.length === 0) return null
-  const rows: string[] = []
-  const cols: string[] = []
-  const cells: Record<string, Record<string, number | null | undefined>> = {}
-  for (const iv of ivs) {
-    const label = (iv.tier_label ?? '').trim()
-    const sepIdx = label.indexOf(TIER_SEP)
-    if (sepIdx <= 0 || sepIdx >= label.length - 1) return null
-    const row = label.slice(0, sepIdx).trim()
-    const col = label.slice(sepIdx + 1).trim()
-    if (!row || !col) return null
-    if (!rows.includes(row)) rows.push(row)
-    if (!cols.includes(col)) cols.push(col)
-    if (!cells[row]) cells[row] = {}
-    cells[row][col] = iv.per_request_price
-  }
-  return { rows, cols, cells }
+  return sharedTierMatrix(model.intervals)
 }
 
 function formatPerImage(perItemUSD: number | null | undefined): string {
-  if (perItemUSD == null) return '-'
-  if (priceMode.value === 'official') {
-    return '$' + trimNum(perItemUSD)
-  }
-  const rate = effectiveRate(selectedGroup.value)
-  return '$' + trimNum((rate / fxRate.value) * perItemUSD)
-}
-
-function trimNum(n: number): string {
-  if (n === 0) return '0'
-  const digits = n >= 100 ? 0 : n >= 10 ? 2 : 4
-  const fixed = n.toFixed(digits)
-  return fixed.replace(/\.?0+$/, '') || '0'
+  return formatPerItem(perItemUSD, priceCtx.value)
 }
 
 async function reload() {
   loading.value = true
   try {
-    const [list, fx] = await Promise.all([
-      userChannelsAPI.getPricingGroups(),
-      systemAPI.getFXRate().catch(() => null),
-    ])
+    const [list] = await Promise.all([userChannelsAPI.getPricingGroups(), ensureFxRate()])
     groups.value = list
     // 商户 owner 首次进页面默认打开「客户视角预览」：owner 更关心"我的客户看到什么价"，
     // 主站倍率对他只在自用计费时有意义。之后用户手动切换的状态在本次会话里保留。
@@ -563,7 +511,6 @@ async function reload() {
       previewDefaulted.value = true
       previewMode.value = list.some((g) => g.preview_sell_rate_multiplier != null)
     }
-    if (fx && fx.cny_per_usd > 0) fxRate.value = fx.cny_per_usd
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
   } finally {

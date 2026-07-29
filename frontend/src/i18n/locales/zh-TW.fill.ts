@@ -2023,6 +2023,30 @@ export default {
       unsupported: '當前瀏覽器或裝置不支援 Passkey。',
     },
   },
+  publicModels: {
+    fromPrice: '輸入低至 {price}',
+    fromPriceImage: '按圖低至 {price}',
+    fromPriceRequest: '按次低至 {price}',
+    groupSearchEmpty: '此分組內沒有符合的模型。',
+    hidePricing: '收起價格',
+    noPricing: '尚未公布價格',
+    priceNote:
+      '本站價 = 基礎價 × 分組倍率，並按目前匯率折算；基礎價優先取渠道為該模型設定的專屬價格，未設定時取官方價。最終計費以控制台為準。',
+    rateFilterLabel: '倍率',
+    searchFilteredHint: '已依搜尋篩選：{count} / {total} 個模型',
+    table: {
+      cache: '快取',
+      cacheRead: '讀取',
+      cacheWrite: '寫入',
+      input: '輸入',
+      output: '輸出',
+      perUnitImage: '/ 張',
+      perUnitRequest: '/ 次',
+      tier: '檔位',
+      unitPerMillion: '$ / 1M token',
+    },
+    viewPricing: '查看價格',
+  },
   setup: {
     redis: {
       username: '使用者名稱（可選）',

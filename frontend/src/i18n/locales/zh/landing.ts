@@ -353,7 +353,30 @@ export default {
     copyModelHint: '点击复制模型名称',
     apiBaseTitle: 'API 接入地址',
     apiBaseHint: '在客户端 Base URL 填入此地址，鉴权使用控制台创建的密钥。',
-    copyApiBase: '复制'
+    copyApiBase: '复制',
+    viewPricing: '查看价格',
+    hidePricing: '收起价格',
+    fromPrice: '输入低至 {price}',
+    fromPriceRequest: '按次低至 {price}',
+    fromPriceImage: '按图低至 {price}',
+    noPricing: '暂未公布价格',
+    groupSearchEmpty: '该分组内没有匹配的模型。',
+    searchFilteredHint: '已按搜索过滤：{count} / {total} 个模型',
+    rateFilterLabel: '倍率',
+    priceNote:
+      '本站价 = 基础价 × 分组倍率，并按当前汇率折算；基础价优先取渠道为该模型配置的专属价格，未配置时取官方价。最终计费以控制台为准。',
+
+    table: {
+      input: '输入',
+      output: '输出',
+      cache: '缓存',
+      cacheWrite: '写入',
+      cacheRead: '读取',
+      unitPerMillion: '$ / 1M token',
+      perUnitRequest: '/ 次',
+      perUnitImage: '/ 张',
+      tier: '档位'
+    }
   },
 
   apiDocs: {

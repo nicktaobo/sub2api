@@ -230,8 +230,11 @@ func RegisterAuthRoutes(
 		settings.GET("/email-unsubscribe", h.Setting.UnsubscribeNotificationEmail)
 	}
 
-	// 公开模型广场（无需认证）：只列出 is_exclusive=false 且非订阅型的活跃分组
+	// 公开模型广场（无需认证）：只列出 is_exclusive=false 且非订阅型的活跃分组。
+	// 与相邻的 /settings 公开组同样按客户端 IP 兜底限流：这里每次请求都会遍历分组、
+	// 解析模型并查渠道定价，匿名高频刷更容易打爆数据库。
 	publicPricing := v1.Group("/pricing/public")
+	publicPricing.Use(panelRateLimiter.PublicIP())
 	{
 		publicPricing.GET("/groups", h.AvailableChannel.PricingGroupListPublic)
 	}

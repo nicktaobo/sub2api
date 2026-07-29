@@ -3,11 +3,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -124,3 +127,109 @@ func TestToModelPlazaOfficialPricing_NilPassthrough(t *testing.T) {
 }
 
 func testPtr(v float64) *float64 { return &v }
+
+// modelPlazaSettingRepoStub 只实现 GetMultiple，并记录是否被调用过——
+// 商户域名守卫必须在读 setting 之前就短路，calls 保持 0 是守卫生效的直接证据。
+type modelPlazaSettingRepoStub struct {
+	values map[string]string
+	calls  int
+}
+
+func (s *modelPlazaSettingRepoStub) Get(ctx context.Context, key string) (*service.Setting, error) {
+	panic("unexpected Get call")
+}
+
+func (s *modelPlazaSettingRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+	panic("unexpected GetValue call")
+}
+
+func (s *modelPlazaSettingRepoStub) Set(ctx context.Context, key, value string) error {
+	panic("unexpected Set call")
+}
+
+func (s *modelPlazaSettingRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	s.calls++
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if v, ok := s.values[key]; ok {
+			out[key] = v
+		}
+	}
+	return out, nil
+}
+
+func (s *modelPlazaSettingRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
+	panic("unexpected SetMultiple call")
+}
+
+func (s *modelPlazaSettingRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
+	panic("unexpected GetAll call")
+}
+
+func (s *modelPlazaSettingRepoStub) Delete(ctx context.Context, key string) error {
+	panic("unexpected Delete call")
+}
+
+// newModelPlazaEnabledHandler 造一个「广场已开启 + 要求登录」的 handler。
+// 这套设置下匿名请求的原有逻辑会走到 401，和守卫的 404 可区分——
+// 若守卫被摘掉，商户域名用例就会拿到 401 而不是 404，测试立刻变红。
+func newModelPlazaEnabledHandler() (*ModelPlazaHandler, *modelPlazaSettingRepoStub) {
+	repo := &modelPlazaSettingRepoStub{values: map[string]string{
+		service.SettingKeyModelPlazaEnabled:     "true",
+		service.SettingKeyModelPlazaRequireAuth: "true",
+	}}
+	h := NewModelPlazaHandler(nil, nil, service.NewSettingService(repo, &config.Config{}))
+	return h, repo
+}
+
+func TestModelPlazaHandler_MerchantDomainFailsClosed404(t *testing.T) {
+	// 商户白标域名：上游 plaza 无 merchant 感知，会直出主站进货价，必须 404。
+	gin.SetMode(gin.TestMode)
+	h, repo := newModelPlazaEnabledHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/model-plaza", nil)
+	c.Set(string(middleware.ContextKeyMerchant), &middleware.MerchantContext{
+		Merchant: &service.Merchant{ID: 7, Name: "acme", Status: "active"},
+	})
+
+	h.Get(c)
+
+	require.Equal(t, http.StatusNotFound, w.Code,
+		"商户域名必须 404，而不是继续走 require_auth 的 401 分支")
+	require.Zero(t, repo.calls, "守卫应在读取 model_plaza 设置之前短路")
+}
+
+func TestModelPlazaHandler_MerchantContextWithoutMerchantIsNotBlocked(t *testing.T) {
+	// 中间件可能注入一个 Merchant 为 nil 的空壳上下文：那不是商户域名，不该被守卫拦。
+	gin.SetMode(gin.TestMode)
+	h, repo := newModelPlazaEnabledHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/model-plaza", nil)
+	c.Set(string(middleware.ContextKeyMerchant), (*middleware.MerchantContext)(nil))
+
+	h.Get(c)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, 1, repo.calls)
+}
+
+func TestModelPlazaHandler_NonMerchantDomainKeepsOriginalFlow(t *testing.T) {
+	// 主站（无商户上下文）：守卫不介入，原有逻辑照常执行——
+	// 广场已开启 + require_auth + 匿名 → 401。
+	gin.SetMode(gin.TestMode)
+	h, repo := newModelPlazaEnabledHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/model-plaza", nil)
+
+	h.Get(c)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code,
+		"非商户上下文必须走到原有的 require_auth 分支")
+	require.Equal(t, 1, repo.calls, "非商户上下文应正常读取 model_plaza 设置")
+}

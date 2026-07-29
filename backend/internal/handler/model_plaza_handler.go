@@ -78,6 +78,19 @@ type modelPlazaResponse struct {
 // Get 返回模型广场数据。
 // GET /api/v1/model-plaza
 func (h *ModelPlazaHandler) Get(c *gin.Context) {
+	// 商户白标域名硬守卫：上游 plaza 完全没有 merchant 概念——它直出的是主站
+	// rate_multiplier（进货价），既不会像 PricingGroupListPublic 那样用
+	// LookupSellRateByMerchant 覆盖成商户售价，也不会像 api_key_service 那样给
+	// sub_user 换 sell_rate。因此只要有人在后台把 model_plaza_enabled 打开：
+	//   - 匿名访客在商户域名访问 /model-plaza 会直接看到主站进货价；
+	//   - 商户子用户登录后从顶栏入口进来，会看到全部公开分组的主站倍率。
+	// 两者都会泄露商户的进货成本。在 plaza 具备 merchant 感知之前，命中商户域名
+	// 一律 404（与本 handler 其它分支的 fail-closed 风格一致）。
+	if mctx := middleware.MerchantFromContext(c); mctx != nil && mctx.Merchant != nil {
+		response.NotFound(c, "Model plaza is not enabled")
+		return
+	}
+
 	if h.settingService == nil {
 		response.NotFound(c, "Model plaza is not enabled")
 		return
