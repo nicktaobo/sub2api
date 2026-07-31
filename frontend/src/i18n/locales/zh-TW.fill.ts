@@ -249,6 +249,9 @@ export default {
         codexImageToolInheritDesc: '不寫入帳號覆蓋；非 Lite 請求是否注入 hosted 工具由渠道或全域策略決定，客戶端顯式攜帶的 hosted 工具和本地 image_gen 聲明照常放行。',
         endpointCapabilities: '端點能力',
         endpointCapabilitiesDesc: '用於排程篩選。文字端點會跟隨上方 Responses API 支援顯示為 Responses、Chat Completions 或自動模式；Embeddings 獨立控制 /v1/embeddings。',
+        flattenNamespaces: '攤平 Codex namespace 工具（相容）',
+        flattenNamespacesDesc:
+          '預設關閉：/responses 上的 namespace 工具宣告原樣轉發，這正是 ChatGPT Codex 後端期望的形態。僅當該 OAuth 帳號指向不認識 namespace 的相容上游時才開啟——攤平會把工具改名為 namespace__tool，使按 functions.<命名空間>.<工具> 定址的模型（如 gpt-5.6 多智能體）無法呼叫。壓縮（compact）請求不受該開關影響，始終攤平。',
         longContextBilling: 'API 長上下文計費',
         longContextBillingDesc: '預設關閉。僅當該帳號的上游會按模型閾值收取 OpenAI API 長上下文費率時開啟。',
         planType: '訂閱檔位（手動覆蓋）',
@@ -942,6 +945,7 @@ export default {
       },
       saveBar: {
         blocking: '同步阻止',
+        blockingLatestTurnOnly: '僅審最新輸入和上一輪輸出',
         dirty: '有未儲存的更改',
         enabled: '啟用提示詞審計',
         storePass: '儲存安全事件',
@@ -1043,6 +1047,9 @@ export default {
       blockedKeywords: '攔截關鍵詞',
       blockedKeywordsDescription: '匹配忽略大小寫；命中後會按下方策略決定是否呼叫上游審計介面。',
       blockedKeywordsLimit: '最多儲存 {max} 個關鍵詞，單個長度不超過 200 個字元；重複項會自動去重。',
+      proxy: '代理伺服器',
+      proxyHint:
+        '審計請求經指定代理（IP 管理-代理伺服器）發出，適用於出口 IP 不受 OpenAI 支援的部署；預設直連。',
       blockedKeywordsModeWarning: '當前為「{mode}」模式，關鍵詞攔截不會生效；請切換到「前置攔截」模式後再儲存關鍵詞。',
       blockedKeywordsPlaceholder: '每行輸入一個關鍵詞，例如：\n敏感詞1\n敏感詞2',
       blockedKeywordsPreBlockHint: '關鍵詞攔截僅在「前置攔截」模式下生效。',
@@ -1397,6 +1404,8 @@ export default {
         passkey: 'Passkey 登入',
         passkeyConfigured: 'WebAuthn 依賴方配置有效。',
         passkeyHint: '當依賴方配置有效時，允許無密碼登入及使用者自行管理 Passkey。',
+        passkeyDeploymentHint:
+          '請由伺服器維運人員在部署設定中將 webauthn.enabled 設為 true，填寫 webauthn.rp_id（僅網域）與 webauthn.rp_origins（完整 HTTPS 來源），然後重新啟動服務。',
         passkeyNotConfigured: '請先配置有效的 RP ID 與允許的 HTTPS 來源，再啟用 Passkey 登入。',
         passkeyOrigins: '允許的 HTTPS 來源',
         passkeyRPID: 'RP ID',
@@ -1406,6 +1415,10 @@ export default {
         stepUp: '敏感操作二次驗證 (step-up 2FA)',
         stepUpEnableRequiresTotp: '開啟敏感操作二次驗證前，請先在個人資料中為當前帳號啟用 2FA (TOTP)。',
         stepUpHint: '開啟後，帳號/代理匯出、備份建立與下載、S3 配置修改、提升管理員等敏感操作需要先完成 TOTP 二次驗證（15 分鐘內有效）。開啟前需本人已啟用 2FA；關閉該開關本身也需要二次驗證。',
+      },
+      site: {
+        compactHome: '簡潔首頁',
+        compactHomeHint: '未設定自訂首頁內容時，展示簡潔的站點資訊頁面。',
       },
       subscriptionExpiryNotify: {
         description: '控制是否向使用者傳送訂閱即將到期的郵件提醒。',
@@ -1434,6 +1447,8 @@ export default {
     },
     subscriptions: {
       failedToRestore: '恢復訂閱失敗',
+      hoursMinutesRemaining: '剩餘 {hours} 小時 {minutes} 分鐘',
+      minutesRemaining: '剩餘 {minutes} 分鐘',
       quotaEndsInDaysHours: '額度將在 {days} 天 {hours} 小時後結束',
       quotaEndsInHoursMinutes: '額度將在 {hours} 小時 {minutes} 分鐘後結束',
       quotaEndsInMinutes: '額度將在 {minutes} 分鐘後結束',

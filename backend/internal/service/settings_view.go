@@ -140,6 +140,7 @@ type SystemSettings struct {
 	ContactMethods              string // JSON array of structured contact methods
 	DocURL                      string
 	HomeContent                 string
+	CompactHomeEnabled          bool
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
@@ -312,6 +313,7 @@ type PublicSettings struct {
 	ContactMethods                   string // JSON array of structured contact methods
 	DocURL                           string
 	HomeContent                      string
+	CompactHomeEnabled               bool
 	HideCcsImportButton              bool
 
 	PurchaseSubscriptionEnabled bool
