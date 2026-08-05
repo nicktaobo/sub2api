@@ -270,7 +270,8 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 		streamResult, err := s.handleStreamingResponseAnthropicAPIKeyPassthrough(ctx, resp, c, account, input.StartTime, input.RequestModel)
 		if err != nil {
 			// 与主 Forward 流式路径同口径：已产出内容后中途出错（缺终止事件/读错误等），
-			// 对已累计 usage 走 PartialError 计费，避免透传账号漏计。
+			// 对已累计 usage 走 PartialError 计费，避免透传账号漏计。必须先于下面的
+			// partialStreamUsageResult 判断——已交付内容的中断要带 PartialError 标记走部分计费。
 			if shouldBillPartialStream(streamResult) {
 				return &ForwardResult{
 					RequestID:        resp.Header.Get("x-request-id"),
@@ -283,6 +284,11 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 					ClientDisconnect: streamResult.clientDisconnect,
 					PartialError:     true,
 				}, err
+			}
+			// 未交付内容但上游已下发 message_start（input/cache token 已计量）时，
+			// 流中断仍保留已观测到的 usage 与错误一起返回，避免完全漏记漏计费（issue #5148）。
+			if partial := partialStreamUsageResult(resp, streamResult, input.OriginalModel, input.RequestModel, input.StartTime, err); partial != nil {
+				return partial, err
 			}
 			return nil, err
 		}

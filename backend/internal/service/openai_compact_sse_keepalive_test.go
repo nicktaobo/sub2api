@@ -317,6 +317,21 @@ func TestStartOpenAICompactSSEKeepalive_StopKeepsForeignWriter(t *testing.T) {
 	require.Same(t, foreign, c.Writer, "c.Writer 已非本包装器时不得覆盖")
 }
 
+// 上游用例：keepalive 注释字节不得被当成语义输出。
+func TestOpenAIStreamClientOutputStarted_IgnoresCompactKeepaliveBytes(t *testing.T) {
+	c, _ := newCompactBridgeTestContext(t, true)
+	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	defer stop()
+	waitForKeepaliveBeats()
+
+	require.True(t, c.Writer.Written())
+	require.False(t, openAIStreamClientOutputStarted(c, false), "keepalive comments are not semantic output")
+
+	_, err := c.Writer.Write([]byte("real-output"))
+	require.NoError(t, err)
+	require.True(t, openAIStreamClientOutputStarted(c, false))
+}
+
 // fast policy block 在心跳未提交时保持 403 JSON 原语义。
 func TestWriteOpenAIFastPolicyBlockedResponse_BeforeKeepaliveCommit(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)

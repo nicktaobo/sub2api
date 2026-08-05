@@ -14,17 +14,22 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v18: third same-number/different-meaning collision between the two lineages.
-// Local v17 was itself the merge of two independent v16 lineages — local v16 added user
-// parent_merchant_id + group affiliate_rebate_excluded (merchant sub-user guards / 邀请返利
-// 排除), upstream v16 added group reasoning effort ceiling + mappings. Upstream then
-// independently bumped its own v16 to v17 for the OpenAI group Live gate (group.AllowLive).
-// So "v17" means two different field sets. The merged snapshot carries ALL THREE sets
-// (merchant fields + reasoning effort + AllowLive) and must therefore bump past 17: a stale
-// v17 entry from either lineage would still pass the version check while the other lineage's
-// fields deserialize to zero values — merchant 停用守卫静默失效 / reasoning 策略读空 /
-// AllowLive 读成 false (live API 对已授权分组静默 403).
-const apiKeyAuthSnapshotVersion = 18
+// v19: fourth same-number/different-meaning collision between the two lineages.
+// 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
+//   - v16：本地 = user parent_merchant_id + group affiliate_rebate_excluded
+//     （merchant 子用户守卫 / 邀请返利排除）；上游 = group reasoning effort 上限 + 映射。
+//   - v17：本地 = 合并上述两条 v16 血脉的产物；上游 = OpenAI group Live gate（group.AllowLive）。
+//   - v18：本地 = 合并上述两条 v17 血脉的产物（merchant 字段 + reasoning effort + AllowLive
+//     三套齐全）；上游 = group profit control 三字段（profit_control_enabled /
+//     profit_min_margin / profit_safety_buffer）。
+//
+// 合并后的快照同时携带全部四套字段，因此必须越过 18：任何一条血脉遗留的 v18 条目都会
+// 通过版本校验，而另一条血脉的字段反序列化成零值——merchant 停用守卫静默失效 /
+// reasoning 策略读空 / AllowLive 读成 false（live API 对已授权分组静默 403）/
+// ProfitControlEnabled 读成 false（分组利润管控准入门在直连热路径上静默放行）。
+// 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
+// 再撞到 19，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+const apiKeyAuthSnapshotVersion = 19
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -432,6 +437,9 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			PeakStart:                       apiKey.Group.PeakStart,
 			PeakEnd:                         apiKey.Group.PeakEnd,
 			PeakRateMultiplier:              apiKey.Group.PeakRateMultiplier,
+			ProfitControlEnabled:            apiKey.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 		}
 	}
 	return snapshot
@@ -521,6 +529,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			PeakStart:                       snapshot.Group.PeakStart,
 			PeakEnd:                         snapshot.Group.PeakEnd,
 			PeakRateMultiplier:              snapshot.Group.PeakRateMultiplier,
+			ProfitControlEnabled:            snapshot.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 		}
 	}
 	s.compileAPIKeyIPRules(apiKey)
