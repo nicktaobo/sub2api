@@ -1494,6 +1494,11 @@ export default {
         appId: 'CaptchaAppId',
         appSecretKey: 'AppSecretKey',
         camPermissionHint: '推薦建立 CAM 子使用者並授予 QcloudCaptchaFullAccess，避免使用主帳號永久金鑰。',
+        region: '服務站點',
+        regionCn: '中國站',
+        regionHint:
+          '決定前端載入的 SDK 指令碼與服務端校驗接入點，需與 CaptchaAppId 所屬站點一致；國際站請在 tencentcloud.com 主控台建立驗證',
+        regionIntl: '國際站',
         cloudCredentialsHint: 'SecretId 與 SecretKey 用於服務端呼叫 DescribeCaptchaResult 介面。',
         cloudCredentialsTitle: '雲 API 呼叫金鑰',
         cloudSecretId: '騰訊雲 SecretId',
@@ -1545,7 +1550,11 @@ export default {
       subscriptionRestored: '訂閱已恢復',
     },
     usage: {
+      allUpstreamModelAudit: '全部響應模型狀態',
       billingModeVideo: '按次(影片)',
+      upstreamModelAudit: '上游模型審計',
+      upstreamModelMatchedOnly: '僅一致',
+      upstreamModelMismatchOnly: '僅不一致',
       tokenRanking: {
         columns: {
           cacheTokens: '快取 Token',
@@ -2244,8 +2253,13 @@ export default {
     latencyDuration: '總耗時',
     latencyFirstToken: '首字',
     live: 'Live',
+    modelMismatch: '模型不一致',
+    modelVariant: '疑似版本變體',
     resetNow: '現在',
     resetPending: '待重新整理',
+    sentUpstreamModel: '發往上游',
+    upstreamModelMismatch: '上游響應模型不一致',
+    upstreamResponseModel: '上游響應',
     tabs: {
       errors: '錯誤請求',
       ranking: '使用者排行',

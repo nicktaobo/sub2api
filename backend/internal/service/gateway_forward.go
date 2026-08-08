@@ -92,6 +92,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")
 	}
+	beginUpstreamResponseModelObservation(c)
 
 	// Web Search 模拟：纯 web_search 请求时，直接调用搜索 API 构造响应
 	if account != nil && s.shouldEmulateWebSearch(ctx, account, parsed.GroupID, parsed.Body.Bytes()) {
@@ -838,16 +839,21 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 						truncateString(partialSSEErr.RawData, 1000),
 					)
 				}
+				// 本分支是上游 partialStreamUsageResult 的替代路径（已交付内容走这里），
+				// 故同样带上上游响应模型审计字段，否则部分计费的记录会丢失该审计列，
+				// 与未交付内容走 fallback 的记录口径不一致。
 				return &ForwardResult{
-					RequestID:        resp.Header.Get("x-request-id"),
-					Usage:            *streamResult.usage,
-					Model:            originalModel,
-					UpstreamModel:    mappedModel,
-					Stream:           true,
-					Duration:         time.Since(startTime),
-					FirstTokenMs:     streamResult.firstTokenMs,
-					ClientDisconnect: streamResult.clientDisconnect,
-					PartialError:     true,
+					RequestID:                     resp.Header.Get("x-request-id"),
+					Usage:                         *streamResult.usage,
+					Model:                         originalModel,
+					UpstreamModel:                 mappedModel,
+					UpstreamResponseModel:         observedUpstreamResponseModel(c),
+					UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+					Stream:                        true,
+					Duration:                      time.Since(startTime),
+					FirstTokenMs:                  streamResult.firstTokenMs,
+					ClientDisconnect:              streamResult.clientDisconnect,
+					PartialError:                  true,
 				}, err
 			}
 			var sseErr *sseStreamErrorEventError
@@ -894,7 +900,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			}
 			// 流中断（缺失 terminal 事件、读错误、数据间隔超时等）时保留已观测到的
 			// usage 与错误一起返回，handler 在错误处理完成后照常提交 usage 记录。
-			if partial := partialStreamUsageResult(resp, streamResult, originalModel, mappedModel, startTime, err); partial != nil {
+			if partial := partialStreamUsageResult(c, resp, streamResult, originalModel, mappedModel, startTime, err); partial != nil {
 				return partial, err
 			}
 			return nil, err
@@ -910,14 +916,16 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 
 	return &ForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		Usage:            *usage,
-		Model:            originalModel, // 使用原始模型用于计费和日志
-		UpstreamModel:    mappedModel,
-		Stream:           reqStream,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
-		ClientDisconnect: clientDisconnect,
+		RequestID:                     resp.Header.Get("x-request-id"),
+		Usage:                         *usage,
+		Model:                         originalModel, // 使用原始模型用于计费和日志
+		UpstreamModel:                 mappedModel,
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		Stream:                        reqStream,
+		Duration:                      time.Since(startTime),
+		FirstTokenMs:                  firstTokenMs,
+		ClientDisconnect:              clientDisconnect,
 	}, nil
 }
 

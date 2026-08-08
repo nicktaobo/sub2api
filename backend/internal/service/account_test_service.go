@@ -731,7 +731,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		// 注入 OpenAI-Beta / Originator / User-Agent 等官方客户端特征，避免 chatgpt.com
 		// 后端的"客户端限制"把测试请求判为非官方客户端而返回 403/拒绝。
 		req.Header.Set("OpenAI-Beta", "responses=experimental")
-		req.Header.Set("Originator", "codex_cli_rs")
+		req.Header.Set("Originator", openai.CodexDefaultOriginator)
 		if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
 			req.Header.Set("User-Agent", customUA)
 		} else {
@@ -1948,7 +1948,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("OpenAI-Beta", "responses=experimental")
-	req.Header.Set("originator", "codex_cli_rs")
+	req.Header.Set("originator", openai.CodexDefaultOriginator)
 	if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
 		req.Header.Set("User-Agent", customUA)
 	} else {
