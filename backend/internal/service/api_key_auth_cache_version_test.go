@@ -166,12 +166,35 @@ func TestAPIKeyService_RejectsV18AuthSnapshotFromEitherLineage(t *testing.T) {
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18 各两条血脉），否则旧缓存会被误判有效。
-// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加，撞号已连续四轮；下轮合并
-// 若上游再 bump 到 19，这里要继续抬高，不能沿用。
+// v19 是第五次同号异义：本地 v19（合并两条 v18 血脉的产物：merchant 字段 + reasoning effort
+// + AllowLive + profit control）与上游 v19（分组级 search/audio/video_model_prices 计费字段，
+// 迁移 217/218/219）含义不同，合并后升到 20，故 v19 条目同样必须整体拒绝——否则任一条血脉的
+// 遗留条目会带着另一条血脉的零值字段生效（本地血脉命中会把分组级 search/audio/video 单价读成
+// nil 而静默回落全局价计费）。
+func TestAPIKeyService_RejectsV19AuthSnapshotFromEitherLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v19", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 19},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v19 auth snapshot to be rejected: local v19 (merged v18 lineages) and upstream v19 (group search/audio/video billing fields) have different meanings")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19 各两条血脉），否则旧缓存会被误判有效。
+// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加，撞号已连续五轮；下轮合并
+// 若上游再 bump 到 20，这里要继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
-	const lastCollidedVersion = 18
+	const lastCollidedVersion = 19
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

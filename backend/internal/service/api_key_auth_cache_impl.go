@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v19: fourth same-number/different-meaning collision between the two lineages.
+// v20: fifth same-number/different-meaning collision between the two lineages.
 // 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
 //   - v16：本地 = user parent_merchant_id + group affiliate_rebate_excluded
 //     （merchant 子用户守卫 / 邀请返利排除）；上游 = group reasoning effort 上限 + 映射。
@@ -22,14 +22,19 @@ import (
 //   - v18：本地 = 合并上述两条 v17 血脉的产物（merchant 字段 + reasoning effort + AllowLive
 //     三套齐全）；上游 = group profit control 三字段（profit_control_enabled /
 //     profit_min_margin / profit_safety_buffer）。
+//   - v19：本地 = 合并上述两条 v18 血脉的产物（merchant + reasoning + AllowLive + profit
+//     control 四套齐全）；上游 = 分组级 search/audio/video 计费字段（search_price_per_1k /
+//     audio_realtime_price_per_min / audio_tts_price_per_million_chars /
+//     audio_stt_price_per_hour / video_model_prices，迁移 217/218/219）。
 //
-// 合并后的快照同时携带全部四套字段，因此必须越过 18：任何一条血脉遗留的 v18 条目都会
+// 合并后的快照同时携带全部五套字段，因此必须越过 19：任何一条血脉遗留的 v19 条目都会
 // 通过版本校验，而另一条血脉的字段反序列化成零值——merchant 停用守卫静默失效 /
 // reasoning 策略读空 / AllowLive 读成 false（live API 对已授权分组静默 403）/
-// ProfitControlEnabled 读成 false（分组利润管控准入门在直连热路径上静默放行）。
+// ProfitControlEnabled 读成 false（分组利润管控准入门在直连热路径上静默放行）/
+// 分组级 search/audio/video 单价读成 nil（回落全局价，静默按错价计费）。
 // 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
-// 再撞到 19，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
-const apiKeyAuthSnapshotVersion = 19
+// 再撞到 20，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+const apiKeyAuthSnapshotVersion = 20
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -416,7 +421,12 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			VideoPrice480P:                  apiKey.Group.VideoPrice480P,
 			VideoPrice720P:                  apiKey.Group.VideoPrice720P,
 			VideoPrice1080P:                 apiKey.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(apiKey.Group.VideoModelPrices),
 			WebSearchPricePerCall:           apiKey.Group.WebSearchPricePerCall,
+			SearchPricePer1k:                apiKey.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        apiKey.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    apiKey.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            apiKey.Group.AudioSTTPricePerHour,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -508,7 +518,12 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			VideoPrice480P:                  snapshot.Group.VideoPrice480P,
 			VideoPrice720P:                  snapshot.Group.VideoPrice720P,
 			VideoPrice1080P:                 snapshot.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(snapshot.Group.VideoModelPrices),
 			WebSearchPricePerCall:           snapshot.Group.WebSearchPricePerCall,
+			SearchPricePer1k:                snapshot.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        snapshot.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    snapshot.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            snapshot.Group.AudioSTTPricePerHour,
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,

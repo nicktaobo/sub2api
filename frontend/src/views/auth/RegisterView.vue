@@ -383,7 +383,7 @@ import {
   validateInvitationCode
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
-import { extractI18nErrorMessage } from '@/utils/apiError'
+import { extractApiErrorCode, extractI18nErrorMessage } from '@/utils/apiError'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -443,6 +443,10 @@ const oidcOAuthProviderName = ref<string>('OIDC')
 const githubOAuthEnabled = ref<boolean>(false)
 const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+// 域名限量注册开关：开启时非白名单域名可注册 1 个账户（由后端判定），前端不做白名单预检。
+const emailDomainQuotaEnabled = ref<boolean>(false)
+// 本地改造：协议不再由 login_agreement_enabled/mode 门控，只要有文档就展示勾选框 + 阅读弹窗，
+// 因此上游的 loginAgreementEnabled/Mode/UpdatedAt/Revision 与 applyLoginAgreementSettings 不再需要。
 const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
 const agreementAccepted = ref<boolean>(false)
 const showAgreementModal = ref<boolean>(false)
@@ -521,7 +525,13 @@ const showOAuthLogin = computed(
     googleOAuthEnabled.value
 )
 
-const agreementGateActive = computed(() => !agreementAccepted.value)
+// 协议门禁与勾选框的 v-if 口径保持一致：没有任何协议文档时不渲染勾选框，
+// 也就没有任何途径把 agreementAccepted 置 true，此时再拦注册会把注册页彻底锁死。
+// 后端 parseLoginAgreementDocuments 兜底返回内置默认 ToS，正常情况下文档必然非空，
+// 所以这里只是覆盖 getPublicSettings 失败的降级分支（上游同样在该分支放行）。
+const agreementGateActive = computed(
+  () => loginAgreementDocuments.value.length > 0 && !agreementAccepted.value
+)
 
 // 邮箱/密码输入和邮箱注册按钮：不受勾选状态影响——
 // 用户可以先填表单，提交时再由 validateForm 弹出协议窗。
@@ -579,6 +589,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
     loginAgreementDocuments.value = Array.isArray(settings.login_agreement_documents)
       ? settings.login_agreement_documents.filter(hasAnyLoginAgreementTitle)
       : []
@@ -910,8 +921,10 @@ function validateForm(): boolean {
     errors.email = t('auth.invalidEmail')
     isValid = false
   } else if (
+    !emailDomainQuotaEnabled.value &&
     !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
   ) {
+    // 域名限量注册关闭时保持严格白名单预检；开启时交给后端按域名额度判定
     errors.email = buildEmailSuffixNotAllowedMessage()
     isValid = false
   }
@@ -1047,9 +1060,7 @@ async function handleRegister(): Promise<void> {
     await router.push('/dashboard')
   } catch (error: unknown) {
     // Handle registration error
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.registrationFailed')
-    })
+    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.registrationFailed'))
 
     // Also show error toast
     appStore.showError(errorMessage.value)
@@ -1059,6 +1070,13 @@ async function handleRegister(): Promise<void> {
     }
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, { fallback })
 }
 </script>
 

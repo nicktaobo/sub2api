@@ -10,6 +10,7 @@ const {
   getModelsListCandidates,
   getUsageSummary,
   getCapacitySummary,
+  getLiveCapability,
   listAccounts,
   showError,
   showSuccess,
@@ -21,6 +22,7 @@ const {
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
+  getLiveCapability: vi.fn(),
   listAccounts: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
@@ -51,13 +53,10 @@ vi.mock('@/api/admin', () => ({
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
-      // 上游 0.1.168 新增的 Live 能力探测接口：GroupsView onMounted 会无条件预热调用它。
-      // 本地 fork 的这批 spec 是在该接口出现之前写的，mock 里缺这个方法会让组件在挂载时
-      // 抛出未捕获的 TypeError（测试断言仍然全绿，但 vitest 退出码变成 1）。
-      // 这里给一个「能力不可用」的安全默认：onMounted 只是预取不消费，
-      // 也不会误触发 toggleLive 里那条「不支持则弹确认框」的额外分支。
-      // 用 vi.fn(impl) 而不是 .mockResolvedValue()，避免被 mock 重置抹掉返回值后又变成 undefined。
-      getLiveCapability: vi.fn(async () => ({ supported: false })),
+      // 上游已把 Live 能力探测接口接进 hoisted mock（beforeEach 里统一 mockResolvedValue
+      // ({ supported: false })）。GroupsView onMounted 会无条件预热调用它，缺这个方法会在挂载时
+      // 抛未捕获 TypeError（断言仍全绿但 vitest 退出码变 1），所以这里必须保留。
+      getLiveCapability,
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -251,6 +250,7 @@ describe('admin GroupsView column settings', () => {
     getModelsListCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
+    getLiveCapability.mockResolvedValue({ supported: false })
     listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     isCurrentStep.mockReturnValue(false)
   })

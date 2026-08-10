@@ -91,7 +91,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		return nil, s.writeGoogleError(c, http.StatusForbidden, fmt.Sprintf("model %s not in whitelist", originalModel))
 	}
-	billingModel := mappedModel
+	forwardedModel := mappedModel
 
 	// 获取 access_token
 	if s.tokenProvider == nil {
@@ -203,7 +203,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 						if err == nil && fallbackResp.StatusCode < 400 {
 							_ = resp.Body.Close()
 							resp = fallbackResp
-							billingModel = fallbackModel
+							forwardedModel = fallbackModel
 						} else if fallbackResp != nil {
 							_ = fallbackResp.Body.Close()
 						}
@@ -406,16 +406,21 @@ handleSuccess:
 			// 流式已向客户端交付内容后中途出错：返回带 PartialError 的结果（携带已产出 usage）
 			// 连同原始 error，由上层对已交付 token 计费且按失败处理；否则整段零计费。
 			if shouldBillPartialAntigravityStream(streamRes) {
+				// 上游把本函数的计费模型变量由 billingModel 改名为 forwardedModel，并给正常
+				// 路径补了上游响应模型审计字段；本分支是它的部分计费替代路径，两者一并跟上，
+				// 否则部分计费的记录会缺审计列、与正常路径口径不一致。
 				return &ForwardResult{
-					RequestID:        requestID,
-					Usage:            *streamRes.usage,
-					Model:            originalModel,
-					UpstreamModel:    billingModel,
-					Stream:           true,
-					Duration:         time.Since(startTime),
-					FirstTokenMs:     streamRes.firstTokenMs,
-					ClientDisconnect: streamRes.clientDisconnect,
-					PartialError:     true,
+					RequestID:                     requestID,
+					Usage:                         *streamRes.usage,
+					Model:                         originalModel,
+					UpstreamModel:                 forwardedModel,
+					UpstreamResponseModel:         observedUpstreamResponseModel(c),
+					UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+					Stream:                        true,
+					Duration:                      time.Since(startTime),
+					FirstTokenMs:                  streamRes.firstTokenMs,
+					ClientDisconnect:              streamRes.clientDisconnect,
+					PartialError:                  true,
 				}, err
 			}
 			return nil, err
@@ -449,7 +454,7 @@ handleSuccess:
 		RequestID:                     requestID,
 		Usage:                         *usage,
 		Model:                         originalModel,
-		UpstreamModel:                 billingModel,
+		UpstreamModel:                 forwardedModel,
 		UpstreamResponseModel:         observedUpstreamResponseModel(c),
 		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
 		Stream:                        stream,

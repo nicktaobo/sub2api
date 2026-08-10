@@ -88,6 +88,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
 		nil, // channelMonitorRunner
+		nil, // channelMonitorV2Aggregator
 		nil, // merchantEarningsWorker (MERCHANT-SYSTEM v1.0)
 		nil, // merchantReconcileJob (MERCHANT-SYSTEM v1.0)
 		nil, // affiliateRebateWorker (migration 143)
