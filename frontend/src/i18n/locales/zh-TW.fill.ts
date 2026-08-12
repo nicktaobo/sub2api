@@ -13,6 +13,11 @@
 export default {
   admin: {
     accounts: {
+      accountSchedulingThresholdOverride: '帳號自動停調閾值覆蓋',
+      accountSchedulingThresholdOverrideDisabledHint:
+        '1-100，達到該用量百分比後臨時不可排程；100 表示禁用當前帳號自動停調。',
+      accountSchedulingThresholdOverrideHint: '僅對當前帳號覆蓋平台級自動停調閾值；關閉後使用平台設定。',
+      accountSchedulingThresholdOverrideValue: '帳號閾值百分比',
       anthropic: {
         apiKeyAuthScheme: '上游認證方式',
         apiKeyAuthSchemeBearer: 'Authorization: Bearer',
@@ -302,6 +307,13 @@ export default {
         capabilityTextAuto: 'Responses / Chat Completions（自動）',
         codexCLIOnlyAppServer: '允許 Codex app-server 客戶端',
         codexCLIOnlyAppServerDesc: '僅在上方開關開啟時生效。開啟後本帳號額外放行內嵌 Codex 引擎、經 app-server 協議接入的第三方客戶端（如 Claude Code 的 codex 外掛），仍需通過全域引擎指紋門；與全域 app-server 開關取 OR（任一開即放行）。',
+        codexFingerprintDevice: '僅裝置',
+        codexFingerprintFull: '完全收斂',
+        codexFingerprintMode: 'Codex 指紋收斂',
+        codexFingerprintModeDesc:
+          '多人共用同一 OAuth 帳號時，將各使用者的裝置/工作階段標識收斂為帳號級恆定值，減少上游可見的裝置數和工作階段數。關閉時原樣透傳客戶端標識。',
+        codexFingerprintOff: '關閉（透傳）',
+        codexFingerprintSession: '裝置+工作階段（推薦）',
         codexImageTool: 'Codex 圖片橋接策略',
         codexImageToolBadgeBlock: '客戶端圖片工具已移除',
         codexImageToolBadgeDisabled: '不注入 Hosted 工具',
@@ -375,11 +387,6 @@ export default {
       },
       sendingVideoRequest: '正在傳送影片生成測試請求...',
       status: {
-        accountSchedulingThresholdOverride: '帳號自動停調閾值覆蓋',
-        accountSchedulingThresholdOverrideDisabledHint:
-          '1-100，達到該用量百分比後臨時不可排程；100 表示禁用當前帳號自動停調。',
-        accountSchedulingThresholdOverrideHint: '僅對當前帳號覆蓋平台級自動停調閾值；關閉後使用平台設定。',
-        accountSchedulingThresholdOverrideValue: '帳號閾值百分比',
         tempUnschedulableUntil: '預計 {time} 恢復',
       },
       syncUpstreamModels: '同步上游支援的模型',
@@ -546,6 +553,7 @@ export default {
       form: {
         bedrockCCCompat: 'Bedrock CC 相容',
         bedrockCCCompatHint: '⚠️ 開啟後，該渠道下 Bedrock 帳號的請求將進行 Claude Code 相容處理（thinking 類型轉換、tool_use ID 清理）',
+        billingModelSourceResponse: '按上游回應模型計費',
         cacheReadPriceShort: '快取讀',
         cacheWritePriceShort: '快取寫',
         imageInputPrice: '圖片輸入',
