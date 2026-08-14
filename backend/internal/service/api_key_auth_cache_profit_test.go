@@ -52,12 +52,13 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	require.NotNil(t, snapshot)
-	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
 	// 上游此处原本硬编码 19；合并到本 fork 时 v19 已是第五次同号异义（本地 v19 =
 	// merchant 字段 + reasoning effort + AllowLive + profit control，上游 v19 =
-	// 分组级 search/audio/video_model_prices 计费字段），故常量抬到 20。
-	// 断言跟随常量抬高，不要写死数字。
-	require.Equal(t, 20, snapshot.Version, "v20 起认证快照同时携带 merchant/reasoning/live/利润控制 与分组级 search/audio/video 计费字段")
+	// 分组级 search/audio/video_model_prices 计费字段），故常量抬到 20，0.1.176 补
+	// LongContextPricingEnabled/ModelPricing 后又抬到 21。本用例只验「快照写的就是当前常量」，
+	// 不写死数字；版本下界的守卫在 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，
+	// 各代旧快照必须被拒的守卫在同文件的 TestAPIKeyService_RejectsV*AuthSnapshot* 系列。
+	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
 
 	// 模拟 L2 缓存的完整 JSON 往返（与 apiKeyCache.SetAuthCache/GetAuthCache 同构）。
 	payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: snapshot})

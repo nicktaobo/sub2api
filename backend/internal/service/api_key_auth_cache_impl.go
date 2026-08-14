@@ -34,7 +34,12 @@ import (
 // 分组级 search/audio/video 单价读成 nil（回落全局价，静默按错价计费）。
 // 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
 // 再撞到 20，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
-const apiKeyAuthSnapshotVersion = 20
+//
+//   - v21：合并上游 0.1.176（迁移 221）时补进 LongContextPricingEnabled / ModelPricing。
+//     上游只把这两个字段加进了 repository 的鉴权投影、没加进快照，而热路径 100% 读快照，
+//     于是长上下文阶梯被静默关闭、渠道区间定价塌到第一档（纯少收）。存量 v20 条目里
+//     没有这两个字段，反序列化后同样是零值，因此必须抬版本强制重建，光补字段不够。
+const apiKeyAuthSnapshotVersion = 21
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -427,6 +432,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			AudioRealtimePricePerMin:        apiKey.Group.AudioRealtimePricePerMin,
 			AudioTTSPricePerMillionChars:    apiKey.Group.AudioTTSPricePerMillionChars,
 			AudioSTTPricePerHour:            apiKey.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       apiKey.Group.LongContextPricingEnabled,
+			ModelPricing:                    apiKey.Group.ModelPricing,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -524,6 +531,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			AudioRealtimePricePerMin:        snapshot.Group.AudioRealtimePricePerMin,
 			AudioTTSPricePerMillionChars:    snapshot.Group.AudioTTSPricePerMillionChars,
 			AudioSTTPricePerHour:            snapshot.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       snapshot.Group.LongContextPricingEnabled,
+			ModelPricing:                    snapshot.Group.ModelPricing,
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,

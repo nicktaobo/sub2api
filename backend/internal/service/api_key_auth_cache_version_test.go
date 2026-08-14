@@ -189,12 +189,34 @@ func TestAPIKeyService_RejectsV19AuthSnapshotFromEitherLineage(t *testing.T) {
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19 各两条血脉），否则旧缓存会被误判有效。
-// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加，撞号已连续五轮；下轮合并
-// 若上游再 bump 到 20，这里要继续抬高，不能沿用。
+// v20 条目缺少 LongContextPricingEnabled / ModelPricing（上游 0.1.176 只把这两个分组计费
+// 字段加进了 repository 的鉴权投影、没加进快照，本 fork 在 v21 补上）。v20 条目反序列化后
+// 这两个字段是零值，会让长上下文阶梯静默关闭、渠道区间定价塌到最便宜的第一档，属直接少收，
+// 因此必须整体拒绝而不是沿用。
+func TestAPIKeyService_RejectsV20AuthSnapshotMissingGroupPricingToggles(t *testing.T) {
+	svc := &APIKeyService{}
+
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v20", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 20},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v20 auth snapshot to be rejected: it predates LongContextPricingEnabled/ModelPricing, so long-context ladders would be silently disabled and channel interval pricing collapsed to the cheapest tier")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19 各两条血脉）以及 v20
+// （缺分组计费字段的那一版），否则旧缓存会被误判有效。上游每给 group 加一个进快照的
+// 字段就 bump 一次，本 fork 也在加；下轮合并若上游再 bump 到 21，这里要继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
-	const lastCollidedVersion = 19
+	const lastCollidedVersion = 20
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19 lineages and superseding v20 (missing group pricing toggles), got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

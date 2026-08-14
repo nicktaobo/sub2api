@@ -549,6 +549,9 @@ export default {
       },
     },
     channels: {
+      billingMode: {
+        video: '影片（按秒）',
+      },
       emptyModelsInPricing: '{platform}：有定價項未選擇任何模型',
       form: {
         bedrockCCCompat: 'Bedrock CC 相容',
@@ -556,6 +559,7 @@ export default {
         billingModelSourceResponse: '按上游回應模型計費',
         cacheReadPriceShort: '快取讀',
         cacheWritePriceShort: '快取寫',
+        defaultVideoPrice: '預設影片每秒價格（未命中層級時使用）',
         imageInputPrice: '圖片輸入',
         inclusive: '（含）',
         maxTokens: '最大',
@@ -565,6 +569,7 @@ export default {
         syncModelsError: '同步模型失敗',
         syncModelsSuccess: '已同步 {count} 個新模型',
         syncingModels: '同步中...',
+        videoTiers: '影片解析度層級（按秒）',
       },
       intervalValidation: {
         maxGreaterThanMin: '區間 #{index}：最大 token 數（{max}）必須大於最小 token 數（{min}）',
@@ -724,6 +729,14 @@ export default {
         batchGeminiOnlyHint: '批次生圖當前僅支援 Gemini 分組。',
         batchHoldMultiplier: '批次凍結價格比例',
         batchSectionHint: '批次生圖僅影響批次任務：結算價格會疊加批次折扣倍率，提交時凍結金額按普通生圖原價 × 批次凍結價格比例計算。參考圖也會產生上游輸入 token 消耗，建議批次生圖折扣倍率設定大於 0.5。',
+      },
+      modelPricing: {
+        add: '新增模型價格',
+        description:
+          '匹配模型後覆蓋渠道和內建價格。長上下文階梯沿用官方/預設價卡，無需再手填區間。音訊可用按次層級設定 realtime、tts、stt。',
+        longContext: '啟用長上下文階梯定價',
+        longContextHint: '勾選後按官方/預設階梯計費；關閉則始終按第一檔基礎價。',
+        title: '分組逐模型定價',
       },
       modelRouting: {
         claudeMaxSimulation: {
