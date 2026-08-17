@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
@@ -17,13 +18,17 @@ import (
 type dashboardAggregationRepository struct {
 	sql   sqlExecutor
 	clock func() time.Time
+	// groupUsageRollupEnabled 分组用量日汇总总开关（本地 fork，默认关闭）。
+	// 关闭时重建作业整体短路、保留清理走不加 rollup 行锁的批删路径，避免阻塞网关
+	// usage_logs 写入。理由与开启前提见 config.DashboardAggregationConfig.GroupUsageRollupEnabled。
+	groupUsageRollupEnabled bool
 }
 
 const usageLogsCleanupBatchSize = 10000
 const usageBillingDedupCleanupBatchSize = 10000
 
 // NewDashboardAggregationRepository 创建仪表盘预聚合仓储。
-func NewDashboardAggregationRepository(sqlDB *sql.DB) service.DashboardAggregationRepository {
+func NewDashboardAggregationRepository(sqlDB *sql.DB, cfg *config.Config) service.DashboardAggregationRepository {
 	if sqlDB == nil {
 		return nil
 	}
@@ -31,11 +36,28 @@ func NewDashboardAggregationRepository(sqlDB *sql.DB) service.DashboardAggregati
 		log.Printf("[DashboardAggregation] 检测到非 PostgreSQL 驱动，已自动禁用预聚合")
 		return nil
 	}
-	return newDashboardAggregationRepositoryWithSQL(sqlDB)
+	repo := newDashboardAggregationRepositoryWithSQL(sqlDB)
+	repo.groupUsageRollupEnabled = cfg != nil && cfg.DashboardAgg.GroupUsageRollupEnabled
+	if !repo.groupUsageRollupEnabled {
+		log.Printf("[DashboardAggregation] 分组用量日汇总已禁用（dashboard_aggregation.group_usage_rollup_enabled=false），/admin/groups 走全表扫描口径")
+	}
+	return repo
 }
 
+// newDashboardAggregationRepositoryWithSQL 建的实例默认**开启**分组用量日汇总：它只被测试
+// 与事务内派生使用，测试需要直接验汇总逻辑；生产入口一律走 NewDashboardAggregationRepository
+// 按配置赋值，事务内派生一律走 withSQL 继承父实例的开关。
 func newDashboardAggregationRepositoryWithSQL(sqlq sqlExecutor) *dashboardAggregationRepository {
-	return &dashboardAggregationRepository{sql: sqlq, clock: time.Now}
+	return &dashboardAggregationRepository{sql: sqlq, clock: time.Now, groupUsageRollupEnabled: true}
+}
+
+// withSQL 派生一个绑定到给定执行器（通常是事务）的实例，继承父实例的时钟与开关。
+func (r *dashboardAggregationRepository) withSQL(sqlq sqlExecutor) *dashboardAggregationRepository {
+	return &dashboardAggregationRepository{
+		sql:                     sqlq,
+		clock:                   r.clock,
+		groupUsageRollupEnabled: r.groupUsageRollupEnabled,
+	}
 }
 
 func (r *dashboardAggregationRepository) now() time.Time {
@@ -81,7 +103,7 @@ func (r *dashboardAggregationRepository) AggregateRange(ctx context.Context, sta
 		if err != nil {
 			return err
 		}
-		txRepo := newDashboardAggregationRepositoryWithSQL(tx)
+		txRepo := r.withSQL(tx)
 		if err := txRepo.aggregateRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -137,22 +159,28 @@ func (r *dashboardAggregationRepository) RecomputeRange(ctx context.Context, sta
 		if err != nil {
 			return err
 		}
-		if err := lockGroupUsageRollupState(ctx, tx); err != nil {
-			_ = tx.Rollback()
-			return err
+		// 分组用量日汇总关闭时不碰 rollup 状态行：那把 FOR UPDATE 会与 usage_logs 插入
+		// 触发器的 FOR KEY SHARE 互斥，阻塞网关写入。
+		if r.groupUsageRollupEnabled {
+			if err := lockGroupUsageRollupState(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+			if err := invalidateGroupUsageRollupsAt(ctx, tx, start); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
 		}
-		if err := invalidateGroupUsageRollupsAt(ctx, tx, start); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		txRepo := newDashboardAggregationRepositoryWithSQL(tx)
+		txRepo := r.withSQL(tx)
 		if err := txRepo.recomputeRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
-		if err := txRepo.syncGroupUsageRollupsInTx(ctx, service.GroupUsageTodayStart(r.now())); err != nil {
-			_ = tx.Rollback()
-			return err
+		if r.groupUsageRollupEnabled {
+			if err := txRepo.syncGroupUsageRollupsInTx(ctx, service.GroupUsageTodayStart(r.now())); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
 		}
 		return tx.Commit()
 	}
@@ -248,7 +276,9 @@ func (r *dashboardAggregationRepository) CleanupUsageLogs(ctx context.Context, c
 func (r *dashboardAggregationRepository) cleanupUsageLogsBatches(ctx context.Context, cutoff time.Time) error {
 	db, transactional := r.sql.(*sql.DB)
 	for {
-		if transactional {
+		// 关闭分组用量日汇总时走不加 rollup 行锁的批删路径：那条路径每批都要先
+		// lockGroupUsageRollupState（FOR UPDATE），会把网关 usage_logs 写入堵在批删后面。
+		if transactional && r.groupUsageRollupEnabled {
 			affected, err := cleanupUsageLogsBatchWithRollupInvalidation(ctx, db, cutoff)
 			if err != nil {
 				return err

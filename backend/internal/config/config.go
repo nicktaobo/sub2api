@@ -1693,6 +1693,24 @@ type DashboardAggregationConfig struct {
 	Retention DashboardAggregationRetentionConfig `mapstructure:"retention"`
 	// RecomputeDays: 启动时重算最近 N 天
 	RecomputeDays int `mapstructure:"recompute_days"`
+	// GroupUsageRollupEnabled: 是否启用分组用量日汇总（上游 0.1.177 / 迁移 222-223）。
+	//
+	// 本地 fork 默认关闭（上游默认随 Enabled 一起开）。原因是该功能的重建作业会在**同一个
+	// 事务**里先对 usage_group_rollup_state 单行取 FOR UPDATE，再跑 MIN(created_at) →
+	// DELETE 日桶 → 对 usage_logs 整段 INSERT..SELECT..GROUP BY，提交才放锁；而迁移 222 给
+	// usage_logs 挂的语句级 AFTER INSERT 触发器每批写入都要对同一行取 FOR KEY SHARE，两者
+	// 互斥 ⇒ 重建期间网关 usage_logs 写入全阻塞。
+	//
+	// 这对本 fork 特别危险：计费顺序是 applyUsageBilling（扣余额）在前、
+	// writeUsageLogBestEffort 在后，写日志预算只有 postUsageBillingTimeout=15s，持锁超过
+	// 15 秒就会产生「余额已扣、usage_log 缺失」的对账缺口。持锁时长并不短：首次上线水位是
+	// 1970-01-01 走全历史重建（预算 30 分钟）；此后一旦 usage_logs 存量超过保留期，每 6 小时
+	// 的保留清理会把水位 LEAST 回滚到表内最老一天，触发默认 90 天全量重建（定时侧预算仅 2 分钟）。
+	//
+	// 关闭时读路径自动降级：水位停在 1970-01-01 ⇒ historical 段为空、tail 段全表扫描，
+	// 与合并该功能之前的口径完全一致，结果正确只是慢。
+	// 要开启：先在与生产同规模的库上实测一次全量重建耗时，确认远小于 15 秒再打开。
+	GroupUsageRollupEnabled bool `mapstructure:"group_usage_rollup_enabled"`
 }
 
 // DashboardAggregationRetentionConfig 预聚合保留窗口
@@ -2289,6 +2307,8 @@ func setDefaults() {
 	viper.SetDefault("dashboard_aggregation.retention.hourly_days", 180)
 	viper.SetDefault("dashboard_aggregation.retention.daily_days", 730)
 	viper.SetDefault("dashboard_aggregation.recompute_days", 2)
+	// 本地 fork 默认关闭，理由见 DashboardAggregationConfig.GroupUsageRollupEnabled 注释。
+	viper.SetDefault("dashboard_aggregation.group_usage_rollup_enabled", false)
 
 	// Usage cleanup task
 	viper.SetDefault("usage_cleanup.enabled", true)

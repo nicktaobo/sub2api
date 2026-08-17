@@ -116,13 +116,16 @@ func (r *dashboardAggregationRepository) SyncGroupUsageRollups(ctx context.Conte
 	if r == nil || r.sql == nil {
 		return nil
 	}
+	if !r.groupUsageRollupEnabled {
+		return r.parkGroupUsageRollupState(ctx)
+	}
 	todayStart = service.GroupUsageTodayStart(todayStart)
 	if db, ok := r.sql.(*sql.DB); ok {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
-		txRepo := newDashboardAggregationRepositoryWithSQL(tx)
+		txRepo := r.withSQL(tx)
 		if err := txRepo.syncGroupUsageRollupsInTx(ctx, todayStart); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -227,6 +230,30 @@ func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.C
 		WHERE id = 1
 	`, todayDate, retainedFrom, timezoneName); err != nil {
 		return fmt.Errorf("更新分组用量汇总水位: %w", err)
+	}
+	return nil
+}
+
+// parkGroupUsageRollupState 在分组用量日汇总被关闭时，把发布水位复位到建表默认的
+// 1970-01-01。这样读查询（getAllGroupUsageSummaryFromRollups）的 historical 段
+// `bucket_date < closed_before` 恒为空、tail 段从 1970 起全表扫描，口径与引入该功能之前
+// 完全一致——**开→关也安全**：之前发布过的日桶会一并失效，不会拿陈旧桶算出错的累计金额。
+//
+// 条件写，水位已在 1970 时不匹配任何行、不产生行锁，因此可以在每次同步点无脑调用。
+func (r *dashboardAggregationRepository) parkGroupUsageRollupState(ctx context.Context) error {
+	if r == nil || r.sql == nil {
+		return nil
+	}
+	_, err := r.sql.ExecContext(ctx, `
+		UPDATE usage_group_rollup_state
+		SET closed_before = DATE '1970-01-01',
+			retained_from = TIMESTAMPTZ '1970-01-01 00:00:00+00',
+			updated_at = NOW()
+		WHERE id = 1
+			AND closed_before > DATE '1970-01-01'
+	`)
+	if err != nil {
+		return fmt.Errorf("复位分组用量汇总水位: %w", err)
 	}
 	return nil
 }
