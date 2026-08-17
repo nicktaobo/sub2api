@@ -311,9 +311,9 @@ export default {
         codexFingerprintFull: '完全收斂',
         codexFingerprintMode: 'Codex 指紋收斂',
         codexFingerprintModeDesc:
-          '多人共用同一 OAuth 帳號時，將各使用者的裝置/工作階段標識收斂為帳號級恆定值，減少上游可見的裝置數和工作階段數。關閉時原樣透傳客戶端標識。',
-        codexFingerprintOff: '關閉（透傳）',
-        codexFingerprintSession: '裝置+工作階段（推薦）',
+          '多人共用同一 OAuth 帳號時，將各使用者的裝置/工作階段標識收斂為帳號級恆定值，減少上游可見的裝置數和工作階段數。預設關閉（原樣透傳客戶端標識），需要時再顯式開啟；部分帳號開啟收斂後出現過額度縮水，請按自己的實測結果選擇。',
+        codexFingerprintOff: '關閉（透傳，預設）',
+        codexFingerprintSession: '裝置+工作階段',
         codexImageTool: 'Codex 圖片橋接策略',
         codexImageToolBadgeBlock: '客戶端圖片工具已移除',
         codexImageToolBadgeDisabled: '不注入 Hosted 工具',
@@ -787,6 +787,7 @@ export default {
         sumTooHigh: '最低毛利率與安全緩衝之和必須小於 100%，否則將排除全部帳號',
       },
       rateLabel: '倍率',
+      usageYesterday: '昨日',
       videoPricing: {
         description: '配置 Grok 影片生成的每秒單價（USD/秒），留空則使用預設每秒價（grok-imagine-video：480p $0.05/s、720p $0.07/s；video-1.5：480p $0.08/s、720p $0.14/s、1080p $0.25/s）',
         finalPricePreview: '最終每秒價格預覽',
@@ -1554,6 +1555,15 @@ export default {
       openaiFastPolicy: {
         actionForcePriority: '強制設定 priority（fast）',
         removeUser: '移除使用者',
+        summaryAction: {
+          block: '攔截',
+          filter: '過濾',
+          force_priority: '強制 priority',
+          pass: '透傳',
+        },
+        summaryAllModels: '全部模型',
+        summaryOtherModels: '其他模型',
+        summaryTargetModels: '目標模型',
         userDeleted: '（已刪除）',
         userIdFallback: '使用者 #{id}',
         userSearchEmpty: '未找到匹配使用者',
