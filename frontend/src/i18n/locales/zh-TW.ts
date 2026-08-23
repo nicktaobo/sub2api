@@ -2251,10 +2251,8 @@ export default {
         antigravity: 'Antigravity',
         grok: 'Grok',
         deepseek: 'DeepSeek',
-        moonshot: 'Kimi',
-        glm: 'GLM',
-        qwen: 'Qwen',
-        seedance: 'Seedance',
+        kimi: 'Kimi',
+        zhipu: 'Zhipu GLM',
       },
       saving: '儲存中...',
       noGroups: '暫無分組',
@@ -3293,10 +3291,8 @@ export default {
         antigravity: 'Antigravity',
         grok: 'Grok',
         deepseek: 'DeepSeek',
-        moonshot: 'Kimi',
-        glm: 'GLM',
-        qwen: 'Qwen',
-        seedance: 'Seedance',
+        kimi: 'Kimi',
+        zhipu: 'Zhipu GLM',
       },
       types: {
         oauth: 'OAuth',
@@ -4105,25 +4101,15 @@ export default {
         baseUrlHint: '留空使用官方 DeepSeek API（api.deepseek.com）',
         apiKeyHint: '您的 DeepSeek API Key'
       },
-      // Moonshot (Kimi) specific
-      moonshot: {
+      // Kimi (Moonshot) specific
+      kimi: {
         baseUrlHint: '留空使用官方 Kimi Code API（api.kimi.com/coding/v1）',
         apiKeyHint: '您的 Kimi Code API Key'
       },
-      // GLM (Zhipu AI) specific
-      glm: {
+      // Zhipu GLM specific
+      zhipu: {
         baseUrlHint: '留空使用官方智譜 API（open.bigmodel.cn）',
         apiKeyHint: '您的智譜 GLM API Key'
-      },
-      // Qwen (通義千問 / Alibaba DashScope) specific
-      qwen: {
-        baseUrlHint: '留空使用官方通義千問 DashScope API（dashscope.aliyuncs.com）',
-        apiKeyHint: '您的通義千問 DashScope API Key（sk-...）'
-      },
-      // Seedance (ByteDance) specific
-      seedance: {
-        baseUrlHint: '留空使用火山方舟 API（ark.cn-beijing.volces.com）',
-        apiKeyHint: '您的火山方舟 API Key'
       },
       // Re-Auth Modal
       reAuthorizeAccount: '重新授權帳號',

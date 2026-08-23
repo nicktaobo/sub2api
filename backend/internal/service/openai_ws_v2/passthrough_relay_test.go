@@ -41,6 +41,16 @@ type closeSpyFrameConn struct {
 	closeCalls atomic.Int32
 }
 
+type cancelJoinProbeFrameConn struct {
+	readStarted  chan struct{}
+	readCanceled chan struct{}
+	allowReturn  chan struct{}
+	readReturned chan struct{}
+	startOnce    sync.Once
+	cancelOnce   sync.Once
+	returnOnce   sync.Once
+}
+
 func newPassthroughTestFrameConn(frames []passthroughTestFrame, autoClose bool) *passthroughTestFrameConn {
 	c := &passthroughTestFrameConn{
 		readCh: make(chan passthroughTestFrame, len(frames)+1),
@@ -178,6 +188,38 @@ func (c *closeSpyFrameConn) CloseCalls() int32 {
 	}
 	return c.closeCalls.Load()
 }
+
+func newCancelJoinProbeFrameConn() *cancelJoinProbeFrameConn {
+	return &cancelJoinProbeFrameConn{
+		readStarted:  make(chan struct{}),
+		readCanceled: make(chan struct{}),
+		allowReturn:  make(chan struct{}),
+		readReturned: make(chan struct{}),
+	}
+}
+
+func (c *cancelJoinProbeFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
+	c.startOnce.Do(func() { close(c.readStarted) })
+	<-ctx.Done()
+	c.cancelOnce.Do(func() { close(c.readCanceled) })
+	<-c.allowReturn
+	c.returnOnce.Do(func() { close(c.readReturned) })
+	return coderws.MessageText, nil, ctx.Err()
+}
+
+func (c *cancelJoinProbeFrameConn) WriteFrame(ctx context.Context, _ coderws.MessageType, _ []byte) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func (c *cancelJoinProbeFrameConn) Close() error { return nil }
 
 func TestRelay_BasicRelayAndUsage(t *testing.T) {
 	t.Parallel()
@@ -372,6 +414,58 @@ func TestRelay_IdleTimeoutDoesNotCloseClientOnError(t *testing.T) {
 	require.GreaterOrEqual(t, upstreamConn.CloseCalls(), int32(1))
 }
 
+func TestRelay_JoinsUpstreamReaderBeforeReturning(t *testing.T) {
+	t.Parallel()
+
+	clientConn := &closeSpyFrameConn{}
+	upstreamConn := newCancelJoinProbeFrameConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	resultCh := make(chan *RelayExit, 1)
+
+	go func() {
+		_, relayExit := Relay(
+			ctx,
+			clientConn,
+			upstreamConn,
+			[]byte(`{"type":"response.create","model":"gpt-4o","input":[]}`),
+			RelayOptions{},
+		)
+		resultCh <- relayExit
+	}()
+
+	select {
+	case <-upstreamConn.readStarted:
+	case <-time.After(time.Second):
+		t.Fatal("upstream reader did not start")
+	}
+	cancel()
+	select {
+	case <-upstreamConn.readCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("upstream reader did not observe relay cancellation")
+	}
+	select {
+	case <-resultCh:
+		t.Fatal("Relay returned before the upstream reader exited")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(upstreamConn.allowReturn)
+	select {
+	case relayExit := <-resultCh:
+		require.NotNil(t, relayExit)
+		require.ErrorIs(t, relayExit.Err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("Relay did not return after the upstream reader exited")
+	}
+	select {
+	case <-upstreamConn.readReturned:
+	default:
+		t.Fatal("Relay returned before the upstream reader completion signal")
+	}
+	require.Zero(t, clientConn.CloseCalls(), "错误路径不应提前关闭客户端连接")
+}
+
 func TestRelay_NilConnections(t *testing.T) {
 	t.Parallel()
 
@@ -472,6 +566,68 @@ func TestRelay_OnTurnComplete_PerTerminalEvent(t *testing.T) {
 	require.Equal(t, 5, result.Usage.OutputTokens)
 }
 
+func TestRelay_OnTurnComplete_BareErrorWithoutIDBeforeLaterCompleted(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"error","usage":{"input_tokens":5,"output_tokens":1},"error":{"message":"first turn failed"}}`),
+		},
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"response.completed","response":{"id":"resp_next","usage":{"input_tokens":3,"output_tokens":2}}}`),
+		},
+	}, true)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	turns := make([]RelayTurnResult, 0, 2)
+	result, relayExit := Relay(
+		ctx,
+		clientConn,
+		upstreamConn,
+		[]byte(`{"type":"response.create","model":"gpt-5.6-sol","input":[]}`),
+		RelayOptions{OnTurnComplete: func(turn RelayTurnResult) { turns = append(turns, turn) }},
+	)
+
+	require.Nil(t, relayExit)
+	require.Len(t, turns, 2)
+	require.Equal(t, "error", turns[0].TerminalEventType)
+	require.Empty(t, turns[0].RequestID)
+	require.Equal(t, Usage{InputTokens: 5, OutputTokens: 1}, turns[0].Usage)
+	require.Equal(t, "response.completed", turns[1].TerminalEventType)
+	require.Equal(t, "resp_next", turns[1].RequestID)
+	require.Equal(t, Usage{InputTokens: 3, OutputTokens: 2}, turns[1].Usage)
+	require.Equal(t, Usage{InputTokens: 8, OutputTokens: 3}, result.Usage)
+}
+
+func TestRelay_OnTurnComplete_AuxiliaryFrameDoesNotSettleBareErrorBeforeFailed(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{msgType: coderws.MessageText, payload: []byte(`{"type":"error","error":{"code":"server_error","message":"failed"}}`)},
+		{msgType: coderws.MessageText, payload: []byte(`{"type":"rate_limits.updated","rate_limits":[{"name":"requests","remaining":1}]}`)},
+		{msgType: coderws.MessageText, payload: []byte(`{"type":"response.failed","response":{"id":"resp_authoritative","usage":{"input_tokens":7,"output_tokens":2},"error":{"code":"server_error","message":"failed"}}}`)},
+	}, true)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	turns := make([]RelayTurnResult, 0, 1)
+	result, relayExit := Relay(ctx, clientConn, upstreamConn, []byte(`{"type":"response.create","model":"gpt-5.6-sol","input":[]}`), RelayOptions{
+		OnTurnComplete: func(turn RelayTurnResult) { turns = append(turns, turn) },
+	})
+
+	require.Nil(t, relayExit)
+	require.Len(t, turns, 1)
+	require.Equal(t, "response.failed", turns[0].TerminalEventType)
+	require.Equal(t, "resp_authoritative", turns[0].RequestID)
+	require.Equal(t, Usage{InputTokens: 7, OutputTokens: 2}, turns[0].Usage)
+	require.Equal(t, turns[0].Usage, result.Usage)
+}
+
 func TestRelay_OnTurnComplete_UsesCurrentResponseCreateModel(t *testing.T) {
 	t.Parallel()
 
@@ -563,6 +719,143 @@ func TestRelay_OnTurnComplete_ProvidesTurnMetrics(t *testing.T) {
 	require.Greater(t, turn.Duration.Milliseconds(), int64(0))
 	require.NotNil(t, result.FirstTokenMs)
 	require.Greater(t, result.Duration.Milliseconds(), int64(0))
+}
+
+func TestRelay_OnTurnComplete_UsesResponseCreateTimeAcrossPricingBoundary(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"response.completed","response":{"id":"resp_boundary","usage":{"input_tokens":1,"output_tokens":1}}}`),
+		},
+	}, true)
+
+	responseCreateAt := time.Date(2026, time.August, 17, 9, 59, 59, 0, time.UTC)
+	upstreamResponseAt := responseCreateAt.Add(time.Second)
+	var nowCalls atomic.Int64
+	nowFn := func() time.Time {
+		if nowCalls.Add(1) == 1 {
+			return responseCreateAt
+		}
+		return upstreamResponseAt
+	}
+
+	var turn RelayTurnResult
+	_, relayExit := Relay(
+		context.Background(),
+		clientConn,
+		upstreamConn,
+		[]byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+		RelayOptions{
+			Now:            nowFn,
+			OnTurnComplete: func(current RelayTurnResult) { turn = current },
+		},
+	)
+
+	require.Nil(t, relayExit)
+	require.Equal(t, responseCreateAt, turn.StartedAt)
+}
+
+func TestRelay_OnTurnComplete_UsesExplicitFirstTurnStartedAt(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"response.completed","response":{"id":"resp_initial_boundary","usage":{"input_tokens":1,"output_tokens":1}}}`),
+		},
+	}, true)
+
+	responseCreateAt := time.Date(2026, time.August, 17, 9, 59, 59, 0, time.UTC)
+	relayStartedAt := responseCreateAt.Add(time.Second)
+	var turn RelayTurnResult
+	_, relayExit := Relay(
+		context.Background(),
+		clientConn,
+		upstreamConn,
+		[]byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+		RelayOptions{
+			FirstTurnStartedAt: responseCreateAt,
+			Now:                func() time.Time { return relayStartedAt },
+			OnTurnComplete:     func(current RelayTurnResult) { turn = current },
+		},
+	)
+
+	require.Nil(t, relayExit)
+	require.Equal(t, responseCreateAt, turn.StartedAt)
+}
+
+func TestRelay_OnTurnComplete_UsesSubsequentResponseCreateTimeAcrossPricingBoundary(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+	firstTurnAt := time.Date(2026, time.August, 17, 9, 0, 0, 0, time.UTC)
+	secondTurnAt := time.Date(2026, time.August, 17, 9, 59, 59, 0, time.UTC)
+	secondResponseAt := secondTurnAt.Add(time.Second)
+	var clock atomic.Int64
+	clock.Store(firstTurnAt.UnixNano())
+
+	turns := make(chan RelayTurnResult, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = Relay(
+			ctx,
+			clientConn,
+			upstreamConn,
+			[]byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+			RelayOptions{
+				Now: func() time.Time { return time.Unix(0, clock.Load()).UTC() },
+				OnTurnComplete: func(current RelayTurnResult) {
+					turns <- current
+				},
+			},
+		)
+	}()
+
+	require.Eventually(t, func() bool { return len(upstreamConn.Writes()) == 1 }, time.Second, time.Millisecond)
+	upstreamConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"response.completed","response":{"id":"resp_first","usage":{"input_tokens":1,"output_tokens":1}}}`),
+	}
+	select {
+	case <-turns:
+	case <-time.After(time.Second):
+		t.Fatal("first turn did not complete")
+	}
+
+	clock.Store(secondTurnAt.UnixNano())
+	clientConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"response.create","model":"gpt-5.3-codex","input":[]}`),
+	}
+	require.Eventually(t, func() bool { return len(upstreamConn.Writes()) == 2 }, time.Second, time.Millisecond)
+	clock.Store(secondResponseAt.UnixNano())
+	upstreamConn.readCh <- passthroughTestFrame{
+		msgType: coderws.MessageText,
+		payload: []byte(`{"type":"response.completed","response":{"id":"resp_second","usage":{"input_tokens":1,"output_tokens":1}}}`),
+	}
+
+	var secondTurn RelayTurnResult
+	select {
+	case secondTurn = <-turns:
+	case <-time.After(time.Second):
+		t.Fatal("second turn did not complete")
+	}
+	require.Equal(t, secondTurnAt, secondTurn.StartedAt)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("relay did not stop after cancellation")
+	}
 }
 
 func TestRelay_BinaryFramePassthrough(t *testing.T) {
@@ -1063,9 +1356,15 @@ func (c *lateFrameUpstreamConn) Close() error {
 }
 
 // TestRelay_DrainTimeoutLateUsageWrite_NoDataRace 回归覆盖 relayState 数据竞争：
-// 客户端优雅断开后 waitRelayExit 兜底超时返回，主流程 enrichResult 读取计费 usage 快照，
-// 而上游读 goroutine 随后仍在解析迟到的 terminal usage 帧并累加同一 relayState。
-// 修复（relayState.mu）前该用例在 -race 下必然报 data race（计费可能读到撕裂值）。
+// 客户端优雅断开后 waitRelayExit 兜底超时返回，上游读 goroutine 仍在解析迟到的
+// terminal usage 帧并累加同一 relayState，而主流程要读取计费 usage 快照。
+// 本 fork 的修复是 relayState.mu（enrichResult 持锁取快照）；上游 b2b2adcf8 之后
+// 又在 relayCancel + upstreamConn.Close 之后加了无条件 `<-upstreamDone` join，
+// 把读 goroutine 先收干净再 enrichResult。两层叠加后竞争窗口结构性消失。
+//
+// 注意语义变化：join 之后迟到的 usage 帧必然先于 enrichResult 完成累加，
+// 因此 UpstreamDrainTimeout 不再截断计费快照——迟到 usage 会被计入（此前 fork
+// 在兜底超时路径下会丢弃，属少计）。此处断言按 join 后的真实语义写。
 func TestRelay_DrainTimeoutLateUsageWrite_NoDataRace(t *testing.T) {
 	t.Parallel()
 
@@ -1097,13 +1396,16 @@ func TestRelay_DrainTimeoutLateUsageWrite_NoDataRace(t *testing.T) {
 
 	require.NotNil(t, relayExit)
 	require.Equal(t, "client_disconnected", relayExit.Stage)
-	// 兜底超时早于迟到帧，计费快照不应包含迟到 usage。
-	require.Equal(t, Usage{}, result.Usage)
 
-	// 等待上游读 goroutine 完成迟到 usage 写入，确保 -race 能观测到完整的读写对。
+	// 迟到帧走 drop 分支即证明上游读 goroutine 已完成 relayState 写入；
+	// `<-upstreamDone` join 保证这一步发生在 enrichResult 之前，因此这里必然立即就绪。
 	select {
 	case <-lateFrameProcessed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("late upstream usage frame was never processed")
 	}
+
+	// join 之后计费快照包含迟到 usage（不再被 UpstreamDrainTimeout 截断）。
+	// 关键不变量是快照非撕裂：input/output 必须同时来自同一个 terminal 帧。
+	require.Equal(t, Usage{InputTokens: 7, OutputTokens: 3}, result.Usage)
 }

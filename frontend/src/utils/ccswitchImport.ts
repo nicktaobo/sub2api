@@ -2,7 +2,7 @@ import type { GroupPlatform } from '@/types'
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 export const DEEPSEEK_CC_SWITCH_CODEX_MODEL = 'deepseek-v4-flash'
-export const MOONSHOT_CC_SWITCH_CODEX_MODEL = 'kimi-for-coding'
+export const KIMI_CC_SWITCH_CODEX_MODEL = 'kimi-for-coding'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 
 export type CcSwitchClientType = 'claude' | 'gemini' | 'codex'
@@ -48,9 +48,9 @@ export function resolveCcSwitchImportConfig(
         return { app: 'codex', endpoint: baseUrl, model: DEEPSEEK_CC_SWITCH_CODEX_MODEL }
       }
       return { app: 'claude', endpoint: baseUrl }
-    case 'moonshot':
+    case 'kimi':
       if (clientType === 'codex') {
-        return { app: 'codex', endpoint: baseUrl, model: MOONSHOT_CC_SWITCH_CODEX_MODEL }
+        return { app: 'codex', endpoint: baseUrl, model: KIMI_CC_SWITCH_CODEX_MODEL }
       }
       return { app: 'claude', endpoint: baseUrl }
     case 'gemini':

@@ -34,27 +34,27 @@ func TestNormalizeAnthropicDirectInputUsage(t *testing.T) {
 	t.Run("DeepSeek 未命中口径无条件加回", func(t *testing.T) {
 		// 实测样例：3015 token prompt → input=71, cache_read=2944
 		u := OpenAIUsage{InputTokens: 71, CacheReadInputTokens: 2944}
-		normalizeAnthropicDirectInputUsage(PlatformDeepSeek, &u)
+		normalizeAnthropicDirectInputUsage(PlatformDeepseek, &u)
 		require.Equal(t, 3015, u.InputTokens)
 	})
 
 	t.Run("DeepSeek 新增内容超过缓存前缀也加回", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 5000, CacheReadInputTokens: 2944}
-		normalizeAnthropicDirectInputUsage(PlatformDeepSeek, &u)
+		normalizeAnthropicDirectInputUsage(PlatformDeepseek, &u)
 		require.Equal(t, 7944, u.InputTokens, "条件判断 (input < cache) 会在此漏计")
 	})
 
 	t.Run("DeepSeek cache_creation 与 cache_read 同口径加回", func(t *testing.T) {
 		// 回归：只加回 cache_read 时归一化=22000，下游减 28000 钳 0，真实 input 按 0 计费。
 		u := OpenAIUsage{InputTokens: 2000, CacheReadInputTokens: 20000, CacheCreationInputTokens: 8000}
-		normalizeAnthropicDirectInputUsage(PlatformDeepSeek, &u)
+		normalizeAnthropicDirectInputUsage(PlatformDeepseek, &u)
 		require.Equal(t, 30000, u.InputTokens)
 		require.Equal(t, 2000, billableDirectInput(u), "三重扣减后必须还原真实 input")
 	})
 
 	t.Run("DeepSeek 纯 cache_creation 也加回", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 2000, CacheCreationInputTokens: 8000}
-		normalizeAnthropicDirectInputUsage(PlatformDeepSeek, &u)
+		normalizeAnthropicDirectInputUsage(PlatformDeepseek, &u)
 		require.Equal(t, 10000, u.InputTokens)
 		require.Equal(t, 2000, billableDirectInput(u))
 	})
@@ -62,33 +62,33 @@ func TestNormalizeAnthropicDirectInputUsage(t *testing.T) {
 	t.Run("Moonshot 总量口径不得双重计费", func(t *testing.T) {
 		// 若 Kimi 按 Anthropic 总量口径上报（input 已含全部输入），不应再加回
 		u := OpenAIUsage{InputTokens: 3015, CacheReadInputTokens: 2944}
-		normalizeAnthropicDirectInputUsage(PlatformMoonshot, &u)
+		normalizeAnthropicDirectInputUsage(PlatformKimi, &u)
 		require.Equal(t, 3015, u.InputTokens)
 	})
 
 	t.Run("Moonshot 总量口径含 cache_creation 不得双重计费", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 30000, CacheReadInputTokens: 20000, CacheCreationInputTokens: 8000}
-		normalizeAnthropicDirectInputUsage(PlatformMoonshot, &u)
+		normalizeAnthropicDirectInputUsage(PlatformKimi, &u)
 		require.Equal(t, 30000, u.InputTokens)
 		require.Equal(t, 2000, billableDirectInput(u))
 	})
 
 	t.Run("Moonshot 明显未命中口径仍加回", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 71, CacheReadInputTokens: 2944}
-		normalizeAnthropicDirectInputUsage(PlatformMoonshot, &u)
+		normalizeAnthropicDirectInputUsage(PlatformKimi, &u)
 		require.Equal(t, 3015, u.InputTokens)
 	})
 
 	t.Run("Moonshot 未命中口径 cache_creation 一并加回", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 2000, CacheReadInputTokens: 20000, CacheCreationInputTokens: 8000}
-		normalizeAnthropicDirectInputUsage(PlatformMoonshot, &u)
+		normalizeAnthropicDirectInputUsage(PlatformKimi, &u)
 		require.Equal(t, 30000, u.InputTokens)
 		require.Equal(t, 2000, billableDirectInput(u))
 	})
 
 	t.Run("无缓存命中为 no-op", func(t *testing.T) {
 		u := OpenAIUsage{InputTokens: 100}
-		normalizeAnthropicDirectInputUsage(PlatformDeepSeek, &u)
+		normalizeAnthropicDirectInputUsage(PlatformDeepseek, &u)
 		require.Equal(t, 100, u.InputTokens)
 	})
 }
@@ -121,7 +121,7 @@ func TestAnthropicDirectUsageWithCacheCreation(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 
-		result, err := svc.handleAnthropicDirectStreamingResponse(resp, c, PlatformDeepSeek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
+		result, err := svc.handleAnthropicDirectStreamingResponse(resp, c, PlatformDeepseek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
 		require.NoError(t, err)
 		require.Equal(t, 30000, result.Usage.InputTokens, "归一化后应为总量口径")
 		require.Equal(t, 20000, result.Usage.CacheReadInputTokens)
@@ -141,7 +141,7 @@ func TestAnthropicDirectUsageWithCacheCreation(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 
-		result, err := svc.handleAnthropicDirectBufferedResponse(resp, c, PlatformDeepSeek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
+		result, err := svc.handleAnthropicDirectBufferedResponse(resp, c, PlatformDeepseek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
 		require.NoError(t, err)
 		require.Equal(t, 30000, result.Usage.InputTokens, "归一化后应为总量口径")
 		require.Equal(t, 20000, result.Usage.CacheReadInputTokens)
@@ -166,7 +166,7 @@ func TestAnthropicDirectUsageWithCacheCreation(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 
-		result, err := svc.handleAnthropicDirectBufferedResponse(resp, c, PlatformDeepSeek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
+		result, err := svc.handleAnthropicDirectBufferedResponse(resp, c, PlatformDeepseek, "deepseek-chat", "deepseek-chat", "deepseek-chat", time.Now())
 		require.NoError(t, err)
 		require.Equal(t, 30000, result.Usage.InputTokens, "归一化后应为总量口径")
 		require.Equal(t, 2000, billableDirectInput(result.Usage), "三重扣减后必须还原真实 input")
@@ -174,7 +174,7 @@ func TestAnthropicDirectUsageWithCacheCreation(t *testing.T) {
 }
 
 // buildAnthropicDirectMessagesURL 的逐平台 URL 约定契约。
-// GLM 端点根因上游而异：智谱官方/z.ai 在 /api/anthropic 下，NewAPI 中转在根。
+// Zhipu 端点根因上游而异：智谱官方/z.ai 在 /api/anthropic 下，NewAPI 中转在根。
 func TestBuildAnthropicDirectMessagesURL(t *testing.T) {
 	apikey := func(platform, baseURL string) *Account {
 		return &Account{Platform: platform, Type: AccountTypeAPIKey, Credentials: map[string]any{"base_url": baseURL}}
@@ -184,19 +184,15 @@ func TestBuildAnthropicDirectMessagesURL(t *testing.T) {
 		account *Account
 		want    string
 	}{
-		{"DeepSeek 默认", &Account{Platform: PlatformDeepSeek, Type: AccountTypeAPIKey}, "https://api.deepseek.com/anthropic/v1/messages"},
-		{"Moonshot 默认", &Account{Platform: PlatformMoonshot, Type: AccountTypeAPIKey}, "https://api.kimi.com/coding/v1/messages"},
-		{"GLM 官方默认 base 补 /api/anthropic", &Account{Platform: PlatformGLM, Type: AccountTypeAPIKey}, "https://open.bigmodel.cn/api/anthropic/v1/messages"},
-		{"GLM 官方 paas 根也归一到 /api/anthropic", apikey(PlatformGLM, "https://open.bigmodel.cn/api/paas/v4"), "https://open.bigmodel.cn/api/anthropic/v1/messages"},
-		{"GLM 官方已含 /api/anthropic 不重复", apikey(PlatformGLM, "https://open.bigmodel.cn/api/anthropic"), "https://open.bigmodel.cn/api/anthropic/v1/messages"},
-		{"GLM z.ai 补 /api/anthropic", apikey(PlatformGLM, "https://api.z.ai"), "https://api.z.ai/api/anthropic/v1/messages"},
-		{"GLM NewAPI 中转根直挂 /v1/messages", apikey(PlatformGLM, "https://relay.orbitai.cc"), "https://relay.orbitai.cc/v1/messages"},
-		{"GLM 中转 base 带 /v1 归一", apikey(PlatformGLM, "https://relay.orbitai.cc/v1"), "https://relay.orbitai.cc/v1/messages"},
-		{"GLM 中转 base 带末尾斜杠", apikey(PlatformGLM, "https://relay.orbitai.cc/"), "https://relay.orbitai.cc/v1/messages"},
-		{"Qwen 官方默认 base → claude-code-proxy", &Account{Platform: PlatformQwen, Type: AccountTypeAPIKey}, "https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy/v1/messages"},
-		{"Qwen 显式 compatible-mode → claude-code-proxy", apikey(PlatformQwen, "https://dashscope.aliyuncs.com/compatible-mode/v1"), "https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy/v1/messages"},
-		{"Qwen 中转 host 剥 compatible-mode/v1", apikey(PlatformQwen, "https://relay.example.com/compatible-mode/v1"), "https://relay.example.com/v1/messages"},
-		{"Qwen 中转 host 根直挂", apikey(PlatformQwen, "https://relay.example.com"), "https://relay.example.com/v1/messages"},
+		{"Deepseek 默认", &Account{Platform: PlatformDeepseek, Type: AccountTypeAPIKey}, "https://api.deepseek.com/anthropic/v1/messages"},
+		{"Kimi 默认", &Account{Platform: PlatformKimi, Type: AccountTypeAPIKey}, "https://api.kimi.com/coding/v1/messages"},
+		{"Zhipu 官方默认 base 补 /api/anthropic", &Account{Platform: PlatformZhipu, Type: AccountTypeAPIKey}, "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{"Zhipu 官方 paas 根也归一到 /api/anthropic", apikey(PlatformZhipu, "https://open.bigmodel.cn/api/paas/v4"), "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{"Zhipu 官方已含 /api/anthropic 不重复", apikey(PlatformZhipu, "https://open.bigmodel.cn/api/anthropic"), "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{"Zhipu z.ai 补 /api/anthropic", apikey(PlatformZhipu, "https://api.z.ai"), "https://api.z.ai/api/anthropic/v1/messages"},
+		{"Zhipu NewAPI 中转根直挂 /v1/messages", apikey(PlatformZhipu, "https://relay.orbitai.cc"), "https://relay.orbitai.cc/v1/messages"},
+		{"Zhipu 中转 base 带 /v1 归一", apikey(PlatformZhipu, "https://relay.orbitai.cc/v1"), "https://relay.orbitai.cc/v1/messages"},
+		{"Zhipu 中转 base 带末尾斜杠", apikey(PlatformZhipu, "https://relay.orbitai.cc/"), "https://relay.orbitai.cc/v1/messages"},
 		{"未支持平台返回空", &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, ""},
 	}
 	for _, tc := range cases {

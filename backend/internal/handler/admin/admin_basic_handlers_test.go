@@ -245,14 +245,14 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	body, _ = json.Marshal(map[string]any{"name": "qwen", "platform": "qwen", "subscription_type": "standard"})
+	body, _ = json.Marshal(map[string]any{"name": "kimi", "platform": "kimi", "subscription_type": "standard"})
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, adminSvc.createdGroups, 2)
-	require.Equal(t, "qwen", adminSvc.createdGroups[1].Platform)
+	require.Equal(t, "kimi", adminSvc.createdGroups[1].Platform)
 
 	body, _ = json.Marshal(map[string]any{"name": "update"})
 	rec = httptest.NewRecorder()
@@ -261,14 +261,14 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	body, _ = json.Marshal(map[string]any{"name": "update-seedance", "platform": "seedance"})
+	body, _ = json.Marshal(map[string]any{"name": "update-zhipu", "platform": "zhipu"})
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/2", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, adminSvc.updatedGroups, 2)
-	require.Equal(t, "seedance", adminSvc.updatedGroups[1].Platform)
+	require.Equal(t, "zhipu", adminSvc.updatedGroups[1].Platform)
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/admin/groups/2", nil)

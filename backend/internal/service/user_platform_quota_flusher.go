@@ -145,12 +145,23 @@ func (s *UserPlatformQuotaUsageFlusher) flushOneBatch(parentCtx context.Context)
 
 	// 3. 组装 snapshots（MISS 或任一 WindowStart==nil → 跳过）
 	snaps := make([]UserPlatformQuotaSnapshot, 0, len(keys))
+	droppedRetired := 0
 	for i, key := range keys {
 		e := entries[i]
 		if e == nil {
 			continue
 		}
 		if e.DailyWindowStart == nil || e.WeeklyWindowStart == nil || e.MonthlyWindowStart == nil {
+			continue
+		}
+		// 丢弃已下线平台的脏 key。Redis 脏集跨部署存活，迁移 229 把国产平台标识改名
+		// （moonshot→kimi、glm→zhipu）并下线 qwen/seedance、收紧 user_platform_quotas
+		// 的 platform CHECK 之后，脏集里可能仍残留旧标识的 member。这类 key 组进批次会让
+		// BatchSnapshotUsage 撞 SQLSTATE 23514（CHECK 违约，不是外键错，走不到下面按
+		// FK 丢弃的分支）→ 整条 INSERT 回滚，把同批的合法用户一起拖下水 →
+		// readdOrCountLost 再把整批回填脏集 → 无限重试，配额永远落不了库。
+		if !IsAllowedQuotaPlatform(key.Platform) {
+			droppedRetired++
 			continue
 		}
 		snaps = append(snaps, UserPlatformQuotaSnapshot{
@@ -163,6 +174,10 @@ func (s *UserPlatformQuotaUsageFlusher) flushOneBatch(parentCtx context.Context)
 			WeeklyWindowStart:  *e.WeeklyWindowStart,
 			MonthlyWindowStart: *e.MonthlyWindowStart,
 		})
+	}
+
+	if droppedRetired > 0 {
+		logger.LegacyPrintf("quota_flusher", "[QuotaFlusher] 丢弃 %d 个已下线平台的脏 key（不再属于 AllowedQuotaPlatforms）", droppedRetired)
 	}
 
 	// 4. 全部 MISS/异常跳过时

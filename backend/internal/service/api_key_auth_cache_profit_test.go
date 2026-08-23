@@ -58,6 +58,13 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	// LongContextPricingEnabled/ModelPricing 后又抬到 21。本用例只验「快照写的就是当前常量」，
 	// 不写死数字；版本下界的守卫在 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，
 	// 各代旧快照必须被拒的守卫在同文件的 TestAPIKeyService_RejectsV*AuthSnapshot* 系列。
+	//
+	// 合并 0.1.179 时上游又在这里塞了一句写死的
+	// `require.Equal(t, 20, snapshot.Version, "v20 起认证快照携带分组长上下文与模型定价字段")`
+	// ——上游独立修了同一个 bug 并 bump 到 20，而本 fork 早已是 21（且字段已在）。
+	// 那句写死断言在本 fork 恒失败，且它想守的语义（快照必须带分组长上下文/模型定价字段）
+	// 由 api_key_auth_snapshot_group_parity_test.go 的反射 parity 守卫覆盖得更严，
+	// 故**丢弃写死数字那句**，只保留跟常量走的断言。下轮合并再冒出来同样处理。
 	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
 
 	// 模拟 L2 缓存的完整 JSON 往返（与 apiKeyCache.SetAuthCache/GetAuthCache 同构）。

@@ -13,6 +13,8 @@ export interface MessagesDispatchFormState {
   exact_model_mappings: MessagesDispatchMappingRow[];
 }
 
+// 按平台的默认映射目标。gpt-5.x 是 OpenAI 专属型号，发给国产上游必然 400，
+// 所以国产平台必须各有各的默认值。
 function getDefaultModelsForPlatform(platform?: GroupPlatform | null): {
   opus: string;
   sonnet: string;
@@ -21,24 +23,36 @@ function getDefaultModelsForPlatform(platform?: GroupPlatform | null): {
   switch (platform) {
     case "deepseek":
       return { opus: "deepseek-v4-pro", sonnet: "deepseek-v4-pro", haiku: "deepseek-v4-flash" };
-    case "moonshot":
+    case "kimi":
       return { opus: "kimi-k2.6", sonnet: "kimi-k2.6", haiku: "kimi-k2.6" };
-    case "glm":
+    case "zhipu":
       return { opus: "glm-4.6", sonnet: "glm-4.6", haiku: "glm-4.5-air" };
-    case "qwen":
-      return { opus: "qwen3-coder-plus", sonnet: "qwen3-coder-plus", haiku: "qwen-plus" };
     default:
       return { opus: "gpt-5.4", sonnet: "gpt-5.3-codex", haiku: "gpt-5.4-mini" };
   }
 }
 
 // 支持 Anthropic Messages API 调度（/v1/messages 派发）的平台白名单。
+//
+// ⚠️ 上游只有 openai + composite：上游假定国产账号配 api_protocol=anthropic 原生直通、
+// 模型名交给账号级 model_mapping。本 fork 不满足该前提——CN 分组的 claude-* 请求全靠这份
+// **分组级**映射翻成 deepseek-v4-pro / kimi-k2.6 / glm-4.6（账号级 model_mapping 是恒等
+// 白名单，接不住）。跟随上游收窄会让后端仍在用、管理员却看不到也改不了，
+// 且新建 CN 分组拿到空配置 → claude-* 原样透传上游 400。
 // 必须与后端 service.sanitizeGroupMessagesDispatchFields / defaultMessagesDispatchModels
-// 的平台名单一致（注意：openAICompatPlatforms 另含 seedance，不在派发白名单内）。
-const MESSAGES_DISPATCH_PLATFORMS: GroupPlatform[] = ["openai", "deepseek", "moonshot", "glm", "qwen"];
+// 的平台名单保持一致。
+const MESSAGES_DISPATCH_PLATFORMS: GroupPlatform[] = [
+  "openai",
+  "composite",
+  "deepseek",
+  "kimi",
+  "zhipu",
+];
 
-export function groupSupportsMessagesDispatch(platform?: GroupPlatform | null): boolean {
-  return !!platform && MESSAGES_DISPATCH_PLATFORMS.includes(platform);
+export function supportsMessagesDispatchPlatform(
+  platform?: GroupPlatform | string | null,
+): boolean {
+  return !!platform && MESSAGES_DISPATCH_PLATFORMS.includes(platform as GroupPlatform);
 }
 
 export function createDefaultMessagesDispatchFormState(

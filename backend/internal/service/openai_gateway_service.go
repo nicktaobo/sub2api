@@ -320,8 +320,9 @@ type OpenAIForwardResult struct {
 	// AudioUsage carries Voice billing units when present.
 	AudioUsage *AudioUsage
 
-	wsReplayInput       []json.RawMessage
-	wsReplayInputExists bool
+	wsReplayInput                []json.RawMessage
+	wsReplayInputExists          bool
+	wsAccountFailoverReplayInput []json.RawMessage
 }
 
 // SucceededForScheduling reports whether this result is an upstream success
@@ -482,6 +483,7 @@ type OpenAIGatewayService struct {
 	openaiWSStateStore             OpenAIWSStateStore
 	openaiScheduler                OpenAIAccountScheduler
 	openaiWSPassthroughDialer      openAIWSClientDialer
+	openaiWSSessionPreemptions     openAIWSSessionPreemptRegistry
 	openaiAccountStats             *openAIAccountRuntimeStats
 	openaiModelTransient           *openAIAccountModelTransientState
 	openaiProxyStreamCircuit       *openAIProxyStreamCircuit
@@ -492,6 +494,7 @@ type OpenAIGatewayService struct {
 	openaiAccountRuntimeBlockLocks      sync.Map // key: int64(accountID), value: *sync.Mutex
 	openaiAccountRuntimeBlockGeneration sync.Map // key: int64(accountID), value: uint64
 	openaiAccountRuntimeBlockSequence   atomic.Uint64
+	openaiOAuth429RetryStartedAt        sync.Map // key: int64(accountID), value: time.Time
 	grokCredentialMutationLocks         sync.Map // key: int64(accountID), value: *sync.Mutex
 	openaiOAuth429WindowStartUnixNano   atomic.Int64
 	openaiOAuth429WindowCount           atomic.Int64
@@ -1209,20 +1212,14 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 		}
 		account = credAccount
 	}
-	// OpenAI 兼容的国产平台（DeepSeek / Moonshot / GLM / Qwen / Seedance）只用 API Key。
-	// Grok 虽然也算 OpenAI 兼容，但走自己的 OAuth(access_token)/APIKey 分支，必须排除，
-	// 否则会被这里的 api_key-only 逻辑吞掉，导致 Grok OAuth 账号取不到 access_token。
-	if account.IsOpenAICompatible() && !account.IsOpenAI() && !account.IsGrok() {
-		tp := s.resolveTokenProviderForPlatform(account.Platform)
-		if tp != nil {
-			token, err := tp.GetAccessToken(ctx, account)
-			if err != nil {
-				return "", "", err
-			}
-			return token, "apikey", nil
-		}
-		// fallback: 直接从凭据读取 api_key
-		apiKey := account.GetCredential("api_key")
+	// 国产 OpenAI 兼容供应商（kimi / zhipu / deepseek）只用 API Key。
+	// IsCNProvider 天然排除 openai 与 grok：grok 虽然也算 OpenAI 兼容，但走自己的
+	// OAuth(access_token)/APIKey 分支，被这里的 api_key-only 逻辑吞掉会导致 Grok
+	// OAuth 账号取不到 access_token。
+	// 原先每个国产平台各有一个 *TokenProvider 薄包装（取 credentials.api_key、拒绝
+	// OAuth），与此处的通用读取等价，随平台改名一并删除；TrimSpace 保留原有严格性。
+	if account.IsCNProvider() {
+		apiKey := strings.TrimSpace(account.GetCredential("api_key"))
 		if apiKey == "" {
 			return "", "", fmt.Errorf("api_key not found in credentials for platform %s", account.Platform)
 		}
@@ -1262,6 +1259,17 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 			return "", "", errors.New("access_token not found in credentials")
 		}
 		return accessToken, "oauth", nil
+	case AccountTypeSetupToken:
+		if !account.IsOpenAIOAuthLike() {
+			return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
+		}
+		// OpenAI setup tokens are inference-only bearer credentials. They use the
+		// Codex OAuth forwarding protocol but have no refresh-token lifecycle.
+		accessToken := account.GetOpenAIAccessToken()
+		if accessToken == "" {
+			return "", "", errors.New("access_token not found in credentials")
+		}
+		return accessToken, "oauth", nil
 	case AccountTypeAPIKey:
 		if account.Platform == PlatformGrok {
 			apiKey := strings.TrimSpace(account.GetCredential("api_key"))
@@ -1270,36 +1278,12 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 			}
 			return apiKey, "apikey", nil
 		}
-		apiKey := account.GetOpenAIApiKey()
+		apiKey := strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")
 		}
 		return apiKey, "apikey", nil
 	default:
 		return "", "", fmt.Errorf("unsupported account type: %s", account.Type)
-	}
-}
-
-// platformTokenProvider is a common interface for platform-specific token providers.
-type platformTokenProvider interface {
-	GetAccessToken(ctx context.Context, account *Account) (string, error)
-}
-
-// resolveTokenProviderForPlatform returns the stateless token provider for the
-// given OpenAI-compatible platform. Returns nil for unknown platforms.
-func (s *OpenAIGatewayService) resolveTokenProviderForPlatform(platform string) platformTokenProvider {
-	switch platform {
-	case PlatformDeepSeek:
-		return NewDeepSeekTokenProvider()
-	case PlatformMoonshot:
-		return NewMoonshotTokenProvider()
-	case PlatformGLM:
-		return NewGLMTokenProvider()
-	case PlatformQwen:
-		return NewQwenTokenProvider()
-	case PlatformSeedance:
-		return NewSeedanceTokenProvider()
-	default:
-		return nil
 	}
 }

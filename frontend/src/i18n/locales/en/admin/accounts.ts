@@ -113,11 +113,40 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        kimi: 'Kimi',
+        zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
-        moonshot: 'Kimi',
-        glm: 'GLM',
-        qwen: 'Qwen',
-        seedance: 'Seedance'
+      },
+      cnProviders: {
+        accountMode: {
+          title: 'Account Type',
+          payg: 'Pay-as-you-go',
+          paygDesc: 'Consumes account balance, billed per token. Auto-cools down on low balance and recovers after top-up.',
+          coding: 'Coding Plan',
+          codingDesc: 'Subscription coding package, rate-limited by 5-hour / weekly rolling usage windows.',
+        },
+        apiProtocol: {
+          title: 'API Protocol',
+          adaptive: 'Adaptive',
+          adaptiveDesc: 'Uses the matching native provider endpoint for each inbound protocol, converting only when unavailable.',
+          endpoints: 'Protocol endpoints',
+          responsesFallbackDesc: 'Responses requests are converted to Chat Completions because this provider has no native Responses endpoint.',
+          chatCompletions: 'Chat Completions',
+          chatCompletionsDesc: 'Standard OpenAI-compatible endpoint; requests in other formats are converted.',
+          anthropic: 'Anthropic',
+          anthropicDesc: 'Native passthrough to the provider’s Anthropic endpoint — ideal for Claude Code.',
+          responses: 'Responses',
+          responsesDesc: 'Provider’s native Responses endpoint — ideal for Codex.',
+        },
+        balance: 'Balance --',
+        window5h: '5-hour window',
+        windowWeekly: 'Weekly window',
+        probe: 'Query',
+        probeTooltip: 'Query the provider quota endpoint for 5-hour / weekly rolling window usage',
+        balanceProbeTooltip: 'Query the provider balance endpoint for the account balance',
+        balanceLow: 'Insufficient balance',
+        noBalanceEndpoint: 'This platform has no balance query endpoint',
+        resetSoon: 'reset soon',
       },
 
       types: {
@@ -149,6 +178,7 @@ export default {
       status: {
         active: 'Active',
         inactive: 'Inactive',
+        expired: 'Expired',
         error: 'Error',
         cooldown: 'Cooldown',
         paused: 'Paused',
@@ -462,12 +492,16 @@ export default {
         submit: 'Update Accounts',
         updating: 'Updating...',
         success: 'Updated {count} account(s)',
+        successWithInherited: 'Updated {count} account(s). {inherited} selected shadow account(s) still follow their parent account.',
         partialSuccess: 'Partially updated: {success} succeeded, {failed} failed',
+        partialSuccessWithInherited: 'Partially updated: {success} succeeded, {failed} failed. {inherited} selected shadow account(s) still follow their parent account.',
         failed: 'Bulk update failed',
         noSelection: 'Please select accounts to edit',
         noFieldsSelected: 'Select at least one field to update',
         rateSyncWarning: 'Accounts with upstream rate sync enabled cannot be changed in bulk. Disable sync in the account editor first.',
         rateSyncConflict: 'Cannot change account rates: {count} target account(s) have upstream rate sync enabled.',
+        longContextShadowHint: 'Long-context billing belongs to the parent account. Selected shadow accounts keep following their parent, including when targets come from a filter.',
+        longContextParentRequired: 'All selected accounts are shadows. Select the parent account to change long-context billing.',
         mixedPlatformWarning: 'Selected accounts span multiple platforms ({platforms}). Model mapping presets shown are combined — ensure mappings are appropriate for each platform.'
       },
 
@@ -1583,24 +1617,14 @@ export default {
         apiKeyHint: 'Your DeepSeek API Key'
       },
 
-      moonshot: {
+      kimi: {
         baseUrlHint: 'Leave default for official Kimi Code API (api.kimi.com/coding/v1)',
         apiKeyHint: 'Your Kimi Code API Key'
       },
 
-      glm: {
+      zhipu: {
         baseUrlHint: 'Leave default for official Zhipu GLM API (open.bigmodel.cn)',
         apiKeyHint: 'Your Zhipu GLM API Key'
-      },
-
-      qwen: {
-        baseUrlHint: 'Leave default for official Tongyi Qwen DashScope API (dashscope.aliyuncs.com)',
-        apiKeyHint: 'Your Tongyi Qwen DashScope API Key (sk-...)'
-      },
-
-      seedance: {
-        baseUrlHint: 'Leave default for Volcano Ark API (ark.cn-beijing.volces.com)',
-        apiKeyHint: 'Your Volcano Ark API Key'
       }
     },
 

@@ -189,10 +189,17 @@ func TestAPIKeyService_RejectsV19AuthSnapshotFromEitherLineage(t *testing.T) {
 	}
 }
 
-// v20 条目缺少 LongContextPricingEnabled / ModelPricing（上游 0.1.176 只把这两个分组计费
-// 字段加进了 repository 的鉴权投影、没加进快照，本 fork 在 v21 补上）。v20 条目反序列化后
-// 这两个字段是零值，会让长上下文阶梯静默关闭、渠道区间定价塌到最便宜的第一档，属直接少收，
-// 因此必须整体拒绝而不是沿用。
+// v20 是**第六次同号异义**，两条血脉都必须拒：
+//   - 本地 v20 = 合并两条 v19 血脉的产物，但缺 LongContextPricingEnabled / ModelPricing
+//     （上游 0.1.176 只把这两个分组计费字段加进了 repository 的鉴权投影、没加进快照，
+//     本 fork 在 v21 补上）。反序列化后这两个字段是零值，长上下文阶梯静默关闭、
+//     渠道区间定价塌到最便宜的第一档，属直接少收。
+//   - 上游 v20（0.1.179 独立修了同一个 bug 后 bump 到 20）= 带分组计费字段，但缺本 fork
+//     的 merchant/affiliate 字段（user.parent_merchant_id、group.affiliate_rebate_excluded），
+//     命中后 merchant 停用守卫静默失效、返利排除读成 false。
+//
+// 两侧 v20 语义不同、字段集互有缺失，所以本轮合并**不能**因为「上游 v20 已经带分组计费
+// 字段」就放行 v20：必须整体拒绝，由 v21 强制重建。
 func TestAPIKeyService_RejectsV20AuthSnapshotMissingGroupPricingToggles(t *testing.T) {
 	svc := &APIKeyService{}
 
@@ -204,19 +211,21 @@ func TestAPIKeyService_RejectsV20AuthSnapshotMissingGroupPricingToggles(t *testi
 		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
 	}
 	if ok {
-		t.Fatal("expected v20 auth snapshot to be rejected: it predates LongContextPricingEnabled/ModelPricing, so long-context ladders would be silently disabled and channel interval pricing collapsed to the cheapest tier")
+		t.Fatal("expected v20 auth snapshot to be rejected: local v20 predates LongContextPricingEnabled/ModelPricing (long-context ladders silently disabled, channel interval pricing collapsed to the cheapest tier) while upstream v20 lacks the fork's parent_merchant_id/affiliate_rebate_excluded (merchant suspended guard silently bypassed)")
 	}
 	if apiKey != nil {
 		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19 各两条血脉）以及 v20
-// （缺分组计费字段的那一版），否则旧缓存会被误判有效。上游每给 group 加一个进快照的
-// 字段就 bump 一次，本 fork 也在加；下轮合并若上游再 bump 到 21，这里要继续抬高，不能沿用。
+// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19/v20 各两条血脉），否则旧缓存
+// 会被误判有效。v20 是第六次撞号：本地 v20 缺分组计费字段、上游 0.1.179 的 v20 缺 fork 的
+// merchant/affiliate 字段——两侧都不完整，所以下界仍是 20，本 fork 的 21 越过它。
+// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加；下轮合并若上游再 bump
+// 到 21，常量与这里的 lastCollidedVersion 必须一并继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
 	const lastCollidedVersion = 20
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19 lineages and superseding v20 (missing group pricing toggles), got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19/v20 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

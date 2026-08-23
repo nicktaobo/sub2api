@@ -79,6 +79,13 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 		return xai.ModelMappingWithOptions(opts)["claude-*"]
 	}
 
+	// 与上游的差异（有意保留）：上游在此处对国产供应商无条件 `return ""`，前提是
+	// 其 sanitize 会把 CN 分组的调度配置整个置空、模型改写全交给账号级 model_mapping。
+	// 本 fork 的 sanitizeGroupMessagesDispatchFields 保留 CN 分组的分组级映射，
+	// 本站 CN 分组也依赖这里把 claude-* 翻成各家自己的型号，直接照抄会打掉这条链路。
+	// 下面的 defaultMessagesDispatchModels 已按平台给出兜底，不会把 openai 专属的
+	// gpt-5.x 发给国产上游。
+
 	cfg := normalizeOpenAIMessagesDispatchModelConfig(g.MessagesDispatchModelConfig)
 	if mappedModel := strings.TrimSpace(cfg.ExactModelMappings[requestedModel]); mappedModel != "" {
 		return mappedModel
@@ -109,14 +116,12 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 
 func (g *Group) defaultMessagesDispatchModels() (opus, sonnet, haiku string) {
 	switch g.Platform {
-	case PlatformDeepSeek:
+	case PlatformDeepseek:
 		return "deepseek-v4-pro", "deepseek-v4-pro", "deepseek-v4-flash"
-	case PlatformMoonshot:
+	case PlatformKimi:
 		return "kimi-k2.6", "kimi-k2.6", "kimi-k2.6"
-	case PlatformGLM:
+	case PlatformZhipu:
 		return "glm-4.6", "glm-4.6", "glm-4.5-air"
-	case PlatformQwen:
-		return "qwen3-coder-plus", "qwen3-coder-plus", "qwen-plus"
 	default:
 		return defaultOpenAIMessagesDispatchOpusMappedModel,
 			defaultOpenAIMessagesDispatchSonnetMappedModel,
@@ -125,15 +130,21 @@ func (g *Group) defaultMessagesDispatchModels() (opus, sonnet, haiku string) {
 }
 
 func sanitizeGroupMessagesDispatchFields(g *Group) {
-	if g == nil {
+	// openai 分组的调度配置完整保留；composite 只保留开关（映射交给复合路由解析出的目标平台）。
+	if g == nil || g.Platform == PlatformOpenAI {
 		return
 	}
-	switch g.Platform {
-	case PlatformOpenAI, PlatformDeepSeek, PlatformMoonshot, PlatformGLM, PlatformQwen:
-		return
-	default:
+	if g.Platform != PlatformComposite {
 		g.AllowMessagesDispatch = false
-		g.DefaultMappedModel = ""
-		g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
 	}
+	g.DefaultMappedModel = ""
+	// 国产供应商分组保留 MessagesDispatchModelConfig：/v1/messages 上的 claude-* 要靠
+	// 它翻成 kimi-* / glm-* / deepseek-*（详见 ResolveMessagesDispatchModel 的注释）。
+	// AllowMessagesDispatch 跟随上游置 false —— handler 的
+	// allowOpenAICompatibleMessagesDispatch 对 CN 分组直接豁免该开关，清不清都放行，
+	// 跟随上游可减少下一轮合并冲突。
+	if IsCNProvider(g.Platform) {
+		return
+	}
+	g.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{}
 }

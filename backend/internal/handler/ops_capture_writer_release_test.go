@@ -51,9 +51,10 @@ func TestOpsErrorLoggerMiddleware_ResidualWrapperRestoresWriterAndSkipsPool(t *t
 	require.NotNil(t, pooled)
 	// (1) 无条件恢复：外层中间件 post-Next 看到的必须是原始 writer。
 	require.Same(t, originalWriter, writerAfterOps, "存在残留 wrapper 时也必须恢复 originalWriter")
-	// (2) 未入池：releaseOpsCaptureWriter 是唯一入池路径且会把 ResponseWriter
-	// 置 nil；ResponseWriter 仍非 nil 即证明 w 被丢给 GC 而非归还池。
-	require.NotNil(t, pooled.ResponseWriter, "被残留 wrapper 引用的 writer 不得归还 sync.Pool")
+	// (2) 未入池：releaseOpsCaptureWriter 是唯一入池路径且会把 state.responseWriter
+	// 置 nil（并递增 generation 作废租约）；responseWriter 仍非 nil 即证明 w 被丢给
+	// GC 而非归还池。
+	require.NotNil(t, pooled.state.responseWriter, "被残留 wrapper 引用的 writer 不得归还 sync.Pool")
 }
 
 // 常规路径（无残留 wrapper）不回归：中间件退出恢复原 writer 并正常归还池。
@@ -85,5 +86,5 @@ func TestOpsErrorLoggerMiddleware_NormalPathRestoresWriterAndReleasesToPool(t *t
 
 	require.NotNil(t, pooled)
 	require.Same(t, originalWriter, writerAfterOps)
-	require.Nil(t, pooled.ResponseWriter, "常规路径应归还池（release 会清空内层引用）")
+	require.Nil(t, pooled.state.responseWriter, "常规路径应归还池（release 会清空内层引用）")
 }

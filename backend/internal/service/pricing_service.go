@@ -1460,7 +1460,9 @@ func (s *PricingService) ListAll(providerFilter string) []LiteLLMModelEntry {
 		if p == nil {
 			continue
 		}
-		if filter != "" && !strings.EqualFold(p.LiteLLMProvider, filter) {
+		// 平台标识与 litellm_provider 是两套命名（见 litellm_provider_alias.go）：
+		// kimi 必须同时命中价目表里的 moonshot 条目，否则公开模型广场整组空。
+		if filter != "" && !litellmProviderMatches(p.LiteLLMProvider, filter) {
 			continue
 		}
 		if p.Mode != "" && p.Mode != "chat" {

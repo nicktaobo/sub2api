@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v20: fifth same-number/different-meaning collision between the two lineages.
+// v21: sixth same-number/different-meaning collision between the two lineages.
 // 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
 //   - v16：本地 = user parent_merchant_id + group affiliate_rebate_excluded
 //     （merchant 子用户守卫 / 邀请返利排除）；上游 = group reasoning effort 上限 + 映射。
@@ -26,19 +26,27 @@ import (
 //     control 四套齐全）；上游 = 分组级 search/audio/video 计费字段（search_price_per_1k /
 //     audio_realtime_price_per_min / audio_tts_price_per_million_chars /
 //     audio_stt_price_per_hour / video_model_prices，迁移 217/218/219）。
+//   - v20：**第六次撞号**。本地 v20 = 合并上述两条 v19 血脉的产物，但**还没有**
+//     LongContextPricingEnabled / ModelPricing（上游 0.1.176 迁移 221 只把这两个分组计费
+//     字段加进了 repository 的鉴权投影、没加进快照）；上游 0.1.179 独立发现并修复了同一个
+//     bug，把这两个字段加进快照后同样 bump 到 20。两侧 v20 语义不同：
+//     本地血脉的 v20 缺分组计费字段 ⇒ 长上下文阶梯静默关闭、渠道区间定价塌到最便宜的
+//     第一档（纯少收）；上游血脉的 v20 缺本 fork 的 merchant/affiliate 字段
+//     （user.parent_merchant_id、group.affiliate_rebate_excluded）⇒ merchant 停用守卫
+//     静默失效、返利排除读成 false。
+//     因此 v20 条目无论来自哪条血脉都必须整体拒绝（TestAPIKeyService_RejectsV20…）。
 //
-// 合并后的快照同时携带全部五套字段，因此必须越过 19：任何一条血脉遗留的 v19 条目都会
+// 合并后的快照同时携带全部六套字段，因此必须越过 20：任何一条血脉遗留的 ≤v20 条目都会
 // 通过版本校验，而另一条血脉的字段反序列化成零值——merchant 停用守卫静默失效 /
 // reasoning 策略读空 / AllowLive 读成 false（live API 对已授权分组静默 403）/
 // ProfitControlEnabled 读成 false（分组利润管控准入门在直连热路径上静默放行）/
-// 分组级 search/audio/video 单价读成 nil（回落全局价，静默按错价计费）。
-// 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
-// 再撞到 20，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+// 分组级 search/audio/video 单价读成 nil（回落全局价，静默按错价计费）/
+// LongContextPricingEnabled 与 ModelPricing 读成零值（长上下文阶梯关闭、区间定价塌档）。
 //
-//   - v21：合并上游 0.1.176（迁移 221）时补进 LongContextPricingEnabled / ModelPricing。
-//     上游只把这两个字段加进了 repository 的鉴权投影、没加进快照，而热路径 100% 读快照，
-//     于是长上下文阶梯被静默关闭、渠道区间定价塌到第一档（纯少收）。存量 v20 条目里
-//     没有这两个字段，反序列化后同样是零值，因此必须抬版本强制重建，光补字段不够。
+// 本 fork 在上游 bump 到 20 之前就已经是 21（v21 = 本地 v20 + 分组计费字段），字段集已是
+// 两侧并集，故本轮合并**保留 21 不动**，只是撞号血脉记录多了一条。
+// 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
+// 再撞到 21，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
 const apiKeyAuthSnapshotVersion = 21
 
 type apiKeyAuthCacheConfig struct {

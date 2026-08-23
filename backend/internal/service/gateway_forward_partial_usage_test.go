@@ -8,11 +8,42 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type gatewayForwardErrorPolicyRepoStub struct {
+	AccountRepository
+	tempCalls           int
+	overloadCalls       int
+	modelRateLimitCalls []gatewayForwardModelRateLimitCall
+}
+
+type gatewayForwardModelRateLimitCall struct {
+	accountID int64
+	scope     string
+}
+
+func (r *gatewayForwardErrorPolicyRepoStub) SetTempUnschedulable(context.Context, int64, time.Time, string) error {
+	r.tempCalls++
+	return nil
+}
+
+func (r *gatewayForwardErrorPolicyRepoStub) SetModelRateLimit(_ context.Context, id int64, scope string, _ time.Time, _ ...string) error {
+	r.modelRateLimitCalls = append(r.modelRateLimitCalls, gatewayForwardModelRateLimitCall{
+		accountID: id,
+		scope:     scope,
+	})
+	return nil
+}
+
+func (r *gatewayForwardErrorPolicyRepoStub) SetOverloaded(context.Context, int64, time.Time) error {
+	r.overloadCalls++
+	return nil
+}
 
 // 本文件覆盖 issue #5148：流式转发中途出错（缺失 terminal 事件、读错误等）时，
 // 已观测到的上游 usage 不得随错误一起被丢弃，Forward 必须把部分结果与错误一同
@@ -181,6 +212,104 @@ func TestGatewayService_Forward_FailoverErrorKeepsNilResult(t *testing.T) {
 	var failoverErr *UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr))
 	require.Nil(t, result, "failover 错误必须保持 result=nil，防止重试成功后双重计费")
+}
+
+func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":"hello"}]}`)
+	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	require.NoError(t, err)
+
+	const errorJSON = `{"type":"error","error":{"details":null,"type":"overloaded_error","message":"Overloaded"},"request_id":"req_01"}`
+	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader("event: error\ndata: " + errorJSON + "\n\n")),
+	}}
+	repo := &gatewayForwardErrorPolicyRepoStub{}
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	svc := &GatewayService{
+		cfg:                  cfg,
+		responseHeaderFilter: compileResponseHeaderFilter(cfg),
+		httpUpstream:         upstream,
+		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
+		deferredService:      &DeferredService{},
+	}
+	account := newAnthropicOAuthAccountForPartialUsageTest()
+	account.Credentials["temp_unschedulable_enabled"] = true
+	account.Credentials["temp_unschedulable_rules"] = []any{map[string]any{
+		"error_code":       float64(529),
+		"keywords":         []any{"Overloaded"},
+		"duration_minutes": float64(10),
+	}}
+
+	result, err := svc.Forward(context.Background(), c, account, parsed)
+	require.Error(t, err)
+	require.Nil(t, result)
+
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, 529, failoverErr.StatusCode)
+	require.JSONEq(t, errorJSON, string(failoverErr.ResponseBody))
+	require.Equal(t, 1, repo.overloadCalls, "synthetic 529 must apply global overload cooldown")
+	require.Empty(t, repo.modelRateLimitCalls, "global 529 cooldown must take precedence over custom model rules")
+	require.Empty(t, rec.Body.String(), "pre-output overload must remain eligible for account failover")
+}
+
+func TestGatewayService_Forward_PostOutputSSEOverloadedErrorKeepsExistingStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":"hello"}]}`)
+	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	require.NoError(t, err)
+
+	const errorJSON = `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`
+	fixture := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n" +
+		"event: error\ndata: " + errorJSON + "\n\n"
+	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(fixture)),
+	}}
+	repo := &gatewayForwardErrorPolicyRepoStub{}
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	svc := &GatewayService{
+		cfg:                  cfg,
+		responseHeaderFilter: compileResponseHeaderFilter(cfg),
+		httpUpstream:         upstream,
+		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
+		deferredService:      &DeferredService{},
+	}
+
+	result, err := svc.Forward(context.Background(), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
+	require.Error(t, err)
+
+	// 本用例自上游移植，断言按本 fork 语义调整。
+	// 上游此处断言 result == nil 且 err 为 UpstreamFailoverError(403)；本 fork 有
+	// PartialError 部分计费特性（shouldBillPartialStream，见 gateway_forward.go）：
+	// message_start 已把 input_tokens=1 交付给客户端，这段成本必须计费，否则
+	// 已交付内容零计费。该分支刻意排在 sseErr/failover 判断之前（已写入内容时
+	// handler 的 writer-size 检查本就会阻止 failover，裸 failover 只会让已交付内容
+	// 白送），所以这里拿到的是原始流错误而非 UpstreamFailoverError。
+	require.NotNil(t, result, "已交付 token 时必须回带部分结果用于计费")
+	require.True(t, result.PartialError)
+	require.Equal(t, 1, result.Usage.InputTokens)
+
+	// 上游这条用例真正要守的性质在本 fork 同样成立：**已产出内容之后**的
+	// overloaded_error 不得升级成语义 529、不得给账号加冷却
+	// （语义 529 只在「一个字节都没写出去」时才成立，见上一条 PreOutput 用例）。
+	require.Zero(t, repo.tempCalls, "已产出内容后不应临时停调账号")
+	require.Zero(t, repo.overloadCalls, "已产出内容后不应触发过载冷却")
+	require.Contains(t, rec.Body.String(), "message_start")
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamMissingTerminalPreservesPartialUsage(t *testing.T) {
