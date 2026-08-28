@@ -76,6 +76,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	bindRequestedReasoningEffort(c, body, reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
@@ -360,6 +361,10 @@ func (h *GatewayHandler) submitChatCompletionsUsageRecord(
 
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 	sessionID := service.ExtractClientSessionID(c)
+	// 上游 0.1.18x 新增：把请求侧 reasoning_effort 落进计费结果。本 fork 已把整段
+	// RecordUsage 提到本函数共用，故 stamp 也收口在这里，让「成功」与「流式部分
+	// 交付后出错」两条路径口径一致。
+	stampForwardRequestedReasoningEffort(result, service.RequestedReasoningEffortFromContext(c.Request.Context()))
 	h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 			Result:             result,
