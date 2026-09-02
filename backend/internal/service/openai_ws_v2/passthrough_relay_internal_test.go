@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -794,4 +795,62 @@ func TestObserveUpstreamMessage_ResponseServiceTierOnlyFromTerminalEvents(t *tes
 		nil,
 	)
 	require.Equal(t, "", second.responseServiceTier)
+}
+
+// TestFinalizePendingBareErrorLocked_ConcurrentWithEnrichResult 直接验「relayState.mu 覆盖
+// 全部写者」这条不变量，不依赖生产侧的 goroutine 编排。
+//
+// 背景：finalizePendingBareError → finalizeObservedRelayTerminal 会写 enrichResult 在锁内
+// 读取的那批字段（usage 累加、lastResponseID / lastResponseModel / responseConflict /
+// lastResponseServiceTier、turnTimingByID 与 activeTurn 的删改），而这些 helper 一律不自锁
+// （因为 finalizeObservedRelayTerminal 还会从 observeUpstreamMessage 的锁区内被调用，
+// sync.Mutex 不可重入）。加锁只能上提到锁外调用点，即 finalizePendingBareErrorLocked。
+//
+// 生产代码里这两者今天已被上游的 `<-upstreamDone` join 串行化、竞争不可达，所以这条不变量
+// 靠端到端用例是测不出来的（-race 也抓不到，需要 waitRelayExit 兜底超时的时序）。本用例
+// 直接并发调用两者：若哪天有人把某个 finalize 调用点改回无锁版本，`-race` 会立刻报
+// WARNING: DATA RACE。
+func TestFinalizePendingBareErrorLocked_ConcurrentWithEnrichResult(t *testing.T) {
+	t.Parallel()
+
+	const rounds = 200
+	now := time.Unix(1700000000, 0).UTC()
+
+	for i := 0; i < rounds; i++ {
+		state := &relayState{}
+		// 构造一个待结算的 bare error turn：turnTimingByID 有条目、turnUsage 有待累加的 token。
+		openAIWSRelayGetOrInitTurnTiming(state, "resp_race", now)
+		state.turnUsage = Usage{InputTokens: 3, OutputTokens: 2}
+		state.pendingBareError = &observedUpstreamEvent{
+			eventType:  "error",
+			responseID: "resp_race",
+			startedAt:  now,
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			finalizePendingBareErrorLocked(state, now.Add(time.Second))
+		}()
+		go func() {
+			defer wg.Done()
+			result := &RelayResult{}
+			enrichResult(result, state, time.Second)
+		}()
+		wg.Wait()
+
+		// 结算必然发生且只发生一次：turnUsage 已并入 usage，pendingBareError 已清空。
+		require.Nil(t, state.pendingBareError)
+		require.Equal(t, 3, state.usage.InputTokens)
+		require.Equal(t, 2, state.usage.OutputTokens)
+		require.Equal(t, "resp_race", state.lastResponseID)
+	}
+}
+
+// TestFinalizePendingBareErrorLocked_NilStateIsNoop 覆盖包装函数的 nil 守卫——
+// 生产调用点在 state 为 nil 时不能 panic（无锁版本自身也有同样守卫）。
+func TestFinalizePendingBareErrorLocked_NilStateIsNoop(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, observedUpstreamEvent{}, finalizePendingBareErrorLocked(nil, time.Now()))
 }

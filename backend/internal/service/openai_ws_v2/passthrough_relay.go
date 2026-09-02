@@ -100,8 +100,11 @@ type RelayTraceEvent struct {
 }
 
 type relayState struct {
-	// mu 保护下方全部可变字段：runUpstreamToClient goroutine 经 observeUpstreamMessage 写入，
-	// 主流程在 waitRelayExit 超时兜底路径下可能与其并发，enrichResult 读取时必须持锁取快照。
+	// mu 保护下方全部可变字段。写入路径有两条，**都必须持锁**：
+	//   1) runUpstreamToClient goroutine 经 observeUpstreamMessage（该函数内部自持锁）；
+	//   2) 锁外的三个 finalize 调用点，一律经 finalizePendingBareErrorLocked。
+	// 读取路径是 enrichResult（持锁取快照）。详见 finalizePendingBareErrorLocked 与
+	// enrichResult 的注释：上游的 `<-upstreamDone` join 让当前竞争不可达，本锁为纵深防御。
 	mu                      sync.Mutex
 	usage                   Usage
 	turnUsage               Usage
@@ -368,7 +371,7 @@ func Relay(
 	// turn callback; otherwise a late read can race Relay's result settlement.
 	<-upstreamDone
 
-	emitTurnComplete(options.OnTurnComplete, state, finalizePendingBareError(state, nowFn()))
+	emitTurnComplete(options.OnTurnComplete, state, finalizePendingBareErrorLocked(state, nowFn()))
 	enrichResult(&result, state, nowFn().Sub(startAt))
 	result.ClientToUpstreamFrames = clientToUpstreamFrames.Load()
 	result.UpstreamToClientFrames = upstreamToClientFrames.Load()
@@ -535,7 +538,7 @@ func runUpstreamToClient(
 	for {
 		msgType, payload, err := upstreamConn.ReadFrame(ctx)
 		if err != nil {
-			emitTurnComplete(onTurnComplete, state, finalizePendingBareError(state, nowFn()))
+			emitTurnComplete(onTurnComplete, state, finalizePendingBareErrorLocked(state, nowFn()))
 			graceful := isDisconnectError(err)
 			// A clean WebSocket close only describes the transport handshake. Once
 			// the upstream has started a Responses turn, success still requires a
@@ -584,7 +587,7 @@ func runUpstreamToClient(
 		case coderws.MessageText:
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			if shouldFinalizePendingBareError(state, payload, eventType) {
-				emitTurnComplete(onTurnComplete, state, finalizePendingBareError(state, nowFn()))
+				emitTurnComplete(onTurnComplete, state, finalizePendingBareErrorLocked(state, nowFn()))
 			}
 			observedEvent = observeUpstreamMessage(state, payload, startAt, nowFn, onUsageParseFailure)
 		case coderws.MessageBinary:
@@ -828,6 +831,35 @@ func finalizePendingBareError(state *relayState, now time.Time) observedUpstream
 	observed := *state.pendingBareError
 	state.pendingBareError = nil
 	return finalizeObservedRelayTerminal(state, observed, now)
+}
+
+// finalizePendingBareErrorLocked 与 finalizePendingBareError 同语义，但自带 state.mu。
+//
+// 为什么需要它：finalizePendingBareError → finalizeObservedRelayTerminal 会写入
+// enrichResult 在锁内读取的那批字段（state.usage 经 finalizeRelayTurnUsage 累加、
+// lastResponseID / lastResponseModel / responseConflict / lastResponseServiceTier，
+// 以及 openAIWSRelayDeleteTurnTiming 对 turnTimingByID / activeTurn 的删改），而这些
+// helper 一律不自锁。
+//
+// 为什么不能让 helper 自己加锁：finalizeObservedRelayTerminal 还有一个调用点在
+// observeUpstreamMessage 的锁区内（见该函数 state.mu.Lock 之后），sync.Mutex 不可重入，
+// helper 自锁会当场自死锁。同理 openAIWSRelayActiveTurnID 也必须保持无锁。
+// 所以加锁只能上提到「锁外的调用点」这一层，即本函数。
+//
+// 现状说明（别把它读成「修了一个正在发生的竞争」）：上游在 relayCancel + Close 之后加了
+// 无条件 `<-upstreamDone` join，而 relayState 里受 mu 保护的字段其写者全部位于
+// runUpstreamToClient 那个 goroutine（client→upstream goroutine 只碰 requestModelMu 保护的
+// requestModel 与 atomic 的 pendingTurnStart），所以今天 enrichResult 与这些写入之间已被
+// join 串行化，竞争不可达。本函数的价值是让「mu 覆盖全部写者」这条不变量真正成立：
+// 该 join 是上游近期才加的，若日后被挪走或去掉，竞争会静默回归，而 -race 抓不到
+// （需要 waitRelayExit 兜底超时的时序）。代价只是每 turn 一次无竞争的互斥量。
+func finalizePendingBareErrorLocked(state *relayState, now time.Time) observedUpstreamEvent {
+	if state == nil {
+		return observedUpstreamEvent{}
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return finalizePendingBareError(state, now)
 }
 
 func finalizeObservedRelayTerminal(state *relayState, observed observedUpstreamEvent, now time.Time) observedUpstreamEvent {
@@ -1219,7 +1251,17 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 	if state == nil {
 		return
 	}
-	// waitRelayExit 超时兜底路径下 runUpstreamToClient 可能仍在写 state，持锁取快照避免读到撕裂值。
+	// 持锁取快照，避免读到撕裂值。
+	//
+	// 该锁最初是为「waitRelayExit 兜底超时返回后 runUpstreamToClient 仍在写 state」这个窗口加的；
+	// 上游后来在 relayCancel + upstreamConn.Close 之后补了无条件 `<-upstreamDone` join，把读
+	// goroutine 先收干净再走到这里，那个窗口已经结构性消失。受 mu 保护的字段其写者**全部**在
+	// runUpstreamToClient 那个 goroutine 里（client→upstream goroutine 只碰 requestModelMu 保护的
+	// requestModel 与 atomic 的 pendingTurnStart），所以当前竞争不可达——本锁现为纵深防御：
+	// 那个 join 是上游近期才加的，若被挪走或去掉，竞争会静默回归且 -race 抓不到（需兜底超时时序）。
+	// 与之配套的是 finalizePendingBareErrorLocked：锁外的三个 finalize 调用点必须走它，
+	// 否则 mu 只覆盖了 observeUpstreamMessage 一条写入路径，这条不变量就是假的。
+	//
 	// requestModel 例外：上游把它改成由 client→upstream goroutine 经 setRequestModel 写入
 	// （response.create 逐 turn 切模型），state.mu 保护不到那个写者，必须走 requestModelMu。
 	// 锁序固定为 mu → requestModelMu（emitTurnComplete 也是在持 mu 时调 currentRequestModel），
