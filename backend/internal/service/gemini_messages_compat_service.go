@@ -1804,6 +1804,12 @@ func (s *GeminiMessagesCompatService) writeGeminiCustomCodeSkippedError(c *gin.C
 
 // writeGeminiNativeUpstreamError 将不可 failover 的上游错误按原始状态码与响应体透传给客户端，
 // 并记录 ops 错误事件。状态码保真：下游据此区分请求级错误与可重试的链路故障。
+//
+// 本 fork 不调用它：裸透传 body 会暴露上游厂商/中转域名，native 错误分支改走
+// writeGoogleError 只回脱敏后的消息（状态码同样保真）。这里保留上游实现原样，
+// 是为了让上游后续改动合并到本 fork 时这一段不产生冲突。
+//
+//nolint:unused // 本 fork 走脱敏路径，保留上游实现以减少合并冲突
 func (s *GeminiMessagesCompatService) writeGeminiNativeUpstreamError(c *gin.Context, account *Account, resp *http.Response, respBody []byte, requestID string, isOAuth bool) error {
 	respBody = unwrapIfNeeded(isOAuth, respBody)
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
