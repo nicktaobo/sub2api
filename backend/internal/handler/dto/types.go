@@ -155,7 +155,7 @@ type Group struct {
 	MaxReasoningEffort string `json:"max_reasoning_effort"`
 	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
-	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
+	// ReasoningEffortMappings OpenAI/Codex 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 
 	// AffiliateRebateExcluded 该分组消费不参与邀请返利分成（migration 143）
