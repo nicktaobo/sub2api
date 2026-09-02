@@ -252,13 +252,14 @@ type userPricingGroup struct {
 
 // PricingGroupList 列出用户可见的「定价端点」——每个端点对应一个 group。
 //
-// 模型集合算法（admin 不用额外配，全自动）：
+// 模型集合算法（默认全自动，admin 需要时可手动覆盖）：
+//  0. 分组开启了自定义模型列表（models_list）→ 直接以它为准，跳过后续推断
 //  1. 拉该 group 下所有 active account（account_groups 多对多）
 //  2. 每个 account 的"支持模型"= account.credentials.model_mapping 的非通配
 //     符 from key 集合：
-//     - 空 mapping 或只有通配符 → 视为"透传/不限制"，不参与交集
+//     - 空 mapping 或只有通配符 → 视为"透传/不限制"，不参与并集
 //     - 有非通配符 mapping → 这些 key 就是该账号显式支持的模型
-//  3. 所有参与交集的 account 之间取交集 → 该 group 的模型列表
+//  3. 所有参与的 account 之间取并集 → 该 group 的模型列表
 //  4. 没有 account / 全部透传 → 用 LiteLLM 按 group.platform 过滤的 chat
 //     模型作为兜底
 //
@@ -330,8 +331,8 @@ func (h *AvailableChannelHandler) PricingGroupList(c *gin.Context) {
 			}
 		}
 
-		// 计算模型集合：取该 group 下所有 account.model_mapping 的非通配 from key 交集
-		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
+		// 计算模型集合：分组自定义列表优先，否则取账号 model_mapping 非通配 from key 并集
+		modelNames := h.resolveGroupModelsByAccount(ctx, &g, getLiteLLMModels)
 
 		item := userPricingGroup{
 			ID:             g.ID,
@@ -427,7 +428,7 @@ func (h *AvailableChannelHandler) PricingGroupListPublic(c *gin.Context) {
 				rate = sell
 			}
 		}
-		modelNames := h.resolveGroupModelsByAccount(ctx, g.ID, g.Platform, getLiteLLMModels)
+		modelNames := h.resolveGroupModelsByAccount(ctx, &g, getLiteLLMModels)
 		item := userPricingGroup{
 			ID:             g.ID,
 			Name:           g.Name,
@@ -491,71 +492,101 @@ func (h *AvailableChannelHandler) buildPricingModel(
 	return m
 }
 
-// resolveGroupModelsByAccount 按"account 交集 + LiteLLM 兜底"算法计算 group 的模型列表。
+// resolveGroupModelsByAccount 计算 group 在「模型列表」页展示的模型集合。
 //
-//   - 拉该 group 下所有 active account（accountService.ListByGroup）
-//   - 对每个 account 取 GetModelMapping()：
-//   - 空 mapping → 透传，不参与交集
-//   - 全是通配符 from（如 `gpt-*`）→ 透传，不参与交集
-//   - 含非通配符 from → 这些 from 就是该 account 显式支持的模型
-//   - 所有参与的 account 之间取交集
-//   - 无参与 / 无 account → LiteLLM 按 platform 兜底
+// 优先级：
+//  1. 分组开启了自定义模型列表（models_list.enabled 且非空）→ 直接以它为准。
+//     这是 admin 的手动闸门：账号 mapping 写法古怪、或新模型还没进 LiteLLM 价目表
+//     时，后台勾一下就能让模型出现在页面上，不必等发版。保留后台配置的顺序。
+//  2. 否则按账号推断：该 group 下所有 active account 的 model_mapping 非通配符
+//     from key 取**并集**。
+//     - 空 mapping / 只有通配符 from → 该账号透传，不参与并集
+//     历史实现这里取的是交集，导致「三个账号里只有一个支持的新模型」被静默抹掉；
+//     网关 /v1/models（GatewayService.GetAvailableModels）一直是并集，这里跟它对齐。
+//  3. 无 account / 全部透传 → LiteLLM 按 platform 兜底
 func (h *AvailableChannelHandler) resolveGroupModelsByAccount(
 	ctx context.Context,
-	groupID int64,
-	platform string,
+	g *service.Group,
 	getLiteLLMModels func(platform string) []string,
 ) []string {
-	var intersect map[string]struct{} // nil 表示还没遇到任何"显式列模型"的账号
+	if g == nil {
+		return nil
+	}
+	if models := groupCustomModelsList(g); len(models) > 0 {
+		return models
+	}
 
+	var accounts []service.Account
 	if h.accountService != nil {
-		accounts, err := h.accountService.ListByGroup(ctx, groupID)
+		list, err := h.accountService.ListByGroup(ctx, g.ID)
 		if err == nil {
-			for i := range accounts {
-				acc := accounts[i]
-				if acc.Status != service.StatusActive {
-					continue
-				}
-				if acc.Platform != platform {
-					// 防御性：理论上 account.platform 跟 group.platform 应该一致
-					continue
-				}
-				mapping := acc.GetModelMapping()
-				if len(mapping) == 0 {
-					// 透传，不参与交集
-					continue
-				}
-				cur := map[string]struct{}{}
-				for from := range mapping {
-					if strings.HasSuffix(from, "*") {
-						continue // 通配符 from 不算具体模型
-					}
-					cur[from] = struct{}{}
-				}
-				if len(cur) == 0 {
-					// 只有通配符 → 视为透传，不参与交集
-					continue
-				}
-				if intersect == nil {
-					intersect = cur
-					continue
-				}
-				next := map[string]struct{}{}
-				for k := range intersect {
-					if _, ok := cur[k]; ok {
-						next[k] = struct{}{}
-					}
-				}
-				intersect = next
+			accounts = list
+		}
+	}
+	return resolveGroupModelsFromAccounts(g.Platform, accounts, func() []string {
+		return getLiteLLMModels(g.Platform)
+	})
+}
+
+// groupCustomModelsList 取分组自定义模型列表中可展示的条目（去空、去重、去通配符）。
+// 通配符条目在网关侧是过滤 pattern，价格页展示不出具体单价，跳过。
+func groupCustomModelsList(g *service.Group) []string {
+	if !g.CustomModelsListEnabled() {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(g.ModelsListConfig.Models))
+	out := make([]string, 0, len(g.ModelsListConfig.Models))
+	for _, model := range g.ModelsListConfig.Models {
+		model = strings.TrimSpace(model)
+		if model == "" || strings.HasSuffix(model, "*") {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		out = append(out, model)
+	}
+	return out
+}
+
+// resolveGroupModelsFromAccounts 是账号推断分支的纯算法部分（并集 + LiteLLM 兜底）。
+func resolveGroupModelsFromAccounts(
+	platform string,
+	accounts []service.Account,
+	litellmFallback func() []string,
+) []string {
+	union := make(map[string]struct{})
+	for i := range accounts {
+		acc := accounts[i]
+		if acc.Status != service.StatusActive {
+			continue
+		}
+		if acc.Platform != platform {
+			// 防御性：理论上 account.platform 跟 group.platform 应该一致
+			continue
+		}
+		mapping := acc.GetModelMapping()
+		if len(mapping) == 0 {
+			// 透传，不参与并集
+			continue
+		}
+		for from := range mapping {
+			if strings.HasSuffix(from, "*") {
+				continue // 通配符 from 不算具体模型
 			}
+			union[from] = struct{}{}
 		}
 	}
 
-	if intersect == nil {
-		return append([]string(nil), getLiteLLMModels(platform)...)
+	if len(union) == 0 {
+		if litellmFallback == nil {
+			return nil
+		}
+		return append([]string(nil), litellmFallback()...)
 	}
-	out := make([]string, 0, len(intersect))
-	for k := range intersect {
+	out := make([]string, 0, len(union))
+	for k := range union {
 		out = append(out, k)
 	}
 	sort.Strings(out)
