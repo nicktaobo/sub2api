@@ -218,14 +218,66 @@ func TestAPIKeyService_RejectsV20AuthSnapshotMissingGroupPricingToggles(t *testi
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19/v20 各两条血脉），否则旧缓存
-// 会被误判有效。v20 是第六次撞号：本地 v20 缺分组计费字段、上游 0.1.179 的 v20 缺 fork 的
-// merchant/affiliate 字段——两侧都不完整，所以下界仍是 20，本 fork 的 21 越过它。
-// 上游每给 group 加一个进快照的字段就 bump 一次，本 fork 也在加；下轮合并若上游再 bump
-// 到 21，常量与这里的 lastCollidedVersion 必须一并继续抬高，不能沿用。
+// v21 是**第七次同号异义**，两条血脉都必须拒：
+//   - 本地 v21 = 本地 v20 + LongContextPricingEnabled / ModelPricing（本 fork 先于上游补上
+//     分组计费字段），但**没有**上游 0.1.180+ 的三个分组开关。命中后 ForceOpenAIFast /
+//     FreeOpenAIFast / MaxReasoningEffortOverLimit 读零值：分组强制 Fast 静默失效、
+//     Fast 免费分组被照常计费（多收）、reasoning effort 超限策略从 deny 退化成 downgrade。
+//   - 上游 v21（a44a1019f「Carry group Fast through auth snapshots」）= 上游 v20 +
+//     group.force_openai_fast，但缺本 fork 的 merchant/affiliate 字段
+//     （user.parent_merchant_id、group.affiliate_rebate_excluded）：命中后 MERCHANT-SYSTEM
+//     停用商户拦截守卫静默失效、返利排除读成 false。
+func TestAPIKeyService_RejectsV21AuthSnapshotFromEitherLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v21", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 21},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v21 auth snapshot to be rejected: local v21 (merged v20 lineages + long-context/model pricing) lacks upstream force_openai_fast/free_openai_fast/max_reasoning_effort_over_limit, while upstream v21 (group force_openai_fast) lacks the fork's parent_merchant_id/affiliate_rebate_excluded (merchant suspended guard silently bypassed)")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// v22 只有上游血脉用过（e619ca386「Carry free Fast through auth snapshots」=
+// 上游 v21 + group.free_openai_fast），但同样缺本 fork 的 merchant/affiliate 字段，
+// 所以合并后必须整体拒绝。另外上游 v22 内部还有一次**未 bump** 的字段扩容
+// （aa7a811e6 把 max_reasoning_effort_over_limit 加进快照却没抬版本），
+// 因此上游 v22 条目本身就分「带/不带 over_limit」两种，更没有放行的余地。
+func TestAPIKeyService_RejectsV22AuthSnapshotFromUpstreamLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v22", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 22},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v22 auth snapshot to be rejected: upstream v22 (group free_openai_fast) lacks the fork's parent_merchant_id/affiliate_rebate_excluded and is itself split by an un-bumped max_reasoning_effort_over_limit addition")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19/v20/v21 各两条血脉，外加只有
+// 上游用过的 v22），否则旧缓存会被误判有效。v21 是第七次撞号，且这一轮上游**反超**：
+// 上游一口气升到 22（v21 = force_openai_fast，v22 = free_openai_fast），本地停在 21
+// （= 长上下文/分组计费字段）。合并后的快照是两侧并集，所以下界抬到 22，本 fork 用 23 越过。
+// 上游每给 group 加一个进快照的字段就 bump 一次（偶尔还会忘记 bump，见 aa7a811e6），
+// 本 fork 也在加；下轮合并若上游再 bump 到 23，常量与这里的 lastCollidedVersion
+// 必须一并继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
-	const lastCollidedVersion = 20
+	const lastCollidedVersion = 22
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19/v20 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19/v20/v21 lineages (and upstream-only v22), got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

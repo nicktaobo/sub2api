@@ -65,6 +65,11 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	// 那句写死断言在本 fork 恒失败，且它想守的语义（快照必须带分组长上下文/模型定价字段）
 	// 由 api_key_auth_snapshot_group_parity_test.go 的反射 parity 守卫覆盖得更严，
 	// 故**丢弃写死数字那句**，只保留跟常量走的断言。下轮合并再冒出来同样处理。
+	//
+	// 合并 0.1.185 时上游第二次塞了同类写死断言
+	// `require.Equal(t, 22, snapshot.Version, "v22 起认证快照携带分组免费 Fast 开关")`
+	// ——上游本轮连升两级（v21 = force_openai_fast，v22 = free_openai_fast），
+	// 而合并后的快照是两侧字段并集、常量已抬到 23，那句同样恒失败。按既定做法丢弃。
 	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
 
 	// 模拟 L2 缓存的完整 JSON 往返（与 apiKeyCache.SetAuthCache/GetAuthCache 同构）。

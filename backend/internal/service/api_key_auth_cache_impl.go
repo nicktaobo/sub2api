@@ -14,7 +14,8 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v21: sixth same-number/different-meaning collision between the two lineages.
+// v23: seventh same-number/different-meaning collision between the two lineages —
+// 而且这次是上游**反超**（上游一轮连升两级到 22，本地停在 21）。
 // 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
 //   - v16：本地 = user parent_merchant_id + group affiliate_rebate_excluded
 //     （merchant 子用户守卫 / 邀请返利排除）；上游 = group reasoning effort 上限 + 映射。
@@ -26,7 +27,7 @@ import (
 //     control 四套齐全）；上游 = 分组级 search/audio/video 计费字段（search_price_per_1k /
 //     audio_realtime_price_per_min / audio_tts_price_per_million_chars /
 //     audio_stt_price_per_hour / video_model_prices，迁移 217/218/219）。
-//   - v20：**第六次撞号**。本地 v20 = 合并上述两条 v19 血脉的产物，但**还没有**
+//   - v20：第六次撞号。本地 v20 = 合并上述两条 v19 血脉的产物，但**还没有**
 //     LongContextPricingEnabled / ModelPricing（上游 0.1.176 迁移 221 只把这两个分组计费
 //     字段加进了 repository 的鉴权投影、没加进快照）；上游 0.1.179 独立发现并修复了同一个
 //     bug，把这两个字段加进快照后同样 bump 到 20。两侧 v20 语义不同：
@@ -34,20 +35,36 @@ import (
 //     第一档（纯少收）；上游血脉的 v20 缺本 fork 的 merchant/affiliate 字段
 //     （user.parent_merchant_id、group.affiliate_rebate_excluded）⇒ merchant 停用守卫
 //     静默失效、返利排除读成 false。
-//     因此 v20 条目无论来自哪条血脉都必须整体拒绝（TestAPIKeyService_RejectsV20…）。
+//   - v21：**第七次撞号**，两侧语义完全不同：
+//     本地 v21 = 本地 v20 + LongContextPricingEnabled / ModelPricing（本 fork 先于上游
+//     修好分组计费字段缺失，字段集里**没有**上游 0.1.180+ 的三个分组开关）；
+//     上游 v21（a44a1019f「Carry group Fast through auth snapshots」）= 上游 v20 +
+//     group.force_openai_fast（迁移 232_group_force_openai_fast），字段集里**没有**本
+//     fork 的 merchant/affiliate 字段。
+//   - v22：上游独有（e619ca386「Carry free Fast through auth snapshots」）=
+//     上游 v21 + group.free_openai_fast（迁移 233_group_free_openai_fast）。同样缺本
+//     fork 的 merchant/affiliate 字段。注意上游 v22 内部还自带一次**未 bump** 的字段扩容：
+//     aa7a811e6 把 group.max_reasoning_effort_over_limit（迁移
+//     232_group_reasoning_effort_over_limit）加进快照却没有抬版本，因此上游血脉的 v22
+//     条目本身就分「带/不带 over_limit」两种，不带的会把该字段读成空串（回落 downgrade）。
 //
-// 合并后的快照同时携带全部六套字段，因此必须越过 20：任何一条血脉遗留的 ≤v20 条目都会
-// 通过版本校验，而另一条血脉的字段反序列化成零值——merchant 停用守卫静默失效 /
-// reasoning 策略读空 / AllowLive 读成 false（live API 对已授权分组静默 403）/
-// ProfitControlEnabled 读成 false（分组利润管控准入门在直连热路径上静默放行）/
-// 分组级 search/audio/video 单价读成 nil（回落全局价，静默按错价计费）/
-// LongContextPricingEnabled 与 ModelPricing 读成零值（长上下文阶梯关闭、区间定价塌档）。
+// 合并后的快照同时携带两侧全部字段（本 fork 的 merchant/affiliate/长上下文计费 +
+// 上游的 force_openai_fast / free_openai_fast / max_reasoning_effort_over_limit），
+// 因此必须越过 22：任何一条血脉遗留的 ≤v22 条目都会通过版本校验，而另一条血脉的字段
+// 反序列化成零值——
+//   - 命中本地血脉的 v21 遗留条目 ⇒ ForceOpenAIFast / FreeOpenAIFast /
+//     MaxReasoningEffortOverLimit 全读零值：分组强制 Fast 静默失效、Fast 免费分组被
+//     照常计费（多收）、reasoning effort 超限策略从 deny 静默退化成 downgrade（越权放行）。
+//   - 命中上游血脉的 v21 / v22 遗留条目 ⇒ 本 fork 的 user.parent_merchant_id 与
+//     group.affiliate_rebate_excluded 读成 nil/false：MERCHANT-SYSTEM 停用商户拦截守卫
+//     静默失效（已停用商户的子用户照常调用）、邀请返利排除读成 false（本该排除的分组
+//     消费照样返利）；同时 LongContextPricingEnabled / ModelPricing 在上游 v21/v22 里
+//     虽已存在，但 merchant/affiliate 缺口足以单独构成拒收理由。
 //
-// 本 fork 在上游 bump 到 20 之前就已经是 21（v21 = 本地 v20 + 分组计费字段），字段集已是
-// 两侧并集，故本轮合并**保留 21 不动**，只是撞号血脉记录多了一条。
-// 守卫测试见 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages，下轮合并若上游
-// 再撞到 21，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
-const apiKeyAuthSnapshotVersion = 21
+// 守卫测试见 TestAPIKeyService_RejectsV21… / …RejectsV22… 与
+// TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages（lastCollidedVersion = 22）。
+// 下轮合并若上游再撞到 23，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+const apiKeyAuthSnapshotVersion = 23
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -452,12 +469,15 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
 			AllowLive:                       apiKey.Group.AllowLive,
+			ForceOpenAIFast:                 apiKey.Group.ForceOpenAIFast,
+			FreeOpenAIFast:                  apiKey.Group.FreeOpenAIFast,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			AffiliateRebateExcluded:         apiKey.Group.AffiliateRebateExcluded,
 			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
+			MaxReasoningEffortOverLimit:     apiKey.Group.MaxReasoningEffortOverLimit,
 			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
 			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
 			PeakStart:                       apiKey.Group.PeakStart,
@@ -552,12 +572,15 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
 			AllowLive:                       snapshot.Group.AllowLive,
+			ForceOpenAIFast:                 snapshot.Group.ForceOpenAIFast,
+			FreeOpenAIFast:                  snapshot.Group.FreeOpenAIFast,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			AffiliateRebateExcluded:         snapshot.Group.AffiliateRebateExcluded,
 			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
+			MaxReasoningEffortOverLimit:     snapshot.Group.MaxReasoningEffortOverLimit,
 			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
 			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,
 			PeakStart:                       snapshot.Group.PeakStart,

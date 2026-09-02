@@ -403,6 +403,41 @@ func TestCalculateCostUnified_UsesPreResolvedPricing(t *testing.T) {
 // GPT-5.6 长上下文默认倍率 × 渠道约定价（fork 定制回归，见 calculateTokenCost）
 // ---------------------------------------------------------------------------
 
+// forkOpenAILadderCatalogJSON 是本节 fork 回归用例的目录 fixture。
+// 上游共享的 openAILadderCatalogJSON 只收了 gpt-5.4 / gpt-5.5-pro，本节还需要
+// gpt-5.5 与 gpt-5.6-sol 两条带 above_272k 的条目。
+//
+// 为什么必须挂目录：上游 0.1.185 之前，长上下文阶梯由 applyModelSpecificPricingPolicy
+// 按模型名硬编码补齐，所以这几条用例挂空目录（newTestBillingService）也能拿到阶梯；
+// 0.1.185 起阶梯**只**来自目录 above_XXXk 字段，空目录 = 根本没有阶梯，
+// 这几条用例会变成「无阶梯可剥」的空转断言，fork 定制的 stripLongContextPricing
+// 就此失去回归覆盖而无人察觉。因此本节统一改挂带阶梯的目录。
+const forkOpenAILadderCatalogJSON = `{
+	"gpt-5.5": {"litellm_provider": "openai", "mode": "chat",
+		"input_cost_per_token": 5e-06, "output_cost_per_token": 3e-05,
+		"cache_read_input_token_cost": 5e-07,
+		"input_cost_per_token_above_272k_tokens": 1e-05,
+		"output_cost_per_token_above_272k_tokens": 4.5e-05,
+		"cache_read_input_token_cost_above_272k_tokens": 1e-06},
+	"gpt-5.4": {"litellm_provider": "openai", "mode": "chat",
+		"input_cost_per_token": 2.5e-06, "output_cost_per_token": 1.5e-05,
+		"cache_read_input_token_cost": 2.5e-07,
+		"input_cost_per_token_above_272k_tokens": 5e-06,
+		"output_cost_per_token_above_272k_tokens": 2.25e-05,
+		"cache_read_input_token_cost_above_272k_tokens": 5e-07},
+	"gpt-5.6-sol": {"litellm_provider": "openai", "mode": "chat",
+		"input_cost_per_token": 5e-06, "output_cost_per_token": 3e-05,
+		"cache_read_input_token_cost": 5e-07,
+		"input_cost_per_token_above_272k_tokens": 1e-05,
+		"output_cost_per_token_above_272k_tokens": 4.5e-05,
+		"cache_read_input_token_cost_above_272k_tokens": 1e-06}
+}`
+
+func newForkLadderBillingService(t *testing.T) *BillingService {
+	t.Helper()
+	return NewBillingService(&config.Config{}, newStubPricingServiceFromJSON(t, forkOpenAILadderCatalogJSON))
+}
+
 // 渠道 flat 约定价的 GPT-5.6：总上下文超过 272K 默认阈值时，不得叠加默认
 // 2x/1.5x 长上下文倍率（渠道价是与客户约定的固定单价）。
 // 回归场景：合并上游后 applyModelSpecificPricingPolicy 扩到 GPT-5.6 +
@@ -414,7 +449,7 @@ func TestCalculateCostUnified_GPT56ChannelFlatPricingSkipsDefaultLongContext(t *
 		OutputPrice:    testPtrFloat64(2e-6),
 		CacheReadPrice: testPtrFloat64(1e-7),
 	})
-	bs := newTestBillingService()
+	bs := newForkLadderBillingService(t)
 	resolver := NewModelPricingResolver(cs, bs)
 	groupID := int64(1)
 
@@ -471,9 +506,12 @@ func TestCalculateCostUnified_GPT56ChannelIntervalPricingStillApplies(t *testing
 	require.InDelta(t, expected, cost.TotalCost, 1e-10)
 }
 
-// 内置/兜底定价的 GPT-5.6：默认长上下文倍率维持上游行为（对齐官方价）。
+// 目录定价（非渠道价）的 GPT-5.6：长上下文阶梯照常生效——stripLongContextPricing
+// 只针对「渠道 flat 约定价」，不得把目录阶梯一并剥掉。
+// 上游 0.1.185 起阶梯只来自目录 above_272k 字段，故本用例从空目录改挂 fork ladder 目录；
+// 断言的倍率（input×2.0 / output×1.5）与改动前一致。
 func TestCalculateCostUnified_GPT56BuiltinPricingKeepsDefaultLongContext(t *testing.T) {
-	bs := newTestBillingService()
+	bs := newForkLadderBillingService(t)
 	resolver := NewModelPricingResolver(nil, bs)
 
 	cost, err := bs.CalculateCostUnified(CostInput{
@@ -485,15 +523,17 @@ func TestCalculateCostUnified_GPT56BuiltinPricingKeepsDefaultLongContext(t *test
 	})
 	require.NoError(t, err)
 
-	// fallback gpt-5.6-sol: input 5e-6, output 30e-6；超 272K 后 input×2.0 / output×1.5
+	// 目录 gpt-5.6-sol: input 5e-6, output 30e-6；超 272K 后 input×2.0 / output×1.5
 	expectedInput := 300000 * 5e-6 * 2.0
 	expectedOutput := 1000 * 30e-6 * 1.5
 	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 }
 
-// gpt-5.4 / gpt-5.5 渠道 flat 价：合并前长上下文倍率即对渠道价生效，
-// 本次 fork 定制只针对 GPT-5.6，存量计费口径必须保持不变。
+// gpt-5.4 / gpt-5.5 渠道 flat 价：长上下文倍率照常对渠道价生效。
+// 这条用例守的是 fork 定制 stripLongContextPricing 的**作用域**——只剥 GPT-5.6，
+// 不得扩散到 5.4/5.5，否则这两个存量模型 >272K 的请求会静默少收。
+// 同样从空目录改挂 fork ladder 目录（0.1.185 起阶梯只来自目录 above_272k 字段）。
 func TestCalculateCostUnified_GPT54And55ChannelFlatPricingKeepsLongContext(t *testing.T) {
 	for _, model := range []string{"gpt-5.4", "gpt-5.5"} {
 		t.Run(model, func(t *testing.T) {
@@ -502,7 +542,7 @@ func TestCalculateCostUnified_GPT54And55ChannelFlatPricingKeepsLongContext(t *te
 				InputPrice:  testPtrFloat64(1e-6),
 				OutputPrice: testPtrFloat64(2e-6),
 			})
-			bs := newTestBillingService()
+			bs := newForkLadderBillingService(t)
 			resolver := NewModelPricingResolver(cs, bs)
 			groupID := int64(1)
 
@@ -516,7 +556,7 @@ func TestCalculateCostUnified_GPT54And55ChannelFlatPricingKeepsLongContext(t *te
 			})
 			require.NoError(t, err)
 
-			// 既有口径：超 272K 后渠道价也叠加 input×2.0 / output×1.5
+			// 既有口径：超 272K 后渠道价也叠加目录阶梯 input×2.0 / output×1.5
 			expectedInput := 300000 * 1e-6 * 2.0
 			expectedOutput := 1000 * 2e-6 * 1.5
 			require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
