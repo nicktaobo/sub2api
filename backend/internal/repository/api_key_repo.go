@@ -218,6 +218,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldDefaultMappedModel,
 				group.FieldMessagesDispatchModelConfig,
 				group.FieldModelsListConfig,
+				group.FieldCodexModelsManifestConfig,
 				group.FieldRpmLimit,
 				// 本地 fork：邀请返利排除标记，漏选会导致 gateway hook 读零值、被排除分组照常返利。
 				group.FieldAffiliateRebateExcluded,
@@ -1028,6 +1029,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		DefaultMappedModel:              g.DefaultMappedModel,
 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
 		ModelsListConfig:                g.ModelsListConfig,
+		CodexModelsManifestConfig:       g.CodexModelsManifestConfig,
 		RPMLimit:                        g.RpmLimit,
 		AffiliateRebateExcluded:         g.AffiliateRebateExcluded,
 		MaxReasoningEffort:              g.MaxReasoningEffort,

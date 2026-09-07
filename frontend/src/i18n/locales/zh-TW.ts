@@ -2992,7 +2992,7 @@ export default {
       resetInMinutes: '{minutes} 分鐘後重置',
       resetInHoursMinutes: '{hours} 小時 {minutes} 分鐘後重置',
       resetInDaysHours: '{days} 天 {hours} 小時後重置',
-      daysRemaining: '天剩餘',
+      daysRemaining: '剩餘 {days} 天',
       remainingDays: '剩餘天數',
       noExpiration: '無過期時間',
       status: {
@@ -5633,7 +5633,7 @@ export default {
         emailSuffixWhitelist: '郵箱域名白名單',
         emailSuffixWhitelistHint:
           "僅允許使用指定域名的郵箱註冊帳號（例如 {'@'}qq.com, {'@'}gmail.com）",
-        emailSuffixWhitelistPlaceholder: 'example.com',
+        emailSuffixWhitelistPlaceholder: "{'@'}example.com, *.edu.cn",
         emailSuffixWhitelistInputHint: '留空則不限制',
         promoCode: '優惠碼',
         promoCodeHint: '允許使用者在註冊時使用優惠碼',
@@ -6970,7 +6970,7 @@ export default {
     amountTooLow: '最低金額為 {min}',
     amountTooHigh: '最高金額為 {max}',
     amountNoMethod: '該金額沒有可用的支付方式',
-    rechargeRatePreview: '當前倍率：1 CNY = {usd} USD',
+    rechargeRatePreview: '當前倍率：1 {currency} = {usd} USD',
     refundReason: '退款原因',
     refundReasonPlaceholder: '請描述您的退款原因',
     stripeLoadFailed: '支付元件載入失敗，請重新整理頁面重試',

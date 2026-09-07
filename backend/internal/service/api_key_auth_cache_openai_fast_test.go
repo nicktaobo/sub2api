@@ -33,7 +33,7 @@ func TestAPIKeyAuthSnapshotGroupForceOpenAIFastRoundtrip(t *testing.T) {
 	require.True(t, materialized.Group.ForceOpenAIFast)
 	require.True(t, materialized.Group.FreeOpenAIFast)
 	// 上游原本写死 `require.Equal(t, 22, cached.Snapshot.Version)`。本 fork 的快照版本是
-	// 两条血脉合并后的号（本轮 23，见 apiKeyAuthSnapshotVersion 的撞号血脉注释），
+	// 两条血脉合并后的号（本轮 24，见 apiKeyAuthSnapshotVersion 的撞号血脉注释），
 	// 写死数字在本 fork 恒失败。既定做法：只跟常量断言；版本下界由
 	// TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages 守，旧快照必须被拒由
 	// TestAPIKeyService_RejectsV*AuthSnapshot* 系列守。

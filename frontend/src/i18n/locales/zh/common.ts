@@ -12,6 +12,12 @@ export default {
     delete: '删除',
     edit: '编辑',
     create: '创建',
+    apply: '应用',
+    clear: '清除',
+    creating: '创建中...',
+    required: '为必填项',
+    sending: '发送中...',
+    tryAgain: '请重试',
     update: '更新',
     confirm: '确认',
     reset: '重置',
@@ -62,11 +68,6 @@ export default {
     processing: '处理中...',
     contactSupport: '联系客服',
     add: '添加',
-    apply: '应用',
-    creating: '创建中...',
-    sending: '发送中...',
-    required: '为必填项',
-    tryAgain: '请重试',
     invalidEmail: '请输入有效的邮箱地址',
     optional: '可选',
     selectOption: '请选择',
@@ -117,7 +118,6 @@ export default {
       }
     },
 
-    clear: '清除',
     uploading: '上传中…',
     searchUserPlaceholder: '按邮箱 / 用户名 / ID 搜索用户...',
     searchMerchantPlaceholder: '按商户名搜索...'

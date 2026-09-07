@@ -268,16 +268,38 @@ func TestAPIKeyService_RejectsV22AuthSnapshotFromUpstreamLineage(t *testing.T) {
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16/v17/v18/v19/v20/v21 各两条血脉，外加只有
-// 上游用过的 v22），否则旧缓存会被误判有效。v21 是第七次撞号，且这一轮上游**反超**：
-// 上游一口气升到 22（v21 = force_openai_fast，v22 = free_openai_fast），本地停在 21
-// （= 长上下文/分组计费字段）。合并后的快照是两侧并集，所以下界抬到 22，本 fork 用 23 越过。
+func TestAPIKeyService_RejectsV23AuthSnapshotFromEitherLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	// 第八次撞号：本地 v23 = 上一轮两条血脉的合并产物（无 codex_models_manifest_config）；
+	// 上游 v23（0.2.1 固定账号 Codex manifest）= 上游 v22 + codex_models_manifest_config，
+	// 依旧没有本 fork 的 parent_merchant_id / affiliate_rebate_excluded。
+	// 两条 v23 各缺对方的字段，任何一条被复用都会静默读零值，必须一律淘汰回源。
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v23", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 23},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v23 auth snapshot to be rejected: the local v23 lineage lacks codex_models_manifest_config while the upstream v23 lineage lacks the fork's parent_merchant_id/affiliate_rebate_excluded")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16…v23 各两条血脉，其中 v22 只有上游用过），
+// 否则旧缓存会被误判有效。v23 是第八次撞号：上游 0.2.1 加
+// group.codex_models_manifest_config 后 bump 到 23，而本 fork 上一轮已经在 23。
+// 合并后的快照是两侧并集，所以下界抬到 23，本 fork 用 24 越过。
 // 上游每给 group 加一个进快照的字段就 bump 一次（偶尔还会忘记 bump，见 aa7a811e6），
-// 本 fork 也在加；下轮合并若上游再 bump 到 23，常量与这里的 lastCollidedVersion
+// 本 fork 也在加；下轮合并若上游再 bump 到 24，常量与这里的 lastCollidedVersion
 // 必须一并继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
-	const lastCollidedVersion = 22
+	const lastCollidedVersion = 23
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16/v17/v18/v19/v20/v21 lineages (and upstream-only v22), got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16..v23 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

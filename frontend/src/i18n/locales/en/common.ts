@@ -12,6 +12,12 @@ export default {
     delete: 'Delete',
     edit: 'Edit',
     create: 'Create',
+    apply: 'Apply',
+    clear: 'Clear',
+    creating: 'Creating...',
+    required: 'is required',
+    sending: 'Sending...',
+    tryAgain: 'Please try again',
     update: 'Update',
     confirm: 'Confirm',
     reset: 'Reset',
@@ -62,11 +68,6 @@ export default {
     processing: 'Processing...',
     contactSupport: 'Contact Support',
     add: 'Add',
-    apply: 'Apply',
-    creating: 'Creating...',
-    sending: 'Sending...',
-    required: 'is required',
-    tryAgain: 'Please try again',
     invalidEmail: 'Please enter a valid email address',
     optional: 'optional',
     selectOption: 'Select an option',
@@ -117,7 +118,6 @@ export default {
       }
     },
 
-    clear: 'Clear',
     uploading: 'Uploading…',
     searchUserPlaceholder: 'Search by email / username / ID...',
     searchMerchantPlaceholder: 'Search by merchant name...'

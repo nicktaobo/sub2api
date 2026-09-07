@@ -14,8 +14,9 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v23: seventh same-number/different-meaning collision between the two lineages —
-// 而且这次是上游**反超**（上游一轮连升两级到 22，本地停在 21）。
+// v24: 两条血脉已连续撞号八次（v16…v23），每次两侧各自 bump 到同一个号、语义却不同。
+// 本 fork 的常量必须始终**高于**两条血脉出现过的最大号，否则任一侧的遗留条目
+// 都会通过版本校验、而另一侧的字段反序列化成零值。
 // 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
 //   - v16：本地 = user parent_merchant_id + group affiliate_rebate_excluded
 //     （merchant 子用户守卫 / 邀请返利排除）；上游 = group reasoning effort 上限 + 映射。
@@ -52,19 +53,36 @@ import (
 // 上游的 force_openai_fast / free_openai_fast / max_reasoning_effort_over_limit），
 // 因此必须越过 22：任何一条血脉遗留的 ≤v22 条目都会通过版本校验，而另一条血脉的字段
 // 反序列化成零值——
+//
 //   - 命中本地血脉的 v21 遗留条目 ⇒ ForceOpenAIFast / FreeOpenAIFast /
 //     MaxReasoningEffortOverLimit 全读零值：分组强制 Fast 静默失效、Fast 免费分组被
 //     照常计费（多收）、reasoning effort 超限策略从 deny 静默退化成 downgrade（越权放行）。
+//
 //   - 命中上游血脉的 v21 / v22 遗留条目 ⇒ 本 fork 的 user.parent_merchant_id 与
 //     group.affiliate_rebate_excluded 读成 nil/false：MERCHANT-SYSTEM 停用商户拦截守卫
 //     静默失效（已停用商户的子用户照常调用）、邀请返利排除读成 false（本该排除的分组
 //     消费照样返利）；同时 LongContextPricingEnabled / ModelPricing 在上游 v21/v22 里
 //     虽已存在，但 merchant/affiliate 缺口足以单独构成拒收理由。
 //
-// 守卫测试见 TestAPIKeyService_RejectsV21… / …RejectsV22… 与
-// TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages（lastCollidedVersion = 22）。
-// 下轮合并若上游再撞到 23，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
-const apiKeyAuthSnapshotVersion = 23
+//   - v23：**第八次撞号**，两侧语义再次完全不同：
+//     本地 v23 = 合并上述两条血脉的产物（本 fork 的 merchant/affiliate/长上下文计费
+//
+//   - 上游的 force/free_openai_fast + max_reasoning_effort_over_limit 全在）；
+//     上游 v23（0.2.1「feat(codex): pinned-accounts Codex model manifest」）=
+//     上游 v22 + group.codex_models_manifest_config（迁移
+//     234_group_codex_models_manifest_config），字段集里依旧**没有**本 fork 的
+//     merchant/affiliate 字段。
+//
+// 合并后的快照同时携带两侧全部字段，因此必须越过 23：
+//   - 命中本地血脉的 v23 遗留条目 ⇒ CodexModelsManifestConfig 读成零值，
+//     固定账号 Codex manifest 静默退回全量调度（功能降级，不影响计费）。
+//   - 命中上游血脉的 v23 遗留条目 ⇒ 本 fork 的 merchant/affiliate 字段读成
+//     nil/false，MERCHANT-SYSTEM 停用商户拦截守卫静默失效、返利排除失效（要害）。
+//
+// 守卫测试见 TestAPIKeyService_RejectsV21… / …RejectsV22… / …RejectsV23… 与
+// TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages（lastCollidedVersion = 23）。
+// 下轮合并若上游再撞到 24，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+const apiKeyAuthSnapshotVersion = 24
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -474,6 +492,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
+			CodexModelsManifestConfig:       apiKey.Group.CodexModelsManifestConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			AffiliateRebateExcluded:         apiKey.Group.AffiliateRebateExcluded,
 			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
@@ -577,6 +596,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,
+			CodexModelsManifestConfig:       snapshot.Group.CodexModelsManifestConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			AffiliateRebateExcluded:         snapshot.Group.AffiliateRebateExcluded,
 			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,

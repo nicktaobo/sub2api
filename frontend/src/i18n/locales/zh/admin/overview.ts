@@ -481,7 +481,6 @@ export default {
       },
       editUser: '编辑用户',
       deleteUser: '删除用户',
-      passwordCopied: '密码已复制',
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       searchPlaceholder: '邮箱/用户名/备注/API Key 模糊搜索...',
       searchUsers: '邮箱/用户名/备注/API Key 模糊搜索',
@@ -519,6 +518,7 @@ export default {
       leaveEmptyToKeep: '留空则保持原密码不变',
       generatePassword: '生成随机密码',
       copyPassword: '复制密码',
+      passwordCopied: '密码已复制',
       creating: '创建中...',
       updating: '更新中...',
       columns: {
@@ -868,7 +868,7 @@ export default {
         affiliateRebateExcludedHint: '勾选后，本分组的消费不会触发邀请返利分成给邀请人；充值返利不受影响',
         maxReasoningEffort: '推理强度上限',
         maxReasoningEffortUnlimited: '不限制（跟随请求）',
-        maxReasoningEffortHint: '仅限制客户端主动请求的 OpenAI reasoning effort；Composite 分组仅对解析到 OpenAI 的请求生效。不会为缺省请求主动开启推理。上限优先级高于推理强度映射。',
+        maxReasoningEffortHint: '仅限制客户端主动请求的 Anthropic/OpenAI 推理强度；Composite 分组按实际目标平台生效。不会为缺省请求主动开启推理。上限优先级高于推理强度映射。',
         maxReasoningEffortOverLimit: '超限访问控制',
         maxReasoningEffortOverLimitDowngrade: '超过上限时自动降档',
         maxReasoningEffortOverLimitDeny: '拒绝访问',
@@ -1094,13 +1094,26 @@ export default {
         sumTooHigh: '最低毛利率与安全缓冲之和必须小于 100%，否则将排除全部账号'
       },
       modelsList: {
-        title: '自定义 /v1/models 模型列表',
-        hint: '仅影响 /v1/models 展示结果，不影响白名单模型调用和账号调度。',
+        title: '自定义 {endpoint} 模型列表',
+        hint: '仅影响 {endpoint} 展示结果，不影响白名单模型调用和账号调度。',
         loading: '正在加载模型列表...',
         empty: '暂无可展示模型',
         selectedSummary: '已选 {selected} / {total}',
         selectAll: '全选',
         invertSelection: '反选'
+      },
+      codexModelsManifest: {
+        title: '固定账号获取模型列表',
+        hint: '开启后，普通模型列表与 Codex Model Manifest 均优先从选定账号获取并合并，再应用账号映射和分组列表过滤；限流/过载中的选定账号仍会被使用。',
+        enable: '使用特定账号获取模型列表',
+        enabledHint: '账号来源限定为当前分组内的 OpenAI 账号，最多选择 10 个。',
+        disabledHint: '未启用：普通列表使用本地映射或默认模型；Codex 优先使用本地目录，无本地目录时由调度器选账。',
+        accounts: '选定账号',
+        searchPlaceholder: '搜索账号（当前分组内 OpenAI 账号）',
+        searchEmpty: '未找到匹配账号',
+        fallback: '选定账号全部不可用时回退调度器',
+        fallbackHint: '关闭时返回 503 / 上游错误；开启时回退到现有调度器选账路径。',
+        selectAtLeastOne: '开启固定账号后至少选择一个账号'
       },
       compositeRoutes: {
         action: '路由',
@@ -1227,6 +1240,12 @@ export default {
         selectAccounts: '选择账号',
         noAccounts: '此分组暂无账号',
         loadingAccounts: '加载账号中...',
+        removeRule: '删除规则',
+        noRules: '暂无路由规则',
+        noRulesHint: '添加路由规则以将特定模型请求优先路由到指定账号',
+        searchAccountPlaceholder: '搜索账号...',
+        accountsHint: '选择此模型模式优先使用的账号'
+      },
       claudeMaxSimulation: {
         title: 'Claude Max 用量模拟',
         tooltip:
@@ -1234,12 +1253,6 @@ export default {
         enabled: '已启用（模拟 1h 缓存）',
         disabled: '已禁用',
         hint: '仅调整用量计费日志中的 token 类别。不会持久化每个请求的映射状态。'
-      },
-        removeRule: '删除规则',
-        noRules: '暂无路由规则',
-        noRulesHint: '添加路由规则以将特定模型请求优先路由到指定账号',
-        searchAccountPlaceholder: '搜索账号...',
-        accountsHint: '选择此模型模式优先使用的账号'
       },
       mcpXml: {
         title: 'MCP XML 协议注入',

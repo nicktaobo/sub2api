@@ -175,8 +175,23 @@ function statusClass(s: string) {
   }
 }
 
+// 逐个列出而不是拼 key：上游 0.2.1 起 build 会跑 check:i18n，
+// 拼接出来的 key 静态查不到（会被当成缺失的 'merchant.owner.withdraw.method'）。
+// 顺带修掉原来的隐患：后端若回一个新的方式值，拼接版会把裸 key 直接渲染到页面上，
+// 现在统一落到 methodOther。
 function paymentMethodLabel(m: string) {
-  return t('merchant.owner.withdraw.method' + (m[0]?.toUpperCase() + m.slice(1)))
+  switch (m) {
+    case 'alipay':
+      return t('merchant.owner.withdraw.methodAlipay')
+    case 'wechat':
+      return t('merchant.owner.withdraw.methodWechat')
+    case 'bank':
+      return t('merchant.owner.withdraw.methodBank')
+    case 'usdt':
+      return t('merchant.owner.withdraw.methodUsdt')
+    default:
+      return t('merchant.owner.withdraw.methodOther')
+  }
 }
 
 async function load() {
