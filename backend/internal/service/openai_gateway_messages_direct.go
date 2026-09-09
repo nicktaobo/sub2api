@@ -49,6 +49,15 @@ func buildAnthropicDirectMessagesURL(account *Account) string {
 		}
 		baseURL = strings.TrimSuffix(baseURL, "/v1")
 		return baseURL + "/v1/messages"
+	case PlatformMiniMax:
+		// 上游 0.2.4 把 minimax 加进 IsCNProvider，于是「APIKey 账号 + 没写 api_protocol」
+		// 会命中本 fork 的 usesLegacyCNAnthropicDirect 直通分支走到这里；
+		// 不补这个 case 就落到 default 返回空串，forwardAnthropicDirect 直接报
+		// unsupported platform。默认根是 DefaultMiniMaxAnthropicBaseURL
+		// （https://api.minimaxi.com/anthropic），与 deepseek 同型再拼 /v1/messages。
+		baseURL := strings.TrimRight(account.GetCNProtocolBaseURL(APIProtocolAnthropic), "/")
+		baseURL = strings.TrimSuffix(baseURL, "/v1")
+		return baseURL + "/v1/messages"
 	default:
 		return ""
 	}

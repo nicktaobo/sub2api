@@ -8,18 +8,16 @@ import {
   type UpdateSettingsRequest,
   type DefaultPlatformQuotasMap,
 } from "@/api/admin/settings";
+import { QUOTA_PLATFORM_ORDER } from "@/constants/platforms";
 
-/** 全 null 的 8 平台 map，用于断言归一化默认值（与后端 AllowedQuotaPlatforms 一致） */
-const allNullQuotas: DefaultPlatformQuotasMap = {
-  anthropic: { daily: null, weekly: null, monthly: null },
-  openai:    { daily: null, weekly: null, monthly: null },
-  gemini:    { daily: null, weekly: null, monthly: null },
-  antigravity: { daily: null, weekly: null, monthly: null },
-  grok: { daily: null, weekly: null, monthly: null },
-  deepseek: { daily: null, weekly: null, monthly: null },
-  kimi: { daily: null, weekly: null, monthly: null },
-  zhipu: { daily: null, weekly: null, monthly: null },
-}
+/**
+ * 全 null 的配额平台 map，用于断言归一化默认值（与后端 AllowedQuotaPlatforms 一致）。
+ * 按 QUOTA_PLATFORM_ORDER 生成而不是写死名单：上游 0.2.4 加 minimax 时，
+ * 写死的那版会连同这里一起漏掉，让「平台漏配额」的 bug 反而被测试固化。
+ */
+const allNullQuotas: DefaultPlatformQuotasMap = Object.fromEntries(
+  QUOTA_PLATFORM_ORDER.map((p) => [p, { daily: null, weekly: null, monthly: null }])
+) as DefaultPlatformQuotasMap
 
 describe("admin settings auth source defaults helpers", () => {
   it("builds auth source defaults state from flat settings fields", () => {
@@ -243,9 +241,9 @@ describe("normalizePlatformQuotasMap", () => {
     expect(result.grok).toEqual({ daily: null, weekly: null, monthly: null });
   });
 
-  it("无参数时返回全 8 平台全 null", () => {
+  it("无参数时返回全部配额平台全 null", () => {
     const result = normalizePlatformQuotasMap();
-    expect(Object.keys(result)).toHaveLength(8);
+    expect(Object.keys(result)).toHaveLength(QUOTA_PLATFORM_ORDER.length);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }
@@ -293,7 +291,7 @@ describe("sanitizePlatformQuotasMap", () => {
 
   it("缺失平台填充为全 null", () => {
     const result = sanitizePlatformQuotasMap({});
-    expect(Object.keys(result)).toHaveLength(8);
+    expect(Object.keys(result)).toHaveLength(QUOTA_PLATFORM_ORDER.length);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }

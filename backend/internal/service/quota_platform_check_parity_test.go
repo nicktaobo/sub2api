@@ -30,27 +30,96 @@ import (
 // 平台名——它把同一份名单硬编码了第二遍，因此挡不住漂移：谁往 AllowedQuotaPlatforms
 // 加第 9 个平台，那边照样绿。这里从三侧的**真源**取值比对。
 
-const nationalPlatformRenameMigration = "229_rename_national_platforms_to_upstream_naming.sql"
+// 生效的是**最后一个**重建 user_platform_quotas_platform_check 的迁移。
+// 早先这里写死 229，但上游每加一个平台就会追加一份新的重建迁移
+// （224 → 本 fork 改号 230 → 上游 0.2.4 的 237 加 minimax），
+// 写死文件名会让本守卫在每次上游加平台时失效一次。改成按运行器的顺序规则
+// （整文件名字典序）自动取最后一个，守卫从此自更新。
+func latestPlatformCheckMigrations(t *testing.T) []string {
+	t.Helper()
+
+	entries, err := migrations.FS.ReadDir(".")
+	require.NoError(t, err, "读取 migrations 目录失败")
+
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		content, err := migrations.FS.ReadFile(e.Name())
+		require.NoError(t, err, "读取迁移 %s 失败", e.Name())
+		if strings.Contains(string(content), "ADD CONSTRAINT user_platform_quotas_platform_check") {
+			names = append(names, e.Name())
+		}
+	}
+	require.NotEmpty(t, names, "没有任何迁移重建 user_platform_quotas_platform_check")
+	// 迁移运行器按整文件名字典序执行（fs.Glob 后 sort.Strings），这里保持同一规则。
+	sort.Strings(names)
+	return names
+}
 
 func TestQuotaPlatformCheckMatchesAllowedQuotaPlatforms(t *testing.T) {
-	sqlPlatforms := parsePlatformCheckWhitelist(t, nationalPlatformRenameMigration)
+	chain := latestPlatformCheckMigrations(t)
+	final := chain[len(chain)-1]
+	sqlPlatforms := parsePlatformCheckWhitelist(t, final)
 
 	goPlatforms := append([]string(nil), AllowedQuotaPlatforms...)
 	sort.Strings(goPlatforms)
 
 	require.Equal(t, goPlatforms, sqlPlatforms,
-		"AllowedQuotaPlatforms 与迁移 %s 的 CHECK 名单不一致。\n"+
+		"AllowedQuotaPlatforms 与最后一个重建 CHECK 的迁移 %s 不一致（重建链：%v）。\n"+
 			"新增/删除平台时必须同时追加一个收紧 CHECK 的新迁移——"+
-			"已发布迁移受 checksum 保护，不能原地修改。", nationalPlatformRenameMigration)
+			"已发布迁移受 checksum 保护，不能原地修改。", final, chain)
 }
 
-// 230（上游原 224，本 fork 改号排到 229 之后）重建的是同一份名单，
-// 两份 CHECK 必须逐字一致，否则后跑的那个会把前一个的收敛结果改掉。
-func TestQuotaPlatformCheckIsConsistentAcrossMigrations(t *testing.T) {
-	require.Equal(t,
-		parsePlatformCheckWhitelist(t, nationalPlatformRenameMigration),
-		parsePlatformCheckWhitelist(t, "230_user_platform_quotas_add_cn_providers.sql"),
-		"229 与 230 的 platform CHECK 名单必须一致：230 排在后面，它才是最终生效的那份")
+// 重建链上后跑的那份不得把运行时白名单里仍在用的平台**去掉**：
+// 去掉就意味着后台校验放行、INSERT 撞 DB CHECK，注册路径 fail-open 吞错后
+// 新用户拿到零条配额行 = 全平台无限额（本仓已发生过四次的那类事故）。
+// 允许后一份是前一份的超集（上游 237 就是在 230 基础上加 minimax）。
+func TestQuotaPlatformCheckNeverDropsAnActivePlatform(t *testing.T) {
+	chain := latestPlatformCheckMigrations(t)
+	active := make(map[string]struct{}, len(AllowedQuotaPlatforms))
+	for _, p := range AllowedQuotaPlatforms {
+		active[p] = struct{}{}
+	}
+
+	for _, name := range chain {
+		got := parsePlatformCheckWhitelist(t, name)
+		present := make(map[string]struct{}, len(got))
+		for _, p := range got {
+			present[p] = struct{}{}
+		}
+		// 只对链上最后一份做全量相等断言（上面那个用例负责）；
+		// 中间各份只要求不比运行时白名单更窄的部分是**有意为之**——
+		// 即：凡是它删掉的平台，必须在更靠后的迁移里被重新加回来。
+		if name == chain[len(chain)-1] {
+			continue
+		}
+		for p := range active {
+			if _, ok := present[p]; ok {
+				continue
+			}
+			// 该平台在这一份里缺席，必须在更靠后的某一份里出现
+			found := false
+			for _, later := range chain {
+				if later <= name {
+					continue
+				}
+				for _, lp := range parsePlatformCheckWhitelist(t, later) {
+					if lp == p {
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+			require.True(t, found,
+				"平台 %q 在 AllowedQuotaPlatforms 里，但迁移 %s 的 CHECK 没有它，"+
+					"且之后也没有任何迁移把它加回来（重建链：%v）", p, name, chain)
+		}
+	}
 }
 
 // ent 的构建期校验器必须与 AllowedQuotaPlatforms 完全同集：

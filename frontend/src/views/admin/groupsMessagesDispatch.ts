@@ -27,6 +27,12 @@ function getDefaultModelsForPlatform(platform?: GroupPlatform | null): {
       return { opus: "kimi-k2.6", sonnet: "kimi-k2.6", haiku: "kimi-k2.6" };
     case "zhipu":
       return { opus: "glm-4.6", sonnet: "glm-4.6", haiku: "glm-4.5-air" };
+    case "minimax":
+      // 本仓尚未确认 MiniMax 的调度兜底型号（价目表里的 minimax-m3 / m2.7 是展示口径，
+      // 不等于调度口径），所以留空由管理员显式填写——与后端
+      // defaultMessagesDispatchModels 对 minimax 返回空串保持一致。
+      // 绝不能落到下面的 gpt-5.x 默认值。
+      return { opus: "", sonnet: "", haiku: "" };
     default:
       return { opus: "gpt-5.4", sonnet: "gpt-5.3-codex", haiku: "gpt-5.4-mini" };
   }
@@ -47,6 +53,9 @@ const MESSAGES_DISPATCH_PLATFORMS: GroupPlatform[] = [
   "deepseek",
   "kimi",
   "zhipu",
+  // 上游 0.2.4 新增，已进 IsCNProvider：后端会保留并使用它的分组级映射，
+  // 这里不列出来的话，管理员就看不到也改不了那份仍在生效的配置。
+  "minimax",
 ];
 
 export function supportsMessagesDispatchPlatform(

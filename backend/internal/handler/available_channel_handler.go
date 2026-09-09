@@ -99,15 +99,19 @@ type userSupportedModelPricing struct {
 
 // userPricingIntervalDTO 定价区间白名单（去掉内部 ID、SortOrder 等前端不渲染的字段）。
 type userPricingIntervalDTO struct {
-	MinTokens         int      `json:"min_tokens"`
-	MaxTokens         *int     `json:"max_tokens"`
-	TierLabel         string   `json:"tier_label,omitempty"`
-	InputPrice        *float64 `json:"input_price"`
-	OutputPrice       *float64 `json:"output_price"`
-	CacheWritePrice   *float64 `json:"cache_write_price"`
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"`
-	CacheReadPrice    *float64 `json:"cache_read_price"`
-	PerRequestPrice   *float64 `json:"per_request_price"`
+	MinTokens            int      `json:"min_tokens"`
+	MaxTokens            *int     `json:"max_tokens"`
+	TierLabel            string   `json:"tier_label,omitempty"`
+	InputPrice           *float64 `json:"input_price"`
+	OutputPrice          *float64 `json:"output_price"`
+	CacheWritePrice      *float64 `json:"cache_write_price"`
+	CacheWrite1hPrice    *float64 `json:"cache_write_1h_price"`
+	CacheReadPrice       *float64 `json:"cache_read_price"`
+	InputMultiplier      *float64 `json:"input_multiplier"`
+	OutputMultiplier     *float64 `json:"output_multiplier"`
+	CacheWriteMultiplier *float64 `json:"cache_write_multiplier"`
+	CacheReadMultiplier  *float64 `json:"cache_read_multiplier"`
+	PerRequestPrice      *float64 `json:"per_request_price"`
 }
 
 // userSupportedModel 用户可见的支持模型条目。
@@ -531,13 +535,19 @@ func (h *AvailableChannelHandler) resolveGroupModelsByAccount(
 
 // groupCustomModelsList 取分组自定义模型列表中可展示的条目（去空、去重、去通配符）。
 // 通配符条目在网关侧是过滤 pattern，价格页展示不出具体单价，跳过。
+//
+// 字段来源在上游 0.2.4（cff3f8985，破坏性变更）从 ModelsListConfig 更名为
+// ModelAllowlist：同一份数据的语义由「仅影响模型列表展示」升级为「同时约束请求准入」。
+// 本函数只读它做展示，跟着改名即可；但要注意语义已经变了——
+// 本 fork 3aab54ba7 把这份列表当成价格页的「手动闸门」（可以加出账号没有的型号），
+// 而上游现在拿同一份列表在网关做白名单拒绝。两者叠加的后果见合并说明。
 func groupCustomModelsList(g *service.Group) []string {
-	if !g.CustomModelsListEnabled() {
+	if !g.ModelAllowlistEnabled() {
 		return nil
 	}
-	seen := make(map[string]struct{}, len(g.ModelsListConfig.Models))
-	out := make([]string, 0, len(g.ModelsListConfig.Models))
-	for _, model := range g.ModelsListConfig.Models {
+	seen := make(map[string]struct{}, len(g.ModelAllowlist.Models))
+	out := make([]string, 0, len(g.ModelAllowlist.Models))
+	for _, model := range g.ModelAllowlist.Models {
 		model = strings.TrimSpace(model)
 		if model == "" || strings.HasSuffix(model, "*") {
 			continue
@@ -799,15 +809,19 @@ func toUserPricingIntervals(src []service.PricingInterval) []userPricingInterval
 	intervals := make([]userPricingIntervalDTO, 0, len(src))
 	for _, iv := range src {
 		intervals = append(intervals, userPricingIntervalDTO{
-			MinTokens:         iv.MinTokens,
-			MaxTokens:         iv.MaxTokens,
-			TierLabel:         iv.TierLabel,
-			InputPrice:        iv.InputPrice,
-			OutputPrice:       iv.OutputPrice,
-			CacheWritePrice:   iv.CacheWritePrice,
-			CacheWrite1hPrice: iv.CacheWrite1hPrice,
-			CacheReadPrice:    iv.CacheReadPrice,
-			PerRequestPrice:   iv.PerRequestPrice,
+			MinTokens:            iv.MinTokens,
+			MaxTokens:            iv.MaxTokens,
+			TierLabel:            iv.TierLabel,
+			InputPrice:           iv.InputPrice,
+			OutputPrice:          iv.OutputPrice,
+			CacheWritePrice:      iv.CacheWritePrice,
+			CacheWrite1hPrice:    iv.CacheWrite1hPrice,
+			CacheReadPrice:       iv.CacheReadPrice,
+			InputMultiplier:      iv.InputMultiplier,
+			OutputMultiplier:     iv.OutputMultiplier,
+			CacheWriteMultiplier: iv.CacheWriteMultiplier,
+			CacheReadMultiplier:  iv.CacheReadMultiplier,
+			PerRequestPrice:      iv.PerRequestPrice,
 		})
 	}
 	return intervals

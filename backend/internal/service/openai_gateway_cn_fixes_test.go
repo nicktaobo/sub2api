@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,15 @@ import (
 // 原样透传到国产上游：轻则选号/上游 400，重则上游接受后被
 // filterCNProviderBillingModelCandidates 滤空候选 → 零成本落账。
 // 所以这里守的是「不得吃到 openai 专属型号」，达成方式是按平台各自兜底。
+//
+// 关于 MiniMax（本轮上游新增的 CN 平台，上游把它加进了同名用例的平台列表）：
+// 这里**故意**不纳入 want 表。defaultMessagesDispatchModels 目前没有 minimax 分支，
+// 本仓也没有确凿的 MiniMax 调度兜底型号可用——handler 侧的
+// defaultCodexModelIDsForPlatform / 前端白名单里的 MiniMax-M3 / M2.7 / M2.5
+// 是 /v1/models 展示列表口径，不等于调度兜底口径（且 haiku 档该落哪一档也无据可依）。
+// 随手编一个会把错误型号钉进回归基线。待人工确认兜底型号后，再同时补
+// defaultMessagesDispatchModels 的 minimax 分支和这里的 want 条目；在那之前
+// minimax 分组仍会落到 gpt-5.x 默认值，属已知缺口（见合并 followups）。
 func TestResolveMessagesDispatchModel_CNProvidersUsePlatformDefaults(t *testing.T) {
 	want := map[string]string{
 		PlatformKimi:     "kimi-k2.6",
@@ -120,7 +130,7 @@ func TestResponsesStreamingFromNativeAnthropic_ClientDisconnectDrainsUsage(t *te
 }
 
 func TestHandle403_CNProviderHTMLBodySkipsAccountPenalty(t *testing.T) {
-	for _, platform := range []string{PlatformKimi, PlatformZhipu, PlatformDeepseek} {
+	for _, platform := range []string{PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax} {
 		repo := &rateLimitAccountRepoStub{}
 		service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 		account := &Account{ID: 401, Platform: platform, Type: AccountTypeAPIKey}
@@ -267,4 +277,49 @@ func TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy(t *testi
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls, "non-exact 403 must retain existing permission/auth protection")
 	require.Equal(t, 0, repo.tempCalls)
+}
+
+// 泛化守卫：无论上游以后再加多少个国产平台，CN 分组的调度兜底都不得吐出
+// openai 专属型号。上一轮（0.2.4 加 minimax）正是因为只有逐平台 case、
+// default 直落 gpt-5.x，导致 MiniMax 分组会把 gpt-5.4 发给 api.minimaxi.com。
+// 这条用例按 IsCNProvider 遍历全部国产平台，新增平台会自动纳入，不用改测试。
+func TestDefaultMessagesDispatchModels_NoCNPlatformFallsBackToOpenAIModels(t *testing.T) {
+	cnPlatforms := []string{}
+	for _, p := range AllowedQuotaPlatforms {
+		if IsCNProvider(p) {
+			cnPlatforms = append(cnPlatforms, p)
+		}
+	}
+	require.NotEmpty(t, cnPlatforms, "AllowedQuotaPlatforms 里应当有国产平台")
+
+	for _, platform := range cnPlatforms {
+		g := &Group{Platform: platform}
+		opus, sonnet, haiku := g.defaultMessagesDispatchModels()
+		for _, got := range []string{opus, sonnet, haiku} {
+			require.NotContains(t, got, "gpt-",
+				"CN 平台 %s 的调度兜底不得是 openai 专属型号（拿到 %q）；"+
+					"新增国产平台要么在 defaultMessagesDispatchModels 里补 case，"+
+					"要么让它落到返回空的 IsCNProvider 分支", platform, got)
+		}
+	}
+}
+
+// 泛化守卫：命中 fork 的 CN Anthropic 直通分支的平台，必须都能拼出上游 URL。
+// usesLegacyCNAnthropicDirect 的条件是「APIKey 账号 + IsCNProvider + 没写 api_protocol」，
+// 上游新增国产平台会自动满足它；buildAnthropicDirectMessagesURL 少一个 case
+// 就返回空串、forwardAnthropicDirect 直接报 unsupported platform。
+func TestBuildAnthropicDirectMessagesURL_CoversEveryCNPlatform(t *testing.T) {
+	for _, platform := range AllowedQuotaPlatforms {
+		if !IsCNProvider(platform) {
+			continue
+		}
+		account := &Account{Platform: platform, Type: AccountTypeAPIKey}
+		require.True(t, usesLegacyCNAnthropicDirect(account),
+			"CN 平台 %s 的 APIKey 账号（未配 api_protocol）应命中直通分支", platform)
+		got := buildAnthropicDirectMessagesURL(account)
+		require.NotEmpty(t, got,
+			"buildAnthropicDirectMessagesURL 缺 %s 分支：会返回空串并让 forwardAnthropicDirect 报 unsupported platform", platform)
+		require.True(t, strings.HasSuffix(got, "/messages"),
+			"CN 平台 %s 拼出的直通 URL 应以 /messages 结尾，实际 %q", platform, got)
+	}
 }

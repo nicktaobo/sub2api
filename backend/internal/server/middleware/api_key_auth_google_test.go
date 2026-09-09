@@ -952,3 +952,46 @@ func TestApiKeyAuthWithSubscriptionGoogle_SuspendedMerchantSubUser(t *testing.T)
 	require.Equal(t, "Merchant is suspended", resp.Error.Message)
 	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
 }
+
+// 与主中间件的 TestAPIKeyAuthRejectsSuspendedMerchantSubUserInSimpleMode 对称：
+// Gemini / Antigravity 入口的停用商户守卫同样必须排在 SimpleMode 提前返回之前，
+// 否则 SimpleMode 部署下这两条入口整体绕过商户停用拦截（已停用商户的子用户照常调用）。
+// 上一轮合并前这条入口只有 Standard 模式的用例，顺序回归保护是不对称的。
+func TestAPIKeyAuthGoogleRejectsSuspendedMerchantSubUserInSimpleMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	merchantID := int64(9101)
+	user := &service.User{
+		ID: 9102, Role: service.RoleUser, Status: service.StatusActive,
+		Balance: 10, Concurrency: 3, ParentMerchantID: &merchantID,
+	}
+	apiKey := &service.APIKey{ID: 9103, UserID: user.ID, Key: "google-merchant-suspended-simple", Status: service.StatusActive, User: user}
+
+	r := gin.New()
+	apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{
+		getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+			if key != apiKey.Key {
+				return nil, service.ErrAPIKeyNotFound
+			}
+			clone := *apiKey
+			userClone := *user
+			clone.User = &userClone
+			return &clone, nil
+		},
+	})
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	cfg.Merchant.Enabled = true
+	r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg, newSuspendedMerchantRepo()))
+	r.GET("/v1beta/test", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.Header.Set("x-goog-api-key", apiKey.Key)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code,
+		"SimpleMode 下停用商户子用户必须仍被拦截：守卫要排在 SimpleMode 提前返回之前")
+	var resp googleErrorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, "Merchant is suspended", resp.Error.Message)
+}

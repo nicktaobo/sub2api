@@ -2,7 +2,7 @@ package service
 
 import "testing"
 
-func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelsListConfig(t *testing.T) {
+func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelAllowlist(t *testing.T) {
 	groupID := int64(9)
 	svc := &APIKeyService{}
 
@@ -35,7 +35,7 @@ func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelsListConfig(t *testing.
 		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
 	}
 	if ok {
-		t.Fatalf("expected v10 auth snapshot to be rejected after models_list_config was added")
+		t.Fatalf("expected v10 auth snapshot to be rejected after model_allowlist was added")
 	}
 	if apiKey != nil {
 		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
@@ -290,16 +290,43 @@ func TestAPIKeyService_RejectsV23AuthSnapshotFromEitherLineage(t *testing.T) {
 	}
 }
 
-// 版本号必须严格大于所有已知的撞号版本（v16…v23 各两条血脉，其中 v22 只有上游用过），
-// 否则旧缓存会被误判有效。v23 是第八次撞号：上游 0.2.1 加
-// group.codex_models_manifest_config 后 bump 到 23，而本 fork 上一轮已经在 23。
-// 合并后的快照是两侧并集，所以下界抬到 23，本 fork 用 24 越过。
+func TestAPIKeyService_RejectsV24AuthSnapshotFromEitherLineage(t *testing.T) {
+	svc := &APIKeyService{}
+
+	// 第九次撞号：本地 v24 = 上一轮两条血脉的合并产物（字段名还是 models_list_config）；
+	// 上游 v24（0.2.4 cff3f8985「enforce model allowlists」）= 上游 v23 +
+	// group.model_allowlist（models_list_config 更名且语义升级为准入白名单），
+	// 依旧没有本 fork 的 parent_merchant_id / affiliate_rebate_excluded。
+	//
+	// 这一轮的零值方向尤其要留意：model_allowlist 读成零值即 Enabled=false，
+	// 也就是「放行全部」——命中上游血脉的 v24 遗留条目时，
+	// fork 的 merchant 停用守卫静默失效（要害），而白名单本身是**失效放行**，
+	// 不会造成误拒，但同样等于准入约束静默消失。两个方向都不可接受，一律淘汰回源。
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-v24", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: 24},
+	})
+
+	if err != nil {
+		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
+	}
+	if ok {
+		t.Fatal("expected v24 auth snapshot to be rejected: the local v24 lineage lacks group.model_allowlist while the upstream v24 lineage lacks the fork's parent_merchant_id/affiliate_rebate_excluded")
+	}
+	if apiKey != nil {
+		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
+	}
+}
+
+// 版本号必须严格大于所有已知的撞号版本（v16…v24 各两条血脉，其中 v22 只有上游用过），
+// 否则旧缓存会被误判有效。v24 是第九次撞号：上游 0.2.4 把 group.models_list_config
+// 更名为 model_allowlist 并升级成准入白名单后 bump 到 24，而本 fork 上一轮已经在 24。
+// 合并后的快照是两侧并集，所以下界抬到 24，本 fork 用 25 越过。
 // 上游每给 group 加一个进快照的字段就 bump 一次（偶尔还会忘记 bump，见 aa7a811e6），
-// 本 fork 也在加；下轮合并若上游再 bump 到 24，常量与这里的 lastCollidedVersion
+// 本 fork 也在加；下轮合并若上游再 bump 到 25，常量与这里的 lastCollidedVersion
 // 必须一并继续抬高，不能沿用。
 func TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages(t *testing.T) {
-	const lastCollidedVersion = 23
+	const lastCollidedVersion = 24
 	if apiKeyAuthSnapshotVersion <= lastCollidedVersion {
-		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16..v23 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
+		t.Fatalf("apiKeyAuthSnapshotVersion must be > %d after merging the conflicting v16..v24 lineages, got %d", lastCollidedVersion, apiKeyAuthSnapshotVersion)
 	}
 }

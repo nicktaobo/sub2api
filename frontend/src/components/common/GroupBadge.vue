@@ -156,6 +156,7 @@ const labelClass = computed(() => {
     zhipu: 'bg-indigo-200/60 text-indigo-800 dark:bg-indigo-800/40 dark:text-indigo-300',
     deepseek: 'bg-teal-200/60 text-teal-800 dark:bg-teal-800/40 dark:text-teal-300',
     grok: 'bg-zinc-300/70 text-zinc-800 dark:bg-zinc-700/60 dark:text-zinc-200',
+    minimax: 'bg-rose-200/60 text-rose-800 dark:bg-rose-800/40 dark:text-rose-300',
     composite: 'bg-cyan-200/70 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-300',
   }
   return `${base} ${labelColors[props.platform || ''] || 'bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300'}`
@@ -175,6 +176,7 @@ const BADGE_COLORS: Record<string, { sub: string; std: string }> = {
   zhipu:       { sub: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',    std: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400' },
   deepseek:    { sub: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',            std: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400' },
   grok:        { sub: 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100',               std: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200' },
+  minimax:     { sub: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',            std: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400' },
   composite:   { sub: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',            std: 'bg-cyan-50 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300' },
 }
 const BADGE_DEFAULT = { sub: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', std: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400' }

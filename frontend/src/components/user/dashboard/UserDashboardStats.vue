@@ -228,6 +228,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { UserDashboardStats as UserStatsType } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
+import { QUOTA_PLATFORM_ORDER } from '@/constants/platforms'
 
 interface FusedPlatformCard {
   platform: string
@@ -251,7 +252,12 @@ const PLATFORM_LABELS: Record<string, string> = {
   anthropic: 'Claude',
   openai: 'OpenAI',
   gemini: 'Gemini',
-  antigravity: 'Antigravity'
+  antigravity: 'Antigravity',
+  grok: 'Grok',
+  kimi: 'Kimi',
+  zhipu: 'Zhipu GLM',
+  deepseek: 'DeepSeek',
+  minimax: 'MiniMax',
 }
 
 const platformLabel = (p: string) => PLATFORM_LABELS[p] ?? p
@@ -278,7 +284,9 @@ const platformCards = computed<FusedPlatformCard[]>(() => {
   // 无需显式排除；__other__ 由下方差值补差逻辑单独追加。
   const platforms = new Set<string>([...byPlat.keys(), ...byQuota.keys()])
 
-  const PLATFORM_ORDER = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek']
+  // 这里的 platform 来自接口、可能是前端还不认识的新平台（走下面的 -1 分支按名排序），
+  // 所以按 string 比对，不要收窄成 AccountPlatform。
+  const PLATFORM_ORDER: readonly string[] = QUOTA_PLATFORM_ORDER
   const cards: FusedPlatformCard[] = []
 
   for (const p of platforms) {

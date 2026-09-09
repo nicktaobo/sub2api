@@ -88,7 +88,7 @@ func TestGroupCustomModelsList_PreservesAdminOrderAndFiltersNoise(t *testing.T) 
 	g := &service.Group{
 		ID:       1,
 		Platform: service.PlatformAnthropic,
-		ModelsListConfig: service.GroupModelsListConfig{
+		ModelAllowlist: service.GroupModelAllowlist{
 			Enabled: true,
 			Models:  []string{"claude-fable-5-1", " ", "claude-opus-5", "claude-fable-5-1", "claude-*"},
 		},
@@ -102,7 +102,7 @@ func TestGroupCustomModelsList_PreservesAdminOrderAndFiltersNoise(t *testing.T) 
 }
 
 func TestGroupCustomModelsList_DisabledOrEmpty(t *testing.T) {
-	disabled := &service.Group{ModelsListConfig: service.GroupModelsListConfig{
+	disabled := &service.Group{ModelAllowlist: service.GroupModelAllowlist{
 		Enabled: false,
 		Models:  []string{"claude-fable-5-1"},
 	}}
@@ -111,7 +111,7 @@ func TestGroupCustomModelsList_DisabledOrEmpty(t *testing.T) {
 	}
 
 	// enabled 但条目全是噪声 → 返回空，调用方回落到账号推断
-	noisy := &service.Group{ModelsListConfig: service.GroupModelsListConfig{
+	noisy := &service.Group{ModelAllowlist: service.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{"claude-*", "  "},
 	}}

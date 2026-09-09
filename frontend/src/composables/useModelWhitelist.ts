@@ -19,7 +19,7 @@ const openaiModels = [
   'gpt-5.3-codex-spark', 'codex-auto-review',
   'gpt-4o-audio-preview', 'gpt-4o-realtime-preview',
   // GPT Image 系列
-  'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'
+  'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'
 ]
 
 // Anthropic Claude
@@ -90,19 +90,30 @@ const antigravityModels = [
   'tab_flash_lite_preview'
 ]
 
-// 智谱 GLM（与官方在售列表同步，已移除下架模型）
+// 智谱 GLM（在售 SKU 按系列整理；glm-4 早期档 / glm-3 / chatglm_* / cogview / cogvideo
+// 等历史型号跟随上游保留，仅供选择器兼容——后端 fallbackPrices 未覆盖这些老型号，
+// 命中与否取决于 LiteLLM 价目表，否则按 TokenPricingAbsent 失败关闭）
 const zhipuModels = [
   // GLM-5 系列
+  'glm-5.3', 'glm-5.3-flash', 'glm-5.2',
   'GLM-5.1', 'glm-5.1', 'glm-5', 'glm-5-turbo',
   // GLM-4.7 系列
   'glm-4.7', 'glm-4.7-flashx', 'glm-4.7-flash',
   // GLM-4.6 / 4.5 系列
-  'glm-4.6', 'glm-4.5-air', 'glm-4.5-airx', 'glm-4.5-flash',
+  'glm-4.6', 'glm-4.5', 'glm-4.5-x', 'glm-4.5-air', 'glm-4.5-airx', 'glm-4.5-flash',
   // GLM-4 系列
-  'glm-4-long', 'glm-4-flashx-250414', 'glm-4-flash-250414',
+  'glm-4', 'glm-4-plus', 'glm-4-0520', 'glm-4-air', 'glm-4-airx',
+  'glm-4-long', 'glm-4-flash', 'glm-4-flashx-250414', 'glm-4-flash-250414',
+  'glm-4-alltools',
+  // GLM-3 / ChatGLM 历史型号
+  'glm-3-turbo',
+  'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
   // 视觉模型
   'glm-5v-turbo', 'glm-4.6v', 'glm-4.6v-flash',
-  'glm-4.1v-thinking-flashx', 'glm-4.1v-thinking-flash', 'glm-4v-flash',
+  'glm-4.1v-thinking-flashx', 'glm-4.1v-thinking-flash',
+  'glm-4v', 'glm-4v-plus', 'glm-4v-flash',
+  // 图像 / 视频生成
+  'cogview-3', 'cogvideo',
   // 专用模型
   'codegeex-4', 'charglm-4'
 ]
@@ -208,6 +219,14 @@ const doubaoModels = [
 
 // MiniMax
 const minimaxModels = [
+  'MiniMax-M3',
+  'MiniMax-M2.7',
+  'MiniMax-M2.7-highspeed',
+  'MiniMax-M2.5',
+  'MiniMax-M2.5-highspeed',
+  'MiniMax-M2.1',
+  'MiniMax-M2.1-highspeed',
+  'MiniMax-M2',
   'abab6.5-chat', 'abab6.5s-chat', 'abab6.5s-chat-pro',
   'abab6-chat',
   'abab5.5-chat', 'abab5.5s-chat'
@@ -334,6 +353,17 @@ const kimiPresetMappings = [
   { label: 'Moonshot V1 8K', from: 'moonshot-v1-8k', to: 'moonshot-v1-8k', color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-400' },
   { label: 'Moonshot V1 32K', from: 'moonshot-v1-32k', to: 'moonshot-v1-32k', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400' },
   { label: 'Moonshot V1 128K', from: 'moonshot-v1-128k', to: 'moonshot-v1-128k', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400' }
+]
+
+// MiniMax 预设映射（上游 0.2.4 新增平台）。取值取自本文件 minimaxModels 白名单，
+// 恒等映射，与 kimi/zhipu 同型。不加这段的话 getPresetMappingsByPlatform 会回落到
+// anthropicPresetMappings —— 给 MiniMax 账号配 model_mapping 时一键预设列出的是 Claude 型号。
+const minimaxPresetMappings = [
+  { label: 'MiniMax M3', from: 'MiniMax-M3', to: 'MiniMax-M3', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400' },
+  { label: 'MiniMax M2.7', from: 'MiniMax-M2.7', to: 'MiniMax-M2.7', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
+  { label: 'MiniMax M2.7 Highspeed', from: 'MiniMax-M2.7-highspeed', to: 'MiniMax-M2.7-highspeed', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-400' },
+  { label: 'MiniMax M2.5', from: 'MiniMax-M2.5', to: 'MiniMax-M2.5', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+  { label: 'MiniMax M2', from: 'MiniMax-M2', to: 'MiniMax-M2', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400' }
 ]
 
 // Zhipu GLM 预设映射
@@ -489,6 +519,7 @@ export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'deepseek') return deepseekPresetMappings
   if (platform === 'kimi') return kimiPresetMappings
   if (platform === 'zhipu') return zhipuPresetMappings
+  if (platform === 'minimax') return minimaxPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings

@@ -258,8 +258,12 @@ const CATEGORIES: { key: string; label: string }[] = [
   { key: 'deepseek', label: 'DeepSeek' },
   { key: 'qwen', label: 'Qwen 通义' },
   { key: 'glm', label: 'GLM 智谱' },
-  { key: 'kimi', label: 'Kimi · Moonshot' }
+  { key: 'kimi', label: 'Kimi · Moonshot' },
+  { key: 'minimax', label: 'MiniMax' }
 ]
+// 注：这里的 key 是**价目表品牌分类**，不是本站平台标识。
+// qwen 虽然作为平台已下线，但 LiteLLM 内置价目表里仍有 qwen 型号，
+// 去掉这个分类只会把它们挤进「其他」，故保留。
 
 function categoryOf(e: BuiltinPricingEntry): string {
   const m = e.model.toLowerCase()
@@ -270,6 +274,7 @@ function categoryOf(e: BuiltinPricingEntry): string {
   if (m.includes('qwen') || m.startsWith('qwq') || m.startsWith('qvq') || s.includes('qwen') || s.includes('dashscope')) return 'qwen'
   if (m.includes('glm') || s.includes('zhipu') || s.includes('z-ai') || s.includes('bigmodel')) return 'glm'
   if (m.includes('kimi') || m.includes('moonshot') || s.includes('moonshot')) return 'kimi'
+  if (m.includes('minimax') || s.includes('minimax')) return 'minimax'
   if (/^(gpt|o1|o3|o4|chatgpt|codex)/.test(m) || m.includes('gpt') || s.includes('openai')) return 'gpt'
   return 'other'
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// v24: 两条血脉已连续撞号八次（v16…v23），每次两侧各自 bump 到同一个号、语义却不同。
+// v25: 两条血脉已连续撞号九次（v16…v24），每次两侧各自 bump 到同一个号、语义却不同。
 // 本 fork 的常量必须始终**高于**两条血脉出现过的最大号，否则任一侧的遗留条目
 // 都会通过版本校验、而另一侧的字段反序列化成零值。
 // 撞号历史（每次两条血脉各自 bump 到同一个号，语义却不同）：
@@ -65,24 +65,49 @@ import (
 //     虽已存在，但 merchant/affiliate 缺口足以单独构成拒收理由。
 //
 //   - v23：**第八次撞号**，两侧语义再次完全不同：
-//     本地 v23 = 合并上述两条血脉的产物（本 fork 的 merchant/affiliate/长上下文计费
-//
-//   - 上游的 force/free_openai_fast + max_reasoning_effort_over_limit 全在）；
+//     本地 v23 = 合并上述两条血脉的产物（本 fork 的 merchant/affiliate/长上下文计费 +
+//     上游的 force/free_openai_fast + max_reasoning_effort_over_limit 全在）；
 //     上游 v23（0.2.1「feat(codex): pinned-accounts Codex model manifest」）=
 //     上游 v22 + group.codex_models_manifest_config（迁移
 //     234_group_codex_models_manifest_config），字段集里依旧**没有**本 fork 的
 //     merchant/affiliate 字段。
 //
 // 合并后的快照同时携带两侧全部字段，因此必须越过 23：
+//
 //   - 命中本地血脉的 v23 遗留条目 ⇒ CodexModelsManifestConfig 读成零值，
 //     固定账号 Codex manifest 静默退回全量调度（功能降级，不影响计费）。
+//
 //   - 命中上游血脉的 v23 遗留条目 ⇒ 本 fork 的 merchant/affiliate 字段读成
 //     nil/false，MERCHANT-SYSTEM 停用商户拦截守卫静默失效、返利排除失效（要害）。
 //
-// 守卫测试见 TestAPIKeyService_RejectsV21… / …RejectsV22… / …RejectsV23… 与
-// TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages（lastCollidedVersion = 23）。
-// 下轮合并若上游再撞到 24，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
-const apiKeyAuthSnapshotVersion = 24
+//   - v24：**第九次撞号**，两侧语义再次完全不同：
+//     本地 v24 = 合并上述两条 v23 血脉的产物（本 fork 的 merchant/affiliate/长上下文计费 +
+//     上游的 force/free_openai_fast + max_reasoning_effort_over_limit +
+//     codex_models_manifest_config 全在），分组模型名单仍是老字段
+//     Group.ModelsListConfig（JSON 键 models_list_config，语义仅过滤 /v1/models 展示）；
+//     上游 v24（0.2.4 cff3f8985「feat(groups)!: enforce model allowlists across gateway
+//     endpoints」）= 上游 v23 + models_list_config 更名 model_allowlist
+//     （快照 JSON 键同步改成 model_allowlist），语义升级为**同时约束网关请求准入**
+//     （新增 GroupModelAllowlist 中间件挂到各网关路由），字段集里依旧**没有**本 fork 的
+//     merchant/affiliate 字段。
+//
+// 合并后的快照同时携带两侧全部字段（本 fork 的 merchant/affiliate + 上游更名后的
+// model_allowlist），因此必须越过 24：
+//
+//   - 命中本地血脉的 v24 遗留条目 ⇒ 旧 JSON 键 models_list_config 无人认领，
+//     Group.ModelAllowlist 读成零值（Enabled=false、Models=nil）⇒ ModelAllowlistEnabled()
+//     恒假、GroupModelAllowlist 中间件走快速放行路径：分组模型白名单准入静默失效
+//     （名单外模型照常调用，越权放行），/v1/models 展示过滤同时失效。
+//
+//   - 命中上游血脉的 v24 遗留条目 ⇒ 本 fork 的 user.parent_merchant_id 与
+//     group.affiliate_rebate_excluded 读成 nil/false，MERCHANT-SYSTEM 停用商户拦截守卫
+//     静默失效、返利排除失效（要害）。
+//
+// 守卫测试见 TestAPIKeyService_RejectsV21… / …RejectsV22… / …RejectsV23… /
+// …RejectsV24… 与 TestAPIKeyAuthSnapshotVersion_IsPastAllCollidedLineages
+// （lastCollidedVersion = 24）。
+// 下轮合并若上游再撞到 25，常量与该测试的 lastCollidedVersion 必须一并继续抬高。
+const apiKeyAuthSnapshotVersion = 25
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -491,7 +516,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			FreeOpenAIFast:                  apiKey.Group.FreeOpenAIFast,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
-			ModelsListConfig:                apiKey.Group.ModelsListConfig,
+			ModelAllowlist:                  apiKey.Group.ModelAllowlist,
 			CodexModelsManifestConfig:       apiKey.Group.CodexModelsManifestConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			AffiliateRebateExcluded:         apiKey.Group.AffiliateRebateExcluded,
@@ -595,7 +620,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			FreeOpenAIFast:                  snapshot.Group.FreeOpenAIFast,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
-			ModelsListConfig:                snapshot.Group.ModelsListConfig,
+			ModelAllowlist:                  snapshot.Group.ModelAllowlist,
 			CodexModelsManifestConfig:       snapshot.Group.CodexModelsManifestConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			AffiliateRebateExcluded:         snapshot.Group.AffiliateRebateExcluded,

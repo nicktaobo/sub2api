@@ -122,11 +122,22 @@ func (g *Group) defaultMessagesDispatchModels() (opus, sonnet, haiku string) {
 		return "kimi-k2.6", "kimi-k2.6", "kimi-k2.6"
 	case PlatformZhipu:
 		return "glm-4.6", "glm-4.6", "glm-4.5-air"
-	default:
-		return defaultOpenAIMessagesDispatchOpusMappedModel,
-			defaultOpenAIMessagesDispatchSonnetMappedModel,
-			defaultOpenAIMessagesDispatchHaikuMappedModel
 	}
+
+	// 上游每加一个国产平台（本轮 0.2.4 的 minimax），它就会自动进 IsCNProvider，
+	// 而本 fork 的 sanitizeGroupMessagesDispatchFields 会保留 CN 分组的分组级映射，
+	// 于是新平台会一路走到这里。没有确认过兜底型号时**必须**返回空，
+	// 绝不能落到下面的 openai 默认值：把 gpt-5.x 发给国产上游必然出错，
+	// 且一旦上游接受，filterCNProviderBillingModelCandidates 可能滤空候选 → 零成本落账。
+	// 返回空即跟随上游对 CN 的口径：不做分组级改写，交给账号级 model_mapping。
+	// 待商务确认某平台的兜底型号后，在上面的 switch 里补一个 case 即可。
+	if IsCNProvider(g.Platform) {
+		return "", "", ""
+	}
+
+	return defaultOpenAIMessagesDispatchOpusMappedModel,
+		defaultOpenAIMessagesDispatchSonnetMappedModel,
+		defaultOpenAIMessagesDispatchHaikuMappedModel
 }
 
 func sanitizeGroupMessagesDispatchFields(g *Group) {
